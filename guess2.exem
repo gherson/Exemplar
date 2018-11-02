@@ -1,0 +1,23 @@
+10
+"too high"
+i1 > 4c
+
+2
+"too low"
+i1 < 4c
+
+4
+"good job"
+i1 == 4c
+
+6
+"too high"
+i1 > 4c
+
+5
+"too high"
+i1 > 4c
+
+1
+"too low"
+i1 < 4c

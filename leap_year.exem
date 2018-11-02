@@ -1,0 +1,47 @@
+"""
+leapYear(int year):
+returns true iff
+* the year is divisible by 4 and not divisible by 100 (e.g. 2012, 2016, 2020, 2024). 
+* or the year is divisible by 400 (e.g. 2000, 2400, 2800).
+
+(After swapping in SQL for dicts) Exemplar correctly turned the below examples into
+if i1 % 400 == 0:
+	return True
+elif i1 % 4 == 0 and i1 % 100 != 0:
+	return True
+else:  # True
+	return False
+   
+on its first try, 2018-02-24.   
+"""
+2012
+True
+i1 % 4 == 0 and i1 % 100 != 0
+
+2000
+True
+i1 % 400 == 0
+
+2013
+False
+True
+
+2014
+False
+True
+
+2015
+False
+True
+
+2016
+True
+i1 % 4 == 0 and i1 % 100 != 0
+
+2020
+True
+i1 % 4 == 0 and i1 % 100 != 0
+
+2400
+True
+i1 % 400 == 0

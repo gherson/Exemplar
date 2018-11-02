@@ -1,0 +1,61 @@
+"""
+Exemplar turns below "trace" into
+
+if i1 % 3 == 0 and i1 % 5 == 0:
+	return 'FizzBuzz'
+elif i1 % 3 == 0:
+	return 'Fizz'
+elif i1 % 5 == 0:
+	return 'Buzz'
+else:  # True
+	return i1
+
+2017-12-18.
+
+"""
+1
+i1
+True  # This means: "none of the above"; no condition is necessary; guard with ELSE.
+
+2
+i1
+True
+
+3
+"Fizz"
+i1 % 3 == 0
+
+4
+i1
+True
+
+5
+"Buzz"
+i1 % 5 == 0
+
+6
+"Fizz"
+i1 % 3 == 0
+
+7
+i1
+True
+
+8
+i1
+
+9
+"Fizz"
+i1 % 3 == 0
+
+10
+"Buzz"
+i1 % 5 == 0
+
+15
+"FizzBuzz"
+i1 % 3 == 0 and i1 % 5 == 0
+
+30
+"FizzBuzz"
+i1 % 3 == 0 and i1 % 5 == 0

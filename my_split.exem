@@ -1,0 +1,46 @@
+"""
+Split i1 at space/s (discarding them) into returned list of substrings. Example:
+>>> first, second = "1,  2".split() 
+>>> first
+'1,'
+>>> second
+'2'
+
+note:
+From example "yo"\n[i1]\ni1.count(" ") == 0:
+
+  File "C:\Users\George\Dropbox\Code\Python\GitHub\Traceur\Exemplar.py", line 269, in build_reason_evals
+    exec("reason = " + a_reason, {"i1": an_inp}, locals_dict)
+  File "<string>", line 1, in <module>
+AttributeError: 'int' object has no attribute 'count'
+This demo's that Exemplar cannot run eval() indiscriminately without trapping errors.
+
+In the below non-degenerate examples, I'm going right to left through i1's characters, looking for spaces.
+
+scratch:
+# i1.find(" ") == 1
+"y o".count(" ")
+
+"my  ,  split"
+["my", ",", "split"]
+i1.
+"""
+0
+"Error: text only input"
+type(i1) is not str
+
+"yo"
+[i1]
+(len(i1)-1) >= 0, i1[len(i1)-1] != " ",
+(len(i1)-2) >= 0, i1[len(i1)-2] != " ",
+(len(i1)-3) < 0
+
+"y o"
+[i1[0], i1[2]]
+(len(i1)-1) >= 0, i1[len(i1)-1] != " ",
+(len(i1)-2) >= 0, i1[len(i1)-2] == " ",
+(len(i1)-3) >= 0, i1[len(i1)-3] != " ",
+(len(i1)-4) < 0 
+
+"y o gi"
+[i1[0], i1[2], i1[4:6]

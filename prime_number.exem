@@ -1,0 +1,56 @@
+"""
+"A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller natural numbers." 
+Considering the case of # 2, it fits the definition of prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+
+todo These examples are to be enabled
+1008
+False
+
+1009
+True
+
+todo Det what to do about the (i1-1)>2c conditions because can't rely on user to give them.
+
+@title Describe the target function for its docstring this way or:
+    :param line:  String to denude of possible line comment.
+    :return:
+"""
+2
+True
+i1 == 2c
+
+3
+True
+i1 % (i1-1) != 0c, (i1-1)==2c
+
+4
+False
+i1 % (i1-1) != 0c, (i1-1)>2c, 
+i1 % (i1-2) == 0c
+
+5
+True
+i1 % (i1-1) != 0c, (i1-1)>2c, 
+i1 % (i1-2) != 0c, (i1-2)>2c, 
+i1 % (i1-3) != 0c, (i1-3)==2c
+
+6
+False
+i1 % (i1-1) != 0c, (i1-1)>2c, 
+i1 % (i1-2) != 0c, (i1-2)>2c, 
+i1 % (i1-3) != 0c, (i1-3)>2c, 
+i1 % (i1-4) == 0c  # todo Get "not (i1 % (i1-4) != 0c)" working here as well.
+
+0
+"input < 1 is illegal"
+i1 < 1c
+
+1
+False
+i1 == 1c 
+
+1008
+False
+
+1009
+True
