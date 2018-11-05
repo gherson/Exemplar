@@ -351,7 +351,71 @@ class TestExemplar(unittest.TestCase):
 ('i1 < 1', 'i1 == 1')]"""
         self.assertEqual(expected, exemplar.dump_table("pretests"))
 
-    """ Example tests:
+    def test_gen_tests1(self):
+        expected = """def test_testing1(self):
+    self.assertEqual(True, testing(2))
+
+def test_testing2(self):
+    self.assertEqual(True, testing(3))
+
+def test_testing3(self):
+    self.assertEqual(False, testing(4))
+
+def test_testing4(self):
+    self.assertEqual(True, testing(5))
+
+def test_testing5(self):
+    self.assertEqual(False, testing(6))
+
+def test_testing6(self):
+    self.assertEqual("input < 1 is illegal", testing(0))
+
+def test_testing7(self):
+    self.assertEqual(False, testing(1))
+
+def test_testing8(self):
+    self.assertEqual(False, testing(1008))
+
+def test_testing9(self):
+    self.assertEqual(True, testing(1009))
+
+"""
+        self.assertEqual(expected, exemplar.gen_tests("testing"))
+
+    def test_gen_tests2(self):
+        exemplar.reset_db()  # Empty the database.
+        exemplar.parse_trace(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
+        expected = """def test_testing1(self):
+    self.assertEqual(True, testing(2))
+
+"""
+        self.assertEqual(expected, exemplar.gen_tests("testing"))
+
+    def test_underscore_to_camelcase1(self):
+        expected = "CamelCase"
+        self.assertEqual(expected, exemplar.underscore_to_camelcase("camel_case"))
+
+    def test_underscore_to_camelcase2(self):
+        expected = 'Get_ThisValue'
+        self.assertEqual(expected, exemplar.underscore_to_camelcase('get__this_value'))
+
+    def test_underscore_to_camelcase3(self):
+        expected = '_Get_ThisValue'
+        self.assertEqual(expected, exemplar.underscore_to_camelcase('_get__this_value'))
+
+    def test_underscore_to_camelcase4(self):
+        expected = '_Get_ThisValue_'
+        self.assertEqual(expected, exemplar.underscore_to_camelcase('_get__this_value_'))
+
+    def test_underscore_to_camelcase5(self):
+        expected = 'GetThisValue'
+        self.assertEqual(expected, exemplar.underscore_to_camelcase('get_this_value'))
+
+    def test_underscore_to_camelcase6(self):
+        expected = 'Get_This_Value'
+        self.assertEqual(expected, exemplar.underscore_to_camelcase('get__this__value'))
+
+    """Example tests:
     Prototype:
     def test_(self):
         expected = ""

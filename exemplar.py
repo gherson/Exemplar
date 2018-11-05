@@ -2,6 +2,8 @@ import sys
 import sqlite3  # See reset_db()
 import re
 from inspect import currentframe, getframeinfo  # For line #
+import importlib  # To import and run the test file we create.
+import unittest
 
 debug = True  # Set to True for more feedback.
 debug_db = True  # True dumps db to screen near the end of each test.
@@ -790,6 +792,35 @@ def dump_table(table) -> str:
     return '[' + print_me[0:-2] + ']'  # Rtrim last ',\n'
 
 
+def gen_tests(f_name):
+    """
+    Generate the text of a unit test file that exercises the target function with the given i/o.
+    """
+    cursor.execute('''SELECT inp, output FROM examples''')
+    all_examples = cursor.fetchall()
+    code = ""
+    i = 1  # For appending to the test name.
+    for row in all_examples:
+        inp, output = row
+        code += "def test_" + f_name + str(i) + "(self):\n"
+        code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
+        code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
+        i += 1
+    return code
+
+
+def underscore_to_camelcase(s):
+    """Take the underscore-separated string s and return a CamelCase equivalent.  Initial and final underscores
+    are preserved, and medial pairs of underscores are turned into a single underscore.
+    Ref: https://stackoverflow.com/a/4303543/575012"""
+    def camelcase_words(words):
+        for word in words:
+            if not word:
+                yield "_"
+            yield word.capitalize()
+    return ''.join(camelcase_words(s.split('_')))
+
+
 def reverse_trace(file) -> str:
     """
     Reverse engineer a program from the given exemplar file.
@@ -832,45 +863,41 @@ def reverse_trace(file) -> str:
         print(dump_table("pretests"))
 
     # Use the info in the 3 tables to generate target code.
-    code = "def " + file[0:-5] + "(i1):\n"  # Put it into a function named after the input file.
-    for line in gen_code().splitlines(True):
-        code += "    " + line  # Prefixing 1 indent to create a function.
-
-    # Dump `code` just generated into a .py file.
-    try:
-        code_file = file[0:-5] + "_exem.py"
-        handle = open(code_file, 'w')  # Eg, hello_world_exem.py
-    except FileNotFoundError as err:  # Any other error catchable?
-        print(err)
-        sys.exit()
-    handle.write(code)
-    handle.close()
+    f_name = file[0:-5]  # target function's name
+    code = "def " + f_name + "(i1):\n"  # Put it into a function named after the input file.
+    for line in gen_code().splitlines(True):  # GENERATE CODE 
+        code += "    " + line                 # then add an indent to each line to create the target function.
     print("\n" + code + "\n")
 
-    # Create a test file for the .py file just created.
+    # Create a file of unit tests for the function just created.
+
+    tests = "import unittest\n\n\n" + code + "\n\n"  # TARGET FUNCTION ADDED AS WELL
+
+    class_name = "Test" + underscore_to_camelcase(f_name)
+    tests += "class " + class_name + "(unittest.TestCase):\n\n"
+    for line in gen_tests(f_name).splitlines(True):  # GENERATE TESTS
+        tests += "    " + line                       # Add an indent to each line, as each test is part of a class.
+    tests += "\nif __name__ == '__main__':\n    unittest.main()\n"
+    # Write the test file.
     try:
-        handle = open("test_" + file[0:-5] + "_exem.py", 'w')  # Eg, hello_world.exem -> test_hello_world_exem.py
+        test_file = class_name + ".py"
+        handle = open(test_file, 'w')  # Eg, hello_world.exem -> TestHelloWorld.py
     except FileNotFoundError as err:  # Any other error catchable?
         print(err)
         sys.exit()
-    handle.write("""import unittest
-import """ + code_file[0:-3] + """
-
-
-class TestExemplar(unittest.TestCase):
-    def test_split(self):
-        s = 'hello world'
-        self.assertEqual(s.split(), ['hello', 'world'])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)""")
+    handle.write(tests)
     handle.close()
-
+    print("\n" + tests + "\n")
     return code
 
-
-# If main, run
+# If main, run Exemplar against the named .exem file (then run tests).
 if __name__ == "__main__":
     if len(sys.argv) == 1 or sys.argv[1] == "":
-        exit("Usage: exemplar a_filename.exem")
-    reverse_trace(sys.argv[1])
+        exit("Usage: exemplar my_examples.exem")
+    class_name = "Test" + underscore_to_camelcase(sys.argv[1][0:-5])  # prime_number.exem -> TestPrimeNumber
+    reverse_trace(sys.argv[1])  # RUN ALL OF THE ABOVE
+
+    # Run the target function tests just created.
+    TestClass = importlib.import_module(class_name)
+    suite = unittest.TestLoader().loadTestsFromModule(TestClass)
+    unittest.TextTestRunner().run(suite)
