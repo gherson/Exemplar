@@ -1,23 +1,23 @@
 10
 "too high"
-i1 > 4c
+i1 > 4
 
 2
 "too low"
-i1 < 4c
+i1 < 4
 
 4
 "good job"
-i1 == 4c
+i1 == 4
 
 6
 "too high"
-i1 > 4c
+i1 > 4
 
 5
 "too high"
-i1 > 4c
+i1 > 4
 
 1
 "too low"
-i1 < 4c
+i1 < 4
