@@ -134,7 +134,8 @@ def final_condition(reason) -> str:
 
 def schematize(condition) -> str:
     """
-    Could have been called replace_increment('_'). Used to match iterations of the same loop step.  Example:
+    Could have been called replace_increment('_') because finds the increment in the given condition and replaces it
+    with underscore. Used to match iterations of the same loop step.  Example:
     Matching starts--v here. v--ends here.
           'i1 % (len(i1)-13) <= 0c'  ->
           'i1 % (len(i1)-_) <= 0c'
@@ -222,7 +223,7 @@ def parse_trace(examples) -> None:
                 # schematize to 'i1 % (i1-_) _ 0c' so should correlate to identical output (e.g., False).
                 # MAY need to ignore examples not loop_likely from sanity check.
                 last_cond = remove_c_labels(final_condition(reason))
-                # Commented out because it's not necessarily an error to have duplicate "schema" pointing
+                # todo Needs refinement because it's not necessarily an error to have duplicate "schema" pointing
                 # to the same output, as my_split.exem proved 10/23/18.
                 slast_cond = schematize(last_cond)  # schematize() necessary to avoid too many conditions in the WHILE line.
                 if slast_cond not in termination:  # if last_cond not in termination:
@@ -268,7 +269,7 @@ def mark_loop_likely() -> None:
 
 
 def remove_all_c_labels() -> None:
-    # The "c" labels are not needed. (Constants have a "c" suffix in `reason` and
+    # The "c" labels are not needed. (Constants can have a "c" suffix in `reason` and
     # `output`.) Since they interfere with eval(), update each such record to remove_c_labels().
     cursor.execute('''SELECT inp, output, reason FROM examples''')  # WHERE loop_likely = 0''')
     non_looping = cursor.fetchall()
@@ -288,16 +289,16 @@ def build_reason_evals() -> None:
     """
     Using the data of the `examples` table, build a `reason_evals` table that has columns for
     inp (text), `reason` (text), and reason_value (Boolean).
-    Most important for if/elif/else generation is reason_value, which shows what each inp, substituted for i1 in
-    each `reason`, yields (true or false).
+    Most important for if/elif/else generation is reason_value, which shows whether each inp, substituted for i1 in
+    each `reason`, yields true or false.
     """
     # For every `reason` and `inp`, calculate and insert `reason_value` and reason_explains_io into `reason_evals`.
 
-    # All N.L. reasons.
+    # All reasons not involved in looping.
     cursor.execute('''SELECT DISTINCT reason FROM examples WHERE reason IS NOT NULL AND loop_likely = 0''')
     all_reasons = cursor.fetchall()
 
-    # All N.L. inputs.
+    # All inputs not involved in looping.
     cursor.execute('''SELECT          inp    FROM examples WHERE reason IS NOT NULL AND loop_likely = 0''')
     all_inputs = cursor.fetchall()
         
@@ -310,26 +311,26 @@ def build_reason_evals() -> None:
 
         for an_inp in all_inputs:  # All inputs.
             an_inp = an_inp[0]
-            if an_inp.isdigit():  # Let numbers be numbers.
+            if an_inp.isdigit():  # Let numbers be numbers (rather than text).
                 an_inp = int(an_inp)
 
-            # Substitute an_inp for i1 in a_reason and exec() to see if latter now true or false.
+            # Substitute an_inp for i1 in a_reason and exec() to see if true or false.
             exec("reason = " + a_reason, {"i1": an_inp}, locals_dict)
             reason_value = locals_dict['reason']
 
-            # Determine and save reason_explains_io, which is whether the given input also has given
-            # reasoning associated with it.
+            # Determine and store reason_explains_io, which indicates whether inp is associated with 'reason'
+            # in the examples.
             cursor.execute('''SELECT * FROM examples WHERE reason = ? AND inp = ? AND loop_likely = 0''',
                            (a_reason, an_inp,))
             if cursor.fetchone():  
-                # an_inp is associated with a_reason in the user's examples.
+                # Yes, the current an_inp value is associated with a_reason in the user's examples.
                 reason_explains_io = 1  
             else:
                 reason_explains_io = 0
 
             if debug:
                 print("input:", an_inp, " reason:", a_reason, " reason_explains_io:", reason_explains_io,
-                      " reason_value:", reason_value)  # Sqlite inserts Python None values as null.
+                      " reason_value:", reason_value)  # (Sqlite inserts Python None values as null.)
 
             # Store determinations.
             cursor.execute('''INSERT INTO reason_evals VALUES (?,?,?,?)''',
