@@ -6,5 +6,6 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-09 Installed pycallgraph and created prime_number_call_graph.png
 * 2019-01-08 Got student TG started figuring out Skulpt (in-browser Python), 12:30 - 13:30. (TG is reminded of another UI to Python: Jupyter notebooks. Taking a look now, I wonder if instead of entering Python code and getting plots out, user could enter unit tests etc in the cells and get Python functions out. Such that an "Exemplar notebook" == program.) 1h
 * 2019-01-07 Explained Exemplar to advanced computer science student TG, 10am - 11am. 1h
