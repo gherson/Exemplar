@@ -6,6 +6,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-15 Got Exemplar working on repl.it: https://repl.it/@gherson/Exemplar. 1hr
+* 2019-01-14 Exemplar (E)'s sqlite dependency precludes use of Skulpt for now, so researched an alternative. 1h
 * 2019-01-11 Created prime# call graph annotated.jpg. 2h
 * 2019-01-10 TG got Skulpt working. I studied QuickFOIL, Brachylog, Eurisko, and mini-cp while thinking about how to make Exemplar (E) less niche and more tolerant of incomplete examples. Answer is nonobvious, so I'll instead concentrate on extending E in more or less its current form until it is useful to me. If successful, adaptions can then be made for friendliness. E.g., a user won't need to decide if 'reason's are needed for a particular program synthesis before investing time in E vs another PbE system if E includes the typical ability to work without them. 3h
 * 2019-01-09 Installed pycallgraph and created prime_number_call_graph.png. 2h
