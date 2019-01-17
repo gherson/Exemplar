@@ -1,11 +1,12 @@
 # Plans
 * For the UI, http://Shrew.app -style Python in-browser, allowing user to see progressive improvements to output as s/he provides more examples.
-* Enabling reason-less transformations, where those can be done with confidence, by leveraging PbE techniques of Rishabh Singh and Sumit Gulwani 
+* Enabling reason-less transformations, where those can be done with confidence, by leveraging PbE techniques of Rishabh Singh and Sumit Gulwani. 
 
 # Considering
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-16 Read Code Shrew paper, studied UI examples on repl.it with TG.  Exemplar now has a web UI to all our example transformations. 4h
 * 2019-01-15 Got Exemplar working at https://repl.it/@gherson/Exemplar. Then, to create a real as opposed to a file-based user interface, I compared REMI to Flask then got latter working for output. 4h 
 * 2019-01-14 Exemplar's Sqlite dependency precludes use of Skulpt for now, so researched an alternative. 1h
 * 2019-01-11 Created prime# call graph annotated.jpg. 2h
