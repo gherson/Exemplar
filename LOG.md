@@ -6,6 +6,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-17 studied Flask and JavaScript. Replaced four hard-coded routing functions in main.py. 3h
 * 2019-01-16 Read Code Shrew paper, studied UI examples on repl.it with TG.  Exemplar now has a web UI to all our example transformations. 4h
 * 2019-01-15 Got Exemplar working at https://repl.it/@gherson/Exemplar. Then, to create a real as opposed to a file-based user interface, I compared REMI to Flask then got latter working for output. 4h 
 * 2019-01-14 Exemplar's Sqlite dependency precludes use of Skulpt for now, so researched an alternative. 1h
