@@ -1,11 +1,12 @@
 # Plans
-* For the UI, http://Shrew.app -style Python in-browser, allowing user to see progressive improvements to output as s/he provides more examples.
+~~* For the UI, http://Shrew.app -style Python in-browser, allowing user to see progressive improvements to output as s/he provides more examples.~~ Done 2019-01-19
 * Enabling reason-less transformations, where those can be done with confidence, by leveraging PbE techniques of Rishabh Singh and Sumit Gulwani. 
 
 # Considering
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-19 Web UI at repl.it is working and user friendly. Committed code changes. 8h
 * 2019-01-18 Fighting with JavaScript, progress to post shortly... 4h
 * 2019-01-17 studied Flask and JavaScript. Replaced four hard-coded routing functions in main.py. 3h
 * 2019-01-16 Read Code Shrew paper, studied UI examples on repl.it with TG.  Exemplar now has a web UI to all our example transformations. 4h
