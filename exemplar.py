@@ -418,7 +418,7 @@ def reset_db() -> None:
     cursor.execute('''CREATE UNIQUE INDEX ipc ON pretests(pretest, condition)''')
 
 
-def find_rel_op(condition: str) -> tuple:
+def find_rel_op(condition: str) -> Tuple:
     """
     Return the position of condition's relational operator.
     :param condition:
@@ -825,7 +825,28 @@ def underscore_to_camelcase(s: str) -> str:
     return ''.join(camelcase_words(s.split('_')))
 
 
-def reverse_trace(file: str="", examples: str="") -> Tuple[List, str]:
+def from_file(file: str) -> List[str]:
+    try:
+        handle = open('./' + file, "r")  # Eg, hello_world.exem
+    except FileNotFoundError as err:
+        print(err)
+        sys.exit()
+    examples = handle.readlines()
+    handle.close()
+    return examples
+
+
+def to_file(file: str, text: str) -> None:
+    try:
+        handle = open('./' + file, 'w')  # Eg, TestHelloWorld.py
+    except FileNotFoundError as err:  # Any other error catchable?
+        print(err)
+        sys.exit()
+    handle.write(text)
+    handle.close()
+
+
+def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from its .exem `file`.
     :param file: A file of examples and 'reason's with extension .exem.
@@ -833,23 +854,14 @@ def reverse_trace(file: str="", examples: str="") -> Tuple[List, str]:
     :return code:
     """
     global f  # just for use in debugging
-    if file:
-        # Read input .exem
-        if file.lower()[-5:] != ".exem":
-            exit(file + " should end in '.exem' ")
-        try:
-            handle = open(file, "r")  # Eg, hello_world.exem
-        except FileNotFoundError as err:
-            print(err)
-            sys.exit()
-        examples = handle.readlines()
-        handle.close()
-    else:
-        examples = examples.splitlines(keepends=True)
-        file = str(random.randrange(10)) + ".exem"
-
     f = file  # for debugging
+
+    # Read input .exem
     print("\nProcessing", file)
+    if file.lower()[-5:] != ".exem":
+        exit(file + " should end in '.exem' ")
+    examples = from_file(file)
+
     reset_db()
     parse_trace(examples)  # Process .exem file to Insert into the examples and termination tables.
     mark_loop_likely()  # Update the loop_likely column in the examples and termination tables.
@@ -885,16 +897,10 @@ def reverse_trace(file: str="", examples: str="") -> Tuple[List, str]:
         tests += "    " + line                       # Add an indent to each line, as each test is part of a class.
     tests += "\nif __name__ == '__main__':\n    unittest.main()\n"
     # Write the test file.
-    try:
-        test_file = class_name + ".py"
-        handle = open('./' + test_file, 'w')  # Eg, hello_world.exem -> TestHelloWorld.py
-    except FileNotFoundError as err:  # Any other error catchable?
-        print(err)
-        sys.exit()
-    handle.write(tests)
-    handle.close()
+    test_file = class_name + ".py"
+    to_file(test_file, tests)
     print("\n" + tests + "\n")
-    return examples, code
+    return code
 
 # If main, run Exemplar against the named .exem file (then run tests).
 if __name__ == "__main__":
