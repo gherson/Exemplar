@@ -2,13 +2,6 @@
 "A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller natural numbers."
 Considering the case of # 2, it fits the definition of prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
 
-todo These examples are to be enabled
-1008
-False
-
-1009
-True
-
 todo Det what to do about the (i1-1)>2 conditions because can't rely on user to give them.
 
 @title Describe the target function for its docstring this way or:

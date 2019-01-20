@@ -10,12 +10,11 @@ elif i1 % 5 == 0:
 else:  # True
 	return i1
 
-2017-12-18.
-
+2017-12-18
 """
 1
 i1
-True  # This means: "none of the above"; no condition is necessary; guard with ELSE.
+True  # This means: "none of the above"; no more specific condition is necessary; guard with ELSE.
 
 2
 i1
