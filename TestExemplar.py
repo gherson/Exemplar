@@ -211,15 +211,15 @@ class TestExemplar(unittest.TestCase):
 
     def test_list_conditions1(self):
         expected = ['i1 % (i1-1) != 0c']
-        self.assertEqual(expected, exemplar.list_conditions('  i1 % (i1-1) != 0c  '))
+        self.assertEqual(expected, exemplar.conditions_str2List('  i1 % (i1-1) != 0c  '))
 
     def test_list_conditions2(self):
         expected = ['i1 % (i1-1) != 0c', '(i1-1)=="hi, joe"']
-        self.assertEqual(expected, exemplar.list_conditions('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
+        self.assertEqual(expected, exemplar.conditions_str2List('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
 
     def test_list_conditions3(self):
         expected = ['']
-        self.assertEqual(expected, exemplar.list_conditions(''))
+        self.assertEqual(expected, exemplar.conditions_str2List(''))
 
     def test_get_inc_pos1(self):
         expected = (9, 10)
@@ -276,19 +276,19 @@ class TestExemplar(unittest.TestCase):
 
     def test_gen_return1(self):  # 'True', 'i1 == 2'
         expected = "True"
-        self.assertEqual(expected, exemplar.gen_return('i1 == 2'))
+        self.assertEqual(expected, exemplar.get_output('i1 == 2'))
 
     def test_gen_return2(self):  # 'False', 'i1 == 1'
         expected = "False"
-        self.assertEqual(expected, exemplar.gen_return('i1 == 1'))
+        self.assertEqual(expected, exemplar.get_output('i1 == 1'))
 
     def test_gen_return3(self):  # '"input < 1 is illegal"', 'i1 < 1'
         expected = '"input < 1 is illegal"'
-        self.assertEqual(expected, exemplar.gen_return('i1 < 1'))
+        self.assertEqual(expected, exemplar.get_output('i1 < 1'))
 
     def test_gen_return4(self):
         with self.assertRaises(TypeError):  # TypeError: 'NoneType' object is not subscriptable
-            exemplar.gen_return("won't be found")
+            exemplar.get_output("won't be found")
 
     def test_dump_table1(self):
         expected = "[all examples:\n(inp, output, reason, cond_cnt, loop_likely)\n" + \
