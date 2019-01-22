@@ -250,25 +250,27 @@ def parse_trace(examples: List) -> None:
 
 def mark_loop_likely() -> None:
     """
-    Update the loop_likely column in tables examples and termination.
+    To separate IF reasons from WHILE reasons, UPDATE examples.loop_likely and termination.loop_likely to 1 (true)
+    to indicate those examples with 'reason's judged
+    likely to indicate a loop in the target function. Viz., examples.loop_likely is set true (1) for
+    + all multi-condition examples, plus
+    + any others with an exact match on its 'reason' among the conditions of multi-condition examples.
+    The corresponding terminal conditions are then likewise set (see last cursor.execute() below).
     :return void:
     """
-    # Mark the loop_likely examples:
-    # 'Boolean' column loop_likely is set true for
-    # 1) all multi-condition examples, plus
-    # 2) any others with an exact match on its 'reason' among the conditions of multi-condition examples.
     cursor.execute('''UPDATE examples SET loop_likely = 1 WHERE cond_cnt > 1 OR 
         inp IN (SELECT e1.inp FROM examples e1 WHERE INSTR(e1.reason, reason) AND e1.cond_cnt > 1)''')
 
     # Now use those newly marked examples to update the termination table.
     cursor.execute('''SELECT reason FROM examples WHERE loop_likely == 1''')
-    final_conditions = ""
+    final_conditions = []
     looping = cursor.fetchall()
     for reason in looping:
-        final_conditions += "'" + get_last_condition(reason[0]) + "',"
-    final_conditions = final_conditions[0:len(final_conditions)-1]
+        final_conditions.append(get_last_condition(reason[0]))
     if len(looping) > 0:
-        cursor.execute('UPDATE termination SET loop_likely = 1 WHERE final_cond IN (' + final_conditions + ')')
+        query = 'UPDATE termination SET loop_likely = 1 WHERE final_cond IN (' + \
+                       ','.join('?' * len(final_conditions)) + ')'
+        cursor.execute(query, final_conditions)
 
 
 def remove_all_c_labels() -> None:
@@ -280,21 +282,21 @@ def remove_all_c_labels() -> None:
         inp = example[0]
         output = remove_c_labels(example[1])
         reason = remove_c_labels(example[2])
-        query = "UPDATE examples SET output = "
-        query += "'" + output + "'"
+        query = "UPDATE examples SET output = ?"
         if reason:
-            query += ", reason = '" + reason + "'"
-        query += " WHERE inp = '" + inp + "'"
-        cursor.execute(query)
+            query += ", reason = ? WHERE inp = ?"
+            cursor.execute(query, (output, reason, inp))
+        else:
+            query += " WHERE inp = ?"
+            cursor.execute(query, (output, inp))
 
 
 def build_reason_evals() -> None:
     """
     Using the data of the `examples` table, build a `reason_evals` table that has columns for
     inp (text), `reason` (text), and reason_value (Boolean).
-    reason_value shows T/F result of each inp being substituted for i1 in each `reason`.
+    reason_evals.reason_value shows T/F result of each inp being substituted for i1 in each `reason`.
     """
-    # For every `reason` and `inp`, calculate and insert `reason_value` and reason_explains_io into `reason_evals`.
 
     # All reasons not involved in looping.
     cursor.execute('''SELECT DISTINCT reason FROM examples WHERE reason IS NOT NULL AND loop_likely = 0''')
@@ -337,6 +339,20 @@ def build_reason_evals() -> None:
             # Store determinations.
             cursor.execute('''INSERT INTO reason_evals VALUES (?,?,?,?)''',
                            (an_inp, a_reason, reason_explains_io, reason_value))
+
+    # Provide a i1==input 'reason' for all reason-less examples whose input does not make any of the given
+    # 'reason's true, i.e., those examples whose input does not make /any/ 'reason's true (even if there are no 'reason's)
+    # fixme This should prolly go in another function.  And the above prolly needs to be re-run once new 'reason's are created.
+    if 'a_reason' in locals_dict:
+        cursor.execute("""SELECT inp FROM reason_evals GROUP BY inp HAVING max(reason_value)=0""")
+    else:  # There are no 'reason's.
+        cursor.execute("""SELECT inp FROM examples""")
+    special_cases = []
+    for case in cursor.fetchall():
+        special_cases.append(case[0])
+    query = "UPDATE examples SET reason = ('i1 == ' || inp) WHERE inp IN (" + ','.join('?' * len(special_cases)) + ')'
+    cursor.execute(query, special_cases)
+
     if debug:
         print()
 
@@ -374,45 +390,50 @@ def find_safe_pretests() -> None:
 
 def reset_db() -> None:
     """
-    Clear out the database.  (A database is used for the advantages of SQL.)
+    Clear out the database. (A database is used for the advantages of SQL, not for multi-session storage.)
     :return: None
     """
     db = sqlite3.connect(':memory:')
     global cursor  # So db is available to all functions.
     cursor = db.cursor()
 
-    # The user's examples.
+    # One record per user example.
     cursor.execute('''DROP TABLE IF EXISTS examples''')
-    cursor.execute('''CREATE TABLE examples(inp TEXT PRIMARY KEY NOT NULL, 
+    cursor.execute('''CREATE TABLE examples(
+                        inp TEXT PRIMARY KEY NOT NULL, 
                         output TEXT NOT NULL, 
                         reason TEXT,
                         cond_cnt INTEGER NOT NULL,
                         loop_likely INTEGER NOT NULL DEFAULT 0)''')
     cursor.execute('''CREATE UNIQUE INDEX i ON examples(inp)''')  # Not automatic for Sqlite's primary keys.
 
+    # One record per loop in target function, because this table notes the last condition of every such loop.
     # todo add loop id (prolly line # in target function) as primary key
+    # is step_num an absolute or relative count??
     cursor.execute('''DROP TABLE IF EXISTS termination''')
-    cursor.execute('''CREATE TABLE termination (final_cond TEXT PRIMARY KEY NOT NULL, -- unschematized 
+    cursor.execute('''CREATE TABLE termination (
+                        final_cond TEXT PRIMARY KEY NOT NULL, -- unschematized 
                         output TEXT NOT NULL,
                         step_num INTEGER, -- 0-based index
                         loop_step TEXT, -- first and original 'condition' of related loop step
                         loop_likely INTEGER NOT NULL DEFAULT 0)''')
     cursor.execute('''CREATE UNIQUE INDEX f ON termination(final_cond)''')
 
-    # (Table `reason_evals` shows how every `reason` evaluates across every example input.)
+    # # of `reason`s * # of inputs == # of records. To show how every `reason` evaluates across every example input.
     # For if/elif/else generation.
     cursor.execute('''DROP TABLE IF EXISTS reason_evals''')
-    cursor.execute('''CREATE TABLE reason_evals(inp TEXT NOT NULL, 
+    cursor.execute('''CREATE TABLE reason_evals(
+                        inp TEXT NOT NULL, 
                         reason TEXT NOT NULL, 
-                        reason_explains_io INTEGER NOT NULL, -- 1 iff this inp has this reason in examples  
+                        reason_explains_io INTEGER NOT NULL, -- 1 iff this inp has this reason in examples (unused)  
                         reason_value INTEGER NOT NULL)''')
     cursor.execute('''CREATE UNIQUE INDEX ir ON reason_evals(inp, reason)''')
-    # (Column reason_explains_io isn't being used as of 3/9/18.)
 
-    # (Table `pretests` shows for every `reason` those that can be listed above it in an elif.)
-    # For if/elif/else generation.
+    # # of 'reason's * (# of 'reason's - 1) == # of records.  To show
+    # for every `reason`, those (single condition) reasons that can be listed above it in an elif.
     cursor.execute('''DROP TABLE IF EXISTS pretests''')
-    cursor.execute('''CREATE TABLE pretests(pretest TEXT NOT NULL, 
+    cursor.execute('''CREATE TABLE pretests(
+                        pretest TEXT NOT NULL, 
                         condition TEXT NOT NULL)''')
     cursor.execute('''CREATE UNIQUE INDEX ipc ON pretests(pretest, condition)''')
 
@@ -650,11 +671,10 @@ def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
                     print("Error: loop_width is zero at last condition. i =", i, "loop_steps =", loop_steps, "reason =",
                           reason)
                     exit()
-                query = 'UPDATE termination SET ' + \
-                        'step_num = ' + str(i % loop_width) + ", loop_step = '" + loop_steps[i % loop_width] + \
-                        "' WHERE loop_step IS NULL AND final_cond = '" + get_last_condition(reason) + "'"
+                query = '''UPDATE termination SET step_num = ?, loop_step = ?
+                            WHERE loop_step IS NULL AND final_cond = ?'''
                 print("query =", query)
-                cursor.execute(query)
+                cursor.execute(query, (str(i % loop_width), loop_steps[i % loop_width], get_last_condition(reason)))
 
             loop_step_increments.append(increment)
             i += 1

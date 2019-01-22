@@ -53,8 +53,10 @@ def html(examples, code):
                       "'>\n<input type='submit' value='" + demo + "'/></form></td>\n"
     demos_html += "</tr></table>\n"
 
-    key = """<dl>
-  <dt>reason</dt><dd>The series of comma-delimited conditions the user expects will be needed and return true in the code to be created.</dd></dl>"""
+    key = """<p>Notes:</p><ul><li>Surround text with double quotes.</li>
+  <li><dl><dt>reason</dt><dd>The series of comma-delimited conditions 
+  the user expects will be needed and return true in the code to 
+  be created.</dd></dl></li></ul>"""
 
     return top_html + """<table><tr><th>Examples</th><th>Code generated</th></tr>\n
     <tr><td><form id="examples_f" method="POST" action="/generate">\n
