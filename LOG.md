@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-21 Committed code to parameterize all SQL queries and allow user to omit 'reason's where s/he simply wants to map input to output. 
 * 2019-01-20 Committed improvements to file handling and function names. Studied, plotted and planned next steps. 8h
 * 2019-01-19 Web UI at repl.it is working and user friendly. Committed code changes. 8h
 * 2019-01-18 Fighting with JavaScript, progress to post shortly... 4h
