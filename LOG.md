@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-24 2hrs with TG studying and installing MS Prose and Tabulator. I continued with Prose and my notes at home. 5h
 * 2019-01-23 Worked out how to allow users to move forward with imperfect examples, and to receive suggestions back from Exemplar: 3 phase interpretation, from a line to tabular orientation. Studied Tabulator (js library).  5h
 * 2019-01-22 Exemplar examples are being extended to allow stateful interpretation by lifting the single i/o per example requirement and considering all "output" as results to retain through the example (i.e., state).  Also researched JavaScript table libraries and will probably go with Tabulator.info. 6h
 * 2019-01-21 Committed code to parameterize all SQL queries and allow user to omit 'reason's where s/he simply wants to map input to output. 6h
