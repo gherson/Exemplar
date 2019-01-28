@@ -7,7 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-01-27 Wholesale code change required for stateful modeling. May have my examples working today. 7h 
+* 2019-01-27 Got a simple example working in new format and modeling except for the automatic unit testing (that's next). 7h
+* 2019-01-26 Wholesale code change required for stateful modeling. May have my examples working today. 7h 
 * 2019-01-25 Got MS Prose working locally and further work with their C# code doesn't appear cost effective, unless I want to use the Prose SDK in my project.  Asked MS Research for access to their very interesting Prose Playground. 
 Then determined more of how to allow stateful models: Iff the first i/o in the exem is input, a *function* will be generated in which that input or inputs are considered arguments, and the last output is a `return`.  While any inputs subsequent to the arguments become input()s and any output before the return become print()s.)  OTOH, users can force a non-functional, script interpretation by making their first i/o an output of nothing. 6h
 * 2019-01-24 2hrs with TG studying and installing MS Prose and Tabulator. I continued with Prose and my notes at home. 5h
