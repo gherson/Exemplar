@@ -23,7 +23,7 @@ class TestExemplar(unittest.TestCase):
             '1\n', 'False\n', 'i1 == 1c \n', '\n',
             '1008\n', 'False\n', '\n',
             '1009\n', 'True\n', '\n']
-        exemplar.parse_trace(examples)  # Inserts into the examples and termination tables.
+        exemplar.process_examples(examples)  # Inserts into the examples and termination tables.
 
     def test_denude1(self):
         expected = "code"
@@ -64,7 +64,7 @@ class TestExemplar(unittest.TestCase):
 
     def test_parse_trace1(self):
         exemplar.reset_db()  # Empty the database.
-        exemplar.parse_trace(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
+        exemplar.process_examples(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
         exemplar.cursor.execute("SELECT * FROM examples")
         expected = ('2', 'True', 'i1 == 2', 1, 0)  # The entire contents of the examples table, we expect.
         self.assertEqual(expected, exemplar.cursor.fetchone())
@@ -74,7 +74,7 @@ class TestExemplar(unittest.TestCase):
 
     def test_parse_trace2(self):
         exemplar.reset_db()  # Empty the database.
-        exemplar.parse_trace(["1008\n", "False\n", "\n"])  # Simulating a 'reason'-less 1-example .exem file.
+        exemplar.process_examples(["1008\n", "False\n", "\n"])  # Simulating a 'reason'-less 1-example .exem file.
         exemplar.cursor.execute("SELECT * FROM examples")
         expected = ('1008', 'False', None, 0, 0)  # The entire contents of the examples table, we expect.
         self.assertEqual(expected, exemplar.cursor.fetchone())
@@ -115,7 +115,7 @@ class TestExemplar(unittest.TestCase):
 
         exemplar.reset_db()  # Empty the database.
         # Simulating a 3-example .exem file with c labels in 2 rows, viz., 1 'output' field and 2 'reason' fields.
-        exemplar.parse_trace(["1\n", "False\n",    "i1 == 1\n", "\n",
+        exemplar.process_examples(["1\n", "False\n", "i1 == 1\n", "\n",
                               "2\n", "i1 == 2c\n", "i1 == 2c\n", "\n",
                               "3\n", "True\n",     "i1 % (i1-1) != 0c, (i1-1)==2c\n", "\n"])
         # Selecting the c label rows by what they should have after c label removal.
@@ -134,7 +134,7 @@ class TestExemplar(unittest.TestCase):
 
         exemplar.reset_db()  # Empty the database.
         # Simulating a 2-example .exem file from the "FizzBuzz" problem.
-        exemplar.parse_trace(["5\n", "Buzz\n", "i1 % 5 == 0c\n", "\n",
+        exemplar.process_examples(["5\n", "Buzz\n", "i1 % 5 == 0c\n", "\n",
                               "6\n", "Fizz\n", "i1 % 3 == 0c\n", "\n"])
         exemplar.mark_loop_likely()
         exemplar.remove_all_c_labels()
@@ -153,7 +153,7 @@ class TestExemplar(unittest.TestCase):
         # In the FizzBuzz problem, 'i1 % 3 == 0 and i1 % 5 == 0' can be a pretest to 'i1 % 5 == 0' but not v.v.
         exemplar.reset_db()  # Empty the database.
         # Simulating a 2-example .exem file.
-        exemplar.parse_trace(["5\n", "Buzz\n", "i1 % 5 == 0c\n", "\n",
+        exemplar.process_examples(["5\n", "Buzz\n", "i1 % 5 == 0c\n", "\n",
                               "15\n", "FizzBuzz\n", "i1 % 3 == 0c and i1 % 5 == 0c\n", "\n"])
         exemplar.mark_loop_likely()
         exemplar.remove_all_c_labels()
@@ -384,7 +384,7 @@ def test_testing9(self):
 
     def test_gen_tests2(self):
         exemplar.reset_db()  # Empty the database.
-        exemplar.parse_trace(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
+        exemplar.process_examples(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
         expected = """def test_testing1(self):
     self.assertEqual(True, testing(2))
 
