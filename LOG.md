@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-01-28 Studied a Sumit Gulwani PbE video with TG. Committed code. Determined scheme for unit testing all i/o involving mocking print() and input(). 2h
 * 2019-01-27 Got a simple example working in new format and modeling except for the automatic unit testing (that's next). 7h
 * 2019-01-26 Wholesale code change required for stateful modeling. May have my examples working today. 7h 
 * 2019-01-25 Got MS Prose working locally and further work with their C# code doesn't appear cost effective, unless I want to use the Prose SDK in my project.  Asked MS Research for access to their very interesting Prose Playground. 
