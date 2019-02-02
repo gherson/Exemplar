@@ -7,7 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-01-31 Test generation recoding on final piece, creating function under test. Good progress. 6hr
+* 2019-02-01 Programming inner function mark_sequences() during a too busy day. 1h
+* 2019-01-31 Test generation recoding on final piece, creating function under test. Good progress. 6h
 * 2019-01-30 Test generation coding. Should finish today. 3h
 * 2019-01-29 Re-enabled automatic unit testing for a simple example (jokes.exem).  Now onto the others... 9h
 * 2019-01-28 Studied a Sumit Gulwani PbE video with TG. Committed code. Determined scheme for unit testing all i/o involving mocking print() and input(). 2h
