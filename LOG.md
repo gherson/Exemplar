@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-02 jokes.exem working front to back (e.g., creating TestJokes.py) in the new format and model. Code committed. 7h
 * 2019-02-01 Programming inner function mark_sequences() during a too busy day. 1h
 * 2019-01-31 Test generation recoding on final piece, creating function under test. Good progress. 6h
 * 2019-01-30 Test generation coding. Should finish today. 3h
