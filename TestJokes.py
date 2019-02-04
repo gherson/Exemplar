@@ -43,7 +43,11 @@ class TestJokes(unittest.TestCase):
     # Return the named exem (stripped of comments).
     @staticmethod
     def get_expected(exem: str) -> str:
-        return '\n'.join(exemplar.clean(exemplar.from_file(exem))) + '\n'
+        io_exem_lines = []
+        for line in exemplar.clean(exemplar.from_file(exem)):
+            if line.startswith('<') or line.startswith('>'):
+                io_exem_lines.append(line)
+        return '\n'.join(io_exem_lines) + '\n'
 
     def test_jokes1(self):
         jokes()  # The function under test.

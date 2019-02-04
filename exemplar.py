@@ -839,7 +839,8 @@ def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
 
 def quote_if_str(incoming: str) -> str:
     """
-    Unless incoming is a number, "True", or "False", return it wrapped in single quotes.
+    Unless incoming is a number, "True", or "False", return it wrapped in single quotes (after escaping
+    any embedded single quotes).
     :param incoming:
     :return:
     """
@@ -848,6 +849,21 @@ def quote_if_str(incoming: str) -> str:
 
     escaped = incoming.translate(str.maketrans({"'": r"\'"}))  # Escape any single quotes.
     return "'" + escaped + "'"
+
+# Return the list of comma separated relations in `line`.
+# relations() needs to put the name on the right in equality expressions. And use single quotes for quoted strings.
+def relations(line: str):
+    relations = line.split(',')
+
+
+# Return what `line` says `value` is equal to, or None if nothing.
+# E.g., equals(next_row[1], line)
+def equals(line: str, value):
+    for relation in relations(line):
+        if relation.operator == '==' and relation.left_operand == value and
+            type(relation.right_operand) is str and not relation.right_operand.startswith("'"):
+            return relation.right_operand
+    return None
 
 
 def gen_code() -> str:
@@ -858,22 +874,49 @@ def gen_code() -> str:
     """
 
     code = ''  # To be returned
+    prior_input = {}
 
     # Pull the example_lines whose flow pattern is sequence.
-    sql = "SELECT line, line_type FROM example_lines WHERE loop_likely = -1"
+    sql = "SELECT el_id, line, line_type FROM example_lines WHERE loop_likely = -1"
     cursor.execute(sql)
     rows = cursor.fetchall()
     if len(rows) == 0:
         print("*Zero* loop_likely==-1 (sequential) rows found.")
+    #variable_count = 1
+    # todo Distinguish arguments from variable assignments and input() statements...
+    i = 0
     for row in rows:
-        line, line_type = row
+        el_id, line, line_type = row
+
         if line_type == 'in':
-            if line == '':
+            if line == '':  # An empty input implies that it should come from function's user.
                 code += 'input()\n'
-            else:
-                code += 'var = ' + quote_if_str(line) + '\n'  # todo improve var naming!
-        elif line_type == 'out':
-            code += 'print(' + quote_if_str(line) + ")\n"
+            else:  # Name and assign a new variable.
+                line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
+                prior_input[el_id] = line
+                # If the next row equates `line` with a name, use that variable name.
+                next_row = rows[i+1]
+                if next_row[2] == 'truth' and equals(next_row[1], line):
+                    variable_name = equals(next_row[1], line)
+                else:
+                    variable_name = "v" + str(el_id)
+                code += variable_name + " = " + quote_if_str(line) + '\n'  # Add assignment.
+
+        elif line_type == 'out':  # todo Distinguish return from print()'s...
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
+            for i in prior_input:  # Search for all prior example input in current line of example output.
+                position = line.find(prior_input[i])
+                if position > -1:
+                    new_line = line[0:position] + "' + v" + str(i)  # It is good to meet you, ' + v0
+
+                    # Add remainder of line, if any.
+                    remainder_of_line = line[position + len(prior_input[i]):]
+                    if remainder_of_line:
+                        new_line += " + '" + remainder_of_line
+                    line = new_line
+
+            code += "print('" + line + "')\n"
+        i += 1
 
     # Pull the IF/ELIF/ELSE conditions, in that order. (old: Reasons where loop_likely==0 map to conditions 1:1.)
     sql = """
@@ -1020,9 +1063,6 @@ def dump_table(table: str) -> str:
 
 def gen_tests(f_name: str) -> str:
     """
-            jokes()  # The function under test. Utility functions print() and input() assign to global io_trace.
-        self.assertEqual(self.get_expected("jokes.exem"), io_trace)
-
     Generate the text of a unit test file that exercises the target function with the given i/o.
     """
     cursor.execute('''SELECT inp.line, output.line, inp.example_id FROM example_lines inp, example_lines output 
@@ -1042,7 +1082,7 @@ def gen_tests(f_name: str) -> str:
         # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    " + f_name + "()  # The function under test.\n"  # TODO need formal params!!!!!!!!
-        test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), io_trace)"
+        test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), out_trace)"
 
         previous_example_id = example_id
         i += 1
@@ -1083,12 +1123,19 @@ def to_file(file: str, text: str) -> None:
 
 
 def formal_params() -> str:
+    """
+    Determine the number and data type of each argument to generate and return the formal parameters
+    declaration as a string.
+    :return:
+    """
     result = ''
+    # Ordering by example_id to glean arguments one example at a time.
+    # Ordering by step_id within examples to determine argument order.
     sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY example_id, step_id"
     cursor.execute(sql)
     rows = cursor.fetchall()
     previous_example_id = ''
-    argument_types = {}  # Associates a counter with a data type.
+    arguments = {}  # Associates a counter with a data type.
     argument_index = 0
     arguments_count = sys.maxsize  # Total # of args, counting from zero.
     goto_next_example = False
@@ -1096,46 +1143,46 @@ def formal_params() -> str:
     for row in rows:
         example_id, line, line_type = row
 
-        if i > 0 and example_id != previous_example_id:  # Then up to a new example.
-            argument_index -= 1  # Go back 1.
+        if i > 0 and example_id != previous_example_id:  # Then up to a new example in the rows.
+            argument_index -= 1  # Correct a +1 overshoot.
             if argument_index != arguments_count:
                 sys.exit("In example " + str(example_id) + ',' + str(arguments_count+1) + " arguments expected, " +
                          str(arguments_count+1) + " arguments found.")
             argument_index = 0  # We've returned to the first input argument (if it exists).
-            goto_next_example = False  # Reset this, as we've arrived.
+            goto_next_example = False  # Reset this, as we've arrived at the next example.
 
-        if line_type == 'out':
-            if arguments_count < sys.maxsize and argument_index < arguments_count:
-                sys.exit("Last " + str(arguments_count - argument_index) + " argument_types are missing (of " +
+        if line_type == 'out':  # Then row refers to a line of output, and we're past any possible arguments.
+            if argument_index < arguments_count < sys.maxsize:  # Then we didn't see enough arguments.
+                sys.exit("Last " + str(arguments_count - argument_index) + " arguments are missing (of " +
                          str(arguments_count) + ") in example " + str(example_id))
-            goto_next_example = True
+            goto_next_example = True  # Because we're past any possible arguments in this example.
 
-        if line_type == 'in' and not goto_next_example:  # Then work the data type.
-            data_type = type(ast.literal_eval(line))  # Determine line's data type.
-            if arguments_count == sys.maxsize:  # Then still counting arguments (from zero).
-                argument_types[argument_index] = data_type
-            if arguments_count < sys.maxsize and argument_index not in argument_types:
-                sys.exit("Too many argument_types in example " + str(example_id) + " (Line content: " + line + ')')
-            if data_type is not argument_types[argument_index]:
+        if line_type == 'in' and not goto_next_example:  # Then row refers to an argument.
+            data_type = type(ast.literal_eval(line))  # Determine its data type.
+            if arguments_count == sys.maxsize:  # Then we still don't know how many arguments there are.
+                arguments[argument_index] = data_type
+            if arguments_count < sys.maxsize and argument_index not in arguments:
+                sys.exit("Too many arguments in example " + str(example_id) + " (Line content: " + line + ')')
+            if data_type is not arguments[argument_index]:
                 if data_type is str:
-                    print("argument_types[" + argument_index + "] was thought to be of type " +
-                          argument_types[argument_index] + " but is now TEXT to allow value '" + line + "'")
-                    argument_types[argument_index] = str
-                elif data_type is float and argument_types[argument_index] is int:
+                    print("arguments[" + argument_index + "] was thought to be of type " +
+                          arguments[argument_index] + " but is now TEXT to allow value '" + line + "'")
+                    arguments[argument_index] = str
+                elif data_type is float and arguments[argument_index] is int:
                     print("Example " + str(example_id) + " has argument " + line + " where a value of type INT was expected."
                         + " The argument's data type is now FLOAT to accommodate it.")
-                    argument_types[argument_index] = float
+                    arguments[argument_index] = float
                 else:
                     sys.exit("Example " + str(example_id) + " has argument " + line + " where a value of type " +
-                             argument_types[argument_index] + " was expected.")
+                             arguments[argument_index] + " was expected.")
 
-        # Set up next iteration.
+        # Set up for next row.
         previous_example_id = example_id
         argument_index += 1
         i += 1
 
-    for i in argument_types:
-        result += 'i' + i+1 + ": " + argument_types[i+1] + ", "  # Creating formal param list.
+    for i in arguments:
+        result += 'i' + i+1 + ": " + arguments[i+1] + ", "  # Creating formal param list. Eg, i1: str, i2: int,
     return result.rstrip(", ")
 
 

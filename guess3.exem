@@ -1,0 +1,18 @@
+>Hello! What is your name?
+<Albert
+name=="Albert"
+>Well, Albert, I am thinking of a number between 1 and 20.
+<4
+secret==4
+>Take a guess.
+<10
+guess==10, 10>4, guess_count==1
+>Your guess is too high.
+>Take a guess.
+<2
+guess==2, 2<4, guess_count==2
+>Your guess is too low.
+>Take a guess.
+<4
+guess==4, 4==4, guess_count==3
+>Good job, Albert! You guessed my number in 3 guesses!
