@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-04 Studying Lib/re.py and an example tokenizer. 2h
 * 2019-02-03 Working to synthesize guess.py of http://inventwithpython.com/invent4thed/chapter3.html via their transcript (as guess3.exem). 5h
 * 2019-02-02 jokes.exem working front to back (e.g., creating TestJokes.py) in the new format and model. Code committed. 7h
 * 2019-02-01 Programming inner function mark_sequences() during a too busy day. 1h
