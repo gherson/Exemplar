@@ -11,9 +11,9 @@ debug = True  # Set to True for more feedback.
 debug_db = True  # True dumps db to screen near the end of each test.
 
 """
-reverse_trace(file) reverse engineers and returns function code from the examples in the named .exem `file`.
+reverse_trace(file) reverse engineers a function from the examples in the named .exem `file`.
 
-Version 3 started 1/26/2019 to be stateful and produce scripts as well as functions.  Also, .exem's will change from 
+Version 3 started 1/26/2019 to be stateful and produce arbitrary functions. Also, .exem's change from 
 i/o[/reason] to <inputs, >outputs, and True conditions, repeated in any order. 
 Version 2 finished 10/20/2018 can also generate a while loop. This version can also handle prime_number.exem. 
 'reason's are now an unlimited # of conditions.  
@@ -839,10 +839,9 @@ def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
 
 def quote_if_str(incoming: str) -> str:
     """
-    Unless incoming is a number, "True", or "False", return it wrapped in single quotes (after escaping
-    any embedded single quotes).
+    Quote incoming and escape any embedded single quotes with backslash.
     :param incoming:
-    :return:
+    :return: incoming wrapped in single quotes, unless it is a number, "True", or "False"
     """
     if incoming.isnumeric() or incoming == 'True' or incoming == 'False':
         return incoming  # Hands off a number or Boolean.
@@ -850,26 +849,55 @@ def quote_if_str(incoming: str) -> str:
     escaped = incoming.translate(str.maketrans({"'": r"\'"}))  # Escape any single quotes.
     return "'" + escaped + "'"
 
-# Return the list of comma separated relations in `line`.
-# relations() needs to put the name on the right in equality expressions. And use single quotes for quoted strings.
-def relations(line: str):
-    relations = line.split(',')
+
+def relations(truth_line: str):
+    """
+    Each relation in truth_line will be represented as a left_operand, relational_operator, right_operand tuple.
+    An unquoted string is considered an identifier and placed on the right in equality expressions.
+    Double quotes in truth_line are swapped for single.
+    :param truth_line:
+    :return: Yield the (comma separated) relations in truth_line.
+    """
+    conditions = truth_line.split(',')
+    for relation in conditions:
+        relation = relation.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency.
+        # Create the relation triple: left_operand, relational_operator, right_operand.
+        left_operand, relational_operator, right_operand = '', '', ''
+        for char in relation:
+            if char in " \t\r\n":
+                continue
+            elif char in "=<>!":
+                relational_operator += char
+            else:
+                if relational_operator:  # Then we're up to the right-hand side of relation.
+                    right_operand += char
+                else:
+                    left_operand += char
+        if relational_operator == '==' and re.match('[A-z]', left_operand):
+            # Put identifier in the equivalence on the right, for consistency.
+            temporary = left_operand
+            left_operand = right_operand
+            right_operand = temporary
+        yield left_operand, relational_operator, right_operand
 
 
-# Return what `line` says `value` is equal to, or None if nothing.
-# E.g., equals(next_row[1], line)
-def equals(line: str, value):
-    for relation in relations(line):
-        if relation.operator == '==' and relation.left_operand == value and
-            type(relation.right_operand) is str and not relation.right_operand.startswith("'"):
-            return relation.right_operand
-    return None
+def name(truth_line: str, value: any) -> str:
+    """
+    Determine truth_line's name for value `value`, if any.
+    :param truth_line: Eg, first=="Albert"
+    :param value: Eg, 'Albert'
+    :return: truth_line's name for the variable storing `value`. Or '' if there's no match on `value`.
+    """
+    for relation in relations(truth_line):  # Standardize and iterate over the relations in truth_line.
+        if relation[1] == '==' and relation[0] == value and \
+                re.match('[A-z]', relation[2]):  # Identifiers must begin with a letter.
+            return relation[2]  # The identifier (eg, first) that `relation` says is equal to `value`.
+    return ''
 
 
 def gen_code() -> str:
     """
     Use the info in the tables to generate Python if/elif/else and while loops.
-    todo refactor
     :return: Python code as `code`
     """
 
@@ -882,7 +910,7 @@ def gen_code() -> str:
     rows = cursor.fetchall()
     if len(rows) == 0:
         print("*Zero* loop_likely==-1 (sequential) rows found.")
-    #variable_count = 1
+
     # todo Distinguish arguments from variable assignments and input() statements...
     i = 0
     for row in rows:
@@ -893,24 +921,25 @@ def gen_code() -> str:
                 code += 'input()\n'
             else:  # Name and assign a new variable.
                 line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-                prior_input[el_id] = line
-                # If the next row equates `line` with a name, use that variable name.
-                next_row = rows[i+1]
-                if next_row[2] == 'truth' and equals(next_row[1], line):
-                    variable_name = equals(next_row[1], line)
-                else:
-                    variable_name = "v" + str(el_id)
+                variable_name = "v" + str(el_id)  # But look for a better variable name:
+                if i+1 < len(rows):
+                    next_row = rows[i+1]
+                    # If the next row is truth and has a relation naming line's value, grab that variable name.
+                    if next_row[2] == 'truth' and name(next_row[1], value=quote_if_str(line)):
+                        variable_name = name(next_row[1], value=quote_if_str(line))
+
                 code += variable_name + " = " + quote_if_str(line) + '\n'  # Add assignment.
+                prior_input[variable_name] = line
 
         elif line_type == 'out':  # todo Distinguish return from print()'s...
             line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-            for i in prior_input:  # Search for all prior example input in current line of example output.
-                position = line.find(prior_input[i])
+            for variable_name in prior_input:  # Search for all prior example input in current line of example output.
+                position = line.find(prior_input[variable_name])
                 if position > -1:
-                    new_line = line[0:position] + "' + v" + str(i)  # It is good to meet you, ' + v0
+                    new_line = line[0:position] + "' + " + variable_name  # It is good to meet you, ' + v0
 
                     # Add remainder of line, if any.
-                    remainder_of_line = line[position + len(prior_input[i]):]
+                    remainder_of_line = line[position + len(prior_input[variable_name]):]
                     if remainder_of_line:
                         new_line += " + '" + remainder_of_line
                     line = new_line
@@ -1082,7 +1111,7 @@ def gen_tests(f_name: str) -> str:
         # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    " + f_name + "()  # The function under test.\n"  # TODO need formal params!!!!!!!!
-        test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), out_trace)"
+        test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), out_trace)\n"
 
         previous_example_id = example_id
         i += 1
@@ -1124,9 +1153,8 @@ def to_file(file: str, text: str) -> None:
 
 def formal_params() -> str:
     """
-    Determine the number and data type of each argument to generate and return the formal parameters
-    declaration as a string.
-    :return:
+    Determine the number and data type of each argument to generate.
+    :return: formal parameters declaration
     """
     result = ''
     # Ordering by example_id to glean arguments one example at a time.
@@ -1190,11 +1218,10 @@ def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from its .exem `file`.
     :param file: A file of examples and 'reason's with extension .exem.
-    :param examples: A string of examples, as from an HTML textarea.
     :return code:
     """
-    global f  # just for use in debugging
-    f = file  # for debugging
+    global f  # Just for use
+    f = file  # in debugging.
 
     # Read input .exem
     print("\nProcessing", file)
@@ -1203,42 +1230,42 @@ def reverse_trace(file: str) -> str:
     examples = from_file(file)
 
     reset_db()
-    process_examples(examples)  # Process .exem file to Insert into the examples and termination tables.
-    remove_all_c_labels()  # Remove the constant (c) label, as it's currently unused.
+    process_examples(examples)  # Insert the .exem file's line into the examples and termination tables.
+    remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
     
     mark_loop_likely()  # Update the loop_likely column in the examples and termination tables.
     if debug_db:
         print(dump_table("example_lines"))
         print(dump_table("termination"))
 
-    # Determine how every `reason` evaluates on every input.
+    # For if/elif/else order, determine how every `reason` evaluates on every input.
     build_reason_evals()
     if debug_db:
         print(dump_table("reason_evals"))
 
-    # To determine optimal if/elif/else order in the next step (gen_code()).
+    # Gather more info for determining if/elif/else order.
     find_safe_pretests()
     if debug_db:
         print(dump_table("pretests"))
 
     # Use the info in the 3 tables to generate target code.
-    f_name = file[0:-5]  # target function's name
-    code = "def " + f_name + "(" + formal_params() + "):\n"  # Put it into a function named after the input file.
-    for line in gen_code().splitlines(True):  # *** GENERATE CODE ***
-        code += "    " + line                 # then add an indent to each line to create the target function.
-    print("\n" + code + "\n")
+    f_name = file[0:-5]  # Target function's name
+    code = "def " + f_name + "(" + formal_params() + "):\n"  # is named after the input file.
+    for line in gen_code().splitlines(True):  # *** GENERATE FUNCTION CODE ***
+        code += "    " + line                 # then indent each line.
+    print("\n" + code + "\n")  # Show off generated function.
 
-    # Create a file of unit tests for the function just created.
+    # Create unit tests for function generated.
 
-    starter = "".join(from_file("starter"))  # Contains below line and mocked print() and input().
-    # "# AUTOGENERATED FILE\n\nimport unittest\n\n\n" + code + "\n\n"  # Note "code".  That's the gen'ed function.
+    starter = "".join(from_file("starter"))  # Contains below line and mocked print().
+    # "# AUTOGENERATED FILE\n\nimport unittest\n\n\n" + code + "\n\n"  # Variable code has the gen'ed function.
     starter = starter.replace('<function under test>', code, 1)
 
     class_name = "Test" + underscore_to_camelcase(f_name)
     class_signature = "class " + class_name + "(unittest.TestCase):"
     starter = starter.replace('<class signature>', class_signature, 1)
     for line in gen_tests(f_name).splitlines(True):  # *** GENERATE TESTS ***
-        starter += "    " + line                       # Add an indent to each line, as each test is part of a class.
+        starter += "    " + line  # Indent each line, as each test is part of a class.
     starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
     # Write the test file.
     test_file = class_name + ".py"
@@ -1248,8 +1275,7 @@ def reverse_trace(file: str) -> str:
     return code
 
 
-# If main, run Exemplar against the named .exem file (then run tests).
-if __name__ == "__main__":
+if __name__ == "__main__":  # Run Exemplar against the named .exem file to generate and test.
     if len(sys.argv) == 1 or sys.argv[1] == "":
         sys.exit("Usage: exemplar my_examples.exem")
     reverse_trace(file=sys.argv[1])  # RUN ALL OF THE ABOVE

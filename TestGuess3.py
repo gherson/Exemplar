@@ -12,18 +12,18 @@ def print(line: str = "") -> None:
 
 def guess3():
     print('Hello! What is your name?')
-    v5 = 'Albert'
-    print('Well, ' + v5 + ', I am thinking of a number between 1 and 20.')
-    v20 = 4
+    name = 'Albert'
+    print('Well, ' + name + ', I am thinking of a number between 1 and 20.')
+    secret = 4
     print('Take a guess.')
-    v35 = 10
+    guess = 10
     print('Your guess is too high.')
     print('Take a guess.')
-    v55 = 2
+    guess = 2
     print('Your guess is too low.')
     print('Take a guess.')
-    v75 = 4
-    print('Good job, ' + v5 + '! You guessed my number in 3 guesses!')
+    guess = 4
+    print('Good job, ' + name + '! You guessed my number in 3 guesses!')
 
 
 class TestGuess3(unittest.TestCase):
@@ -44,6 +44,7 @@ class TestGuess3(unittest.TestCase):
     def test_guess31(self):
         guess3()  # The function under test.
         self.assertEqual(self.get_expected('guess3.exem'), out_trace)
+
 
 if __name__ == '__main__':
     unittest.main()
