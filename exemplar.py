@@ -1267,6 +1267,10 @@ def reverse_trace(file: str) -> str:
     for line in gen_tests(f_name).splitlines(True):  # *** GENERATE TESTS ***
         starter += "    " + line  # Indent each line, as each test is part of a class.
     starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
+    starter += "\n\n''' The source .exem, for reference:\n"
+    for line in examples:
+        starter += line
+    starter += "'''\n"
     # Write the test file.
     test_file = class_name + ".py"
     to_file(test_file, starter)

@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-06 Source .exem file is now appended to target Test-.py file. 1h
 * 2019-02-05 guess3.exem's synthesized function has the hinted variable names and passes its unit test. (Loop detection remains.) 4.5h   
 * 2019-02-04 Studying Lib/re.py and an example tokenizer. 2h
 * 2019-02-03 Working to synthesize guess.py of http://inventwithpython.com/invent4thed/chapter3.html via their transcript (as guess3.exem). 5h
