@@ -13,8 +13,8 @@ def print(line: str = "") -> None:
 def guess3():
     print('Hello! What is your name?')
     name = 'Albert'
-    print('Well, ' + name + ', I am thinking of a number between 1 and 20.')
     secret = 4
+    print('Well, ' + name + ', I am thinking of a number between 1 and 20.')
     print('Take a guess.')
     guess = 10
     print('Your guess is too high.')
@@ -49,13 +49,14 @@ class TestGuess3(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+
 ''' The source .exem, for reference:
 >Hello! What is your name?
 <Albert
 name=="Albert"
->Well, Albert, I am thinking of a number between 1 and 20.
 <4
 secret==4
+>Well, Albert, I am thinking of a number between 1 and 20.
 >Take a guess.
 <10
 guess==10, 10>4, guess_count==1

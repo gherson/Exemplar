@@ -1,9 +1,9 @@
 >Hello! What is your name?
 <Albert
 name=="Albert"
->Well, Albert, I am thinking of a number between 1 and 20.
 <4
 secret==4
+>Well, Albert, I am thinking of a number between 1 and 20.
 >Take a guess.
 <10
 guess==10, 10>4, guess_count==1

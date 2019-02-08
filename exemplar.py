@@ -1,4 +1,3 @@
-import ast
 import sys
 import sqlite3  # See reset_db()
 import re
@@ -852,9 +851,11 @@ def quote_if_str(incoming: str) -> str:
 
 def relations(truth_line: str):
     """
-    Each relation in truth_line will be represented as a left_operand, relational_operator, right_operand tuple.
-    An unquoted string is considered an identifier and placed on the right in equality expressions.
-    Double quotes in truth_line are swapped for single.
+    List the relations in truth_line in a standard form.
+    Ie, each relation will be represented as (left_operand, relational_operator, right_operand).
+    (Also, an unquoted string (assumed to be an identifier) is placed on the right in equality expressions. And double
+    quotes are swapped for single.)
+    Eg, 'guess==10', '10>4', 'guess_count==1' -> [('guess','==','10'), ('10','>','4'), ('guess_count','==','1')]
     :param truth_line:
     :return: Yield the (comma separated) relations in truth_line.
     """
@@ -888,7 +889,8 @@ def name(truth_line: str, value: any) -> str:
     :param value: Eg, 'Albert'
     :return: truth_line's name for the variable storing `value`. Or '' if there's no match on `value`.
     """
-    for relation in relations(truth_line):  # Standardize and iterate over the relations in truth_line.
+    for relation in relations(truth_line):
+        # If relation hints at a variable name, return that name.
         if relation[1] == '==' and relation[0] == value and \
                 re.match('[A-z]', relation[2]):  # Identifiers must begin with a letter.
             return relation[2]  # The identifier (eg, first) that `relation` says is equal to `value`.
@@ -904,7 +906,8 @@ def gen_code() -> str:
     code = ''  # To be returned
     prior_input = {}
 
-    # Pull the example_lines whose flow pattern is sequence.
+    # First we turn into code the example_lines whose flow pattern is *sequence*.
+
     sql = "SELECT el_id, line, line_type FROM example_lines WHERE loop_likely = -1"
     cursor.execute(sql)
     rows = cursor.fetchall()
@@ -947,7 +950,8 @@ def gen_code() -> str:
             code += "print('" + line + "')\n"
         i += 1
 
-    # Pull the IF/ELIF/ELSE conditions, in that order. (old: Reasons where loop_likely==0 map to conditions 1:1.)
+    # Next, we gen code from the IF/ELIF/ELSE conditions, in that order. (old: Reasons where loop_likely==0 map to conditions 1:1.)
+
     sql = """
         SELECT line, example_id, step_id AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 0
             ORDER BY (SELECT COUNT(*) FROM pretests WHERE pretest = r1) DESC, LENGTH(line) DESC, 
@@ -976,7 +980,8 @@ def gen_code() -> str:
                 code += "elif " + condition + ":\n"
             code += "    return " + quote_if_str(get_output(reason_eid, step_id)) + '\n'
 
-    # Pull the WHILE conditions.
+    # Finally, we gen code from the WHILE conditions.
+
     sql = """
         SELECT line AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 1 ORDER BY step_id DESC, 
             line -- (for order stability) 
@@ -1186,7 +1191,9 @@ def formal_params() -> str:
             goto_next_example = True  # Because we're past any possible arguments in this example.
 
         if line_type == 'in' and not goto_next_example:  # Then row refers to an argument.
-            data_type = type(ast.literal_eval(line))  # Determine its data type.
+            # ast not needed.  data_type = type(ast.literal_eval(line))  # Determine its data type.
+            # Determine its data type. (SQLite v. Python: NULL==None, INTEGER==int, REAL==float, TEXT==str, BLOB==bytes)
+            data_type = type(line)
             if arguments_count == sys.maxsize:  # Then we still don't know how many arguments there are.
                 arguments[argument_index] = data_type
             if arguments_count < sys.maxsize and argument_index not in arguments:
@@ -1249,7 +1256,7 @@ def reverse_trace(file: str) -> str:
         print(dump_table("pretests"))
 
     # Use the info in the 3 tables to generate target code.
-    f_name = file[0:-5]  # Target function's name
+    f_name = file[0:-5]  # Remove ".exem" extension.
     code = "def " + f_name + "(" + formal_params() + "):\n"  # is named after the input file.
     for line in gen_code().splitlines(True):  # *** GENERATE FUNCTION CODE ***
         code += "    " + line                 # then indent each line.
