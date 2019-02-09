@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-08 All variables being created with preferred names in guess3.exem. Continued re-implementing loops and IFs in stateful model, looking also at fizz_buzz.exem. Added table conditions. 9.5h
 * 2019-02-07 Reviewed code changes with TG. Expanding automatic replacement of hard-coded values with variables. 2.5h
 * 2019-02-06 Source .exem file is now appended to target Test-.py file. 1h
 * 2019-02-05 guess3.exem's synthesized function has the hinted variable names and passes its unit test. (Loop detection remains.) 4.5h   
