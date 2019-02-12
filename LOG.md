@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-11 Considered re-use of c suffix to mark constants (yes) and whether to require i1 or variable name in the examples (yes to both). Designed tables iterations, selections, iterations_conditions, and selections_conditions. 3h
 * 2019-02-10 Continued to replace the mark_loop_likely function with the finer grained fill_conditions_table(), which maps each condition to one of simple assignment, selection, or iteration. 5h
 * 2019-02-09 Determining how best to get E able to infer program structure from hints. Coding to fill conditions table. 6h
 * 2019-02-08 All variables being created with preferred names in guess3.exem. Continued re-implementing loops and IFs in stateful model, looking also at fizz_buzz.exem. Added table conditions. 9.5h
