@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-14 generate_code() now generating a list rather than a string of code so prior code lines can be referenced.  Table conditions now left outer joined with example_lines table so the former's rows can be referenced along side where extant. Manually correcting E's output for guess3, I finally saw the simple, code-able decisions involved (e.g., Do not add loop code beyond its 1st iteration). 2.5h
 * 2019-02-13 `schematized('guess_count==0') == schematized('guess_count == 1') == 'guess_count==_'` to better detect looping of assertions. 1.5h
 * 2019-02-12 Liberalized schematize() to reduce varying integers to underscore. Created function store_code and 5 tables to enable gradual imposition of flow control onto a baseline satisfying generated function of sequential flow control only. 6h
 * 2019-02-11 Considered re-use of c suffix to mark constants (yes) and whether to require i1 or variable name in the examples (yes to both). Designed tables iterations, selections, iterations_conditions, and selections_conditions. 3h
