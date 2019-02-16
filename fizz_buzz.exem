@@ -12,49 +12,45 @@ else:  # True
 
 2017-12-18
 """
-1
-i1
-True  # This means: "none of the above"; no more specific condition is necessary; guard with ELSE.
+<1
+>i1
 
-2
-i1
-True
+<2
+>i1
 
-3
-"Fizz"
+<3
 i1 % 3 == 0
+>Fizz
 
-4
-i1
-True
+<4
+>i1
 
-5
-"Buzz"
+<5
 i1 % 5 == 0
+>Buzz
 
-6
-"Fizz"
+<6
 i1 % 3 == 0
+>Fizz
 
-7
-i1
-True
+<7
+>i1
 
-8
-i1
+<8
+>i1
 
-9
-"Fizz"
+<9
 i1 % 3 == 0
+>Fizz
 
-10
-"Buzz"
+<10
 i1 % 5 == 0
+>Buzz
 
-15
-"FizzBuzz"
+<15
 i1 % 3 == 0 and i1 % 5 == 0
+>FizzBuzz
 
-30
-"FizzBuzz"
+<30
 i1 % 3 == 0 and i1 % 5 == 0
+>FizzBuzz

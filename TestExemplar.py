@@ -211,15 +211,15 @@ class TestExemplar(unittest.TestCase):
 
     def test_list_conditions1(self):
         expected = ['i1 % (i1-1) != 0c']
-        self.assertEqual(expected, exemplar.conditions_str2List('  i1 % (i1-1) != 0c  '))
+        self.assertEqual(expected, exemplar.conditions('  i1 % (i1-1) != 0c  '))
 
     def test_list_conditions2(self):
         expected = ['i1 % (i1-1) != 0c', '(i1-1)=="hi, joe"']
-        self.assertEqual(expected, exemplar.conditions_str2List('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
+        self.assertEqual(expected, exemplar.conditions('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
 
     def test_list_conditions3(self):
         expected = ['']
-        self.assertEqual(expected, exemplar.conditions_str2List(''))
+        self.assertEqual(expected, exemplar.conditions(''))
 
     def test_get_inc_pos1(self):
         expected = (9, 10)
@@ -380,7 +380,7 @@ def test_testing9(self):
     self.assertEqual(True, testing(1009))
 
 """
-        self.assertEqual(expected, exemplar.gen_tests("testing"))
+        self.assertEqual(expected, exemplar.genereate_tests("testing"))
 
     def test_gen_tests2(self):
         exemplar.reset_db()  # Empty the database.
@@ -389,7 +389,7 @@ def test_testing9(self):
     self.assertEqual(True, testing(2))
 
 """
-        self.assertEqual(expected, exemplar.gen_tests("testing"))
+        self.assertEqual(expected, exemplar.genereate_tests("testing"))
 
     def test_underscore_to_camelcase1(self):
         expected = "CamelCase"

@@ -8,42 +8,42 @@ todo Det what to do about the (i1-1)>2 conditions because can't rely on user to 
     :param line:  String to denude of possible line comment.
     :return:
 """
-2
-True
-i1 == 2
+<2
+i1==2
+>True
 
-3
-True
-i1 % (i1-1) != 0, (i1-1)==2
+<3
+i1 % 2 != 0, 2==2
+>True
 
-4
-False
-i1 % (i1-1) != 0, (i1-1)>2,
-i1 % (i1-2) == 0
+<4
+i1 % 3 != 0, 3>2,
+i1 % 2 == 0
+>False
 
-5
-True
-i1 % (i1-1) != 0, (i1-1)>2,
-i1 % (i1-2) != 0, (i1-2)>2,
-i1 % (i1-3) != 0, (i1-3)==2
+<5
+i1 % 4 != 0, 4>2,
+i1 % 3 != 0, 3>2,
+i1 % 2 != 0, 2==2
+>True
 
-6
-False
-i1 % (i1-1) != 0, (i1-1)>2,
-i1 % (i1-2) != 0, (i1-2)>2,
-i1 % (i1-3) != 0, (i1-3)>2,
-i1 % (i1-4) == 0  # todo Get "not (i1 % (i1-4) != 0)" working here as well.
+<6
+i1 % 5 != 0, 5>2,
+i1 % 4 != 0, 4>2,
+i1 % 3 != 0, 3>2,
+i1 % 2 == 0
+>False
 
-0
-"input < 1 is illegal"
+<0
 i1 < 1
+>input < 1 is illegal
 
-1
-False
+<1
 i1 == 1
+>False
 
-1008
-False
+<1008
+>False
 
-1009
-True
+<1009
+>True

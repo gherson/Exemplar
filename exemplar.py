@@ -179,16 +179,19 @@ def get_last_condition(reason: str) -> str:
     return reason[commas[-1] + 1:].strip()  # return last condition.
 
 
-def schematize(condition: str) -> str:
+# Replaced with schematize() 2/12/19
+def replace_increment(condition: str) -> str:
     """
-    Could have been called replace_increment('_') because finds the increment in the given condition, eg, 13, and
-    replaces it with underscore. Used to match iterations of the same loop step.  Example:
+    Find the increment in the given condition, eg, 23, and replace with underscore.
+    Used to match iterations of the same loop step.  Example:
     Matching starts--v here. v--ends here.
-          'i1 % (len(i1)-13) <= 0c'  ->
+          'i1 % (len(i1)-23) <= 0c'  ->
           'i1 % (len(i1)-_) <= 0c'
+    todo Remove spaces not in quotes
     :param condition:
-    :return 'condition' with the relop and dec/increment replaced with underscore:
+    :return: 'condition' with the dec/increment replaced with underscore.
     """
+    #                               #                           i1)-23) => i1)-_)
     regex = re.compile(r'('         # Start of capture group 1. (This is a metacharacter.)
                        r'i'         # i                         i
                        r'\d+'       # #                         1
@@ -198,76 +201,125 @@ def schematize(condition: str) -> str:
                        r'\s?'       # optional space            
                        r'(\+|-)?'   # optional +|-              
                        r')'         # End of capture group 1.   (Another metacharacter.)
-                       r'\d+'       # #, ie, the inc            13
+                       r'\d+'       # #, ie, the inc            23
                        r'('         # Start of capture group 4.
                        r'\)*'       # optional right parens     )
                        r'\s?'       # optional space    
                        r'((==)|(!=)|(>=)|>|(<=)|<)?'  # optional relop, e.g., <=
                        r')')  # End of capture group 4. (Groups 2 and 3 are within group 1.)
+    # Replace regex's matches in condition with capture groups 1 and 4 separated by underscore. Eg, i1)-23) => i1)-_)
     return regex.sub(r'\1_\4', condition)
 
 
-def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> None:
+def schematize(condition: str) -> str:
+    """
+    Replace the (non-constant) integers with underscore. And removed unquoted whitespace.
+    So that schematize('guess_count==0') == schematize('guess_count == 1')
+    I.e., replace any number not appended to a valid name and not followed immediately by a period or 'c'.
+    Used to find instances of looping, i.e., to match iterations of the same loop step in the target function.
+    The regex is from https://regexr.com/48b5v 2/12/19.
+    :param condition:
+    :return:
+    """
+    # Only reduce to underscore those integers not immediately following a valid Python identifier (via negative
+    # lookbehind) AND not immediately before a 'c' or period (via negative lookahead).
+    regex = re.compile(r'(?<![A-z_])\d+(?![\.c])')
+    underscored = regex.sub(r'_', condition)
 
-    line_scheme = None
+    # Remove unquoted whitespace.
+    for whitespace in ' \n\t\r':
+        possibly_shortened = ''
+        for i in range(len(underscored)):
+            if i not in positions_outside_strings(underscored, whitespace):
+                possibly_shortened += underscored[i]
+        underscored = possibly_shortened  # Latest whitespace character removed.
+    return underscored
+
+
+if __name__ == '__main__':
+    assert schematize('guess_count==0') == schematize('guess_count == 1')
+    assert 'guess_count_' == schematize('guess_count 1')
+    assert 'guess_count1' == schematize('guess_count1')
+    assert 'guess_count==_' == schematize('guess_count == 1')
+    assert 'guess_count==_' == schematize('guess_count==1')
+    assert 'guess_count==1c' == schematize('guess_count == 1c')  # Leave constants alone.
+    assert 'guess_count==1.' == schematize('guess_count==1.')  # Leave floats alone.
+    assert '_==guess_count' == schematize('1 == guess_count')
+    assert '_==guess_count' == schematize('1==guess_count')
+    assert '1.==guess_count' == schematize('1. == guess_count')
+    assert '1c==guess_count' == schematize('1c==guess_count')
+    assert 'i1>_' == schematize('i1>4')
+    assert '_<i1' == schematize('4<i1')
+    # Test removal of all unquoted whitespace:
+    assert '"this is inside"andthisisoutside."back in again".' == \
+           schematize('"this is inside" and this is outside. "back in again".')
+
+
+def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> int:
+
     if line.startswith('<'):
         line_type = 'in'
     elif line.startswith('>'):
         line_type = 'out'
     else:
         line_type = 'truth'  # True condition
-        line_scheme = schematize(line)
-    if line_type == 'in' or line_type == 'out':
-        line = line[1:]  # Skip less/greater than symbol.
-
-    # todo confirm that a cast here matters
-    if line.isdigit():
-        line = int(line)
-    elif line.isdecimal():
-        line = float(line)
 
     if example_step == 0:  # New example.
         cursor.execute('''INSERT INTO examples (eid) VALUES (?)''', (example_id,))
-    cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_scheme, line_type) 
-                        VALUES (?,?,?,?,?,?)''', (line_id, example_id, example_step, remove_c_labels(line), line_scheme, line_type))
 
+    if line_type == 'in' or line_type == 'out':
+        line = line[1:]  # Skip less/greater than symbol.
+        cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_scheme, line_type) 
+                                    VALUES (?,?,?,?,?,?)''',
+                       (line_id, example_id, example_step, remove_c_labels(line), remove_c_labels(line), line_type))
+    else:
+        for assertion in conditions(line):
+            cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_scheme, line_type) 
+                                VALUES (?,?,?,?,?,?)''',
+                           (line_id, example_id, example_step, remove_c_labels(assertion), remove_c_labels(schematize(assertion)), line_type))
+            line_id += 5
+            example_step += 5
+        line_id -= 5
+        example_step -= 5
     # cursor.execute('''SELECT * FROM example_lines''')
     # print("fetchall:", cursor.fetchall())
+    return line_id, example_step
 
 
 def process_examples(examples: List) -> None:
     """
-    Go through .exem file to build `examples` table and the
+    Go through .exem file to build `examples` table.  Old: and the
     termination table, with columns final_cond, output.
     """
-    line_id = 0
+    line_id = 0  # += 5 each insert call
     example_id = -1
-    example_step = 0
+    example_step = 0  # += 5 each intra-example step
     previous_line = 'B'
     examples = clean(examples)
     ##examples += "\n"  # To make sure last example is processed.
     for line in examples:
 
-        if previous_line == 'B':
+        if previous_line == 'B':  # Then starting on a new example.
             assert line, "This line must be part of an example, not be blank."
             example_step = 0
-            example_id += 1  # New example found.
-            insert_line(line_id, example_id, example_step, line)
+            example_id += 1
+            line_id, example_step = insert_line(line_id, example_id, example_step, line)
             previous_line = 'E'
 
-        elif previous_line == 'E':
+        elif previous_line == 'E':  # Then current line must continue the example or be blank.
             if not line:
                 previous_line = 'B'
             else:
                 example_step += 5  # 5 instead of 1 in order to allow INSERT.
-                insert_line(line_id, example_id, example_step, line)
+                line_id, example_step = insert_line(line_id, example_id, example_step, line)
 
         else:
             assert False, "previous_line must be B(lank) or E(xample), not " + previous_line
 
         line_id += 5  # (+=5 to allow INSERT in build_reason_evals())
 
-""" todo                # Sanity check: confirm that each (schematized) final condition triggers identical output.
+""" todo  Re-enable the below when fix use of termination table...  2/8/19              
+                # Sanity check: confirm that each (schematized) final condition triggers identical output.
                 # E.g., both 'i1 % (i1-2) == 0c' and 'i1 % (i1-4) == 0c' would
                 # schematize to 'i1 % (i1-_) _ 0c' so should correlate to identical output (e.g., False).
                 # MAY need to ignore examples not loop_likely.
@@ -290,13 +342,17 @@ def process_examples(examples: List) -> None:
                 previous_line = 'blank'"""
 
 
+# Deprecated as of 2/10/19 because loop_likely column fairly useless: i need to mark each condition as indicating the
+# *start* of a loop or iteration, because an iterative condition can be repeated due to a loop in an enclosing scope.
 def mark_loop_likely() -> None:
     """
     To identify WHILE reasons, UPDATE examples.loop_likely and termination.loop_likely to 1 (true)
     to indicate those examples with 'reason's judged likely to indicate a loop in the target function.
-    The criterion is simply Does the schematized(line) reappear in any 1 example?  if yes, mark all
+    The criterion is simply, does the schematized(line) reappear in any 1 example?  if yes, mark all
     matches on schematized(line) in all examples as loop_likely.  This strategy can create false positives
-    but is cost effective.
+    but is hopefully cost effective.
+    loop_likely=-1-setting mark_sequences() is called at the end, leaving loop_likely's value 0, for selection,
+    the default.
     todo CONFIRM The corresponding terminal conditions are then likewise set (see last cursor.execute() below).
     :return void:
     """
@@ -305,7 +361,8 @@ def mark_loop_likely() -> None:
         """
         Set loop_likely to -1 to designate it as part of sequential (as opposed to selective (0) or iterative (1))
         execution.
-        In this first approximation of sequential line finding, only lines pre-difference are updated to -1.
+        In this first approximation of sequential line finding, only lines reached before a difference
+        between the examples is found are set to -1.
         :return:
         """
         qualified_el_ids = []
@@ -365,7 +422,8 @@ def mark_loop_likely() -> None:
     # line_set.add(schematized(line))
     # UPDATE example_lines SET loop_likely = 1 WHERE line IN (line_list) AND example_id IN (examples)
     # True resetting ? each time step_id == 0.
-    cursor.execute('''SELECT example_id, line_scheme FROM example_lines ORDER BY example_id, line_scheme''')
+    cursor.execute('''SELECT example_id, line_scheme FROM example_lines WHERE line_type != 'in' 
+                        ORDER BY example_id, line_scheme''')
     loop_likely_schemes = {}
     records = cursor.fetchall()
     previous_line_scheme = ''
@@ -465,6 +523,7 @@ def build_reason_evals() -> None:
         # (Interestingly, locals_dict works here only if the line is breakpointed. 1/22/19)
         cursor.execute("SELECT inp FROM reason_evals GROUP BY inp HAVING max(reason_value)=0")
 
+    # This whole method needs rethinking... todo
     else:  # There are /no/ 'reason's, so select /all/ inputs (from loop unlikely rows).
         cursor.execute("SELECT el_id, line FROM example_lines WHERE loop_likely = 0 AND line_type = 'in'")  #line as inp fixme
 
@@ -535,32 +594,93 @@ def reset_db() -> None:
     global cursor  # So db is available to all functions.
     cursor = db.cursor()
 
-    # cursor.execute("""DROP TABLE IF EXISTS """)
-    # cursor.execute("""CREATE TABLE  ()""")
-    # cursor.execute("""CREATE UNIQUE INDEX  ON ()""")
-
     # cursor.execute("""DROP TABLE IF EXISTS io_log""")
     # cursor.execute("""CREATE TABLE io_log (
     #                     iid ROWID,
     #                     entry TEXT NOT NULL)""")
+    #sequential_function (line_number, line)
+
+    # cursor.execute("""DROP TABLE IF EXISTS """)
+    # cursor.execute("""CREATE TABLE  ()""")
+    # cursor.execute("""CREATE UNIQUE INDEX  ON ()""")
+
+    # iterations (1:1 with suspected loops) with columns python (eg, 'while i<4:', 'for i in range(5):', target_line to
+    # place that code within the sequential program, and last_line, to note the # of the control block's last line.
+    cursor.execute("""DROP TABLE IF EXISTS iterations""")
+    cursor.execute("""CREATE TABLE iterations (
+                        python TEXT NOT NULL,
+                        target_line INTEGER NOT NULL,
+                        last_line INTEGER NOT NULL)""")
+    cursor.execute("""CREATE UNIQUE INDEX ipt ON iterations(python, target_line)""")
+
+    # selections (1:1 with suspected IFs) with columns python (eg, 'if i<5'), target_line to place that code within
+    # the sequential program, an elif column to point to the selection_id of the next IF in the structure (if any).
+    # For records housing the last IF in a selection structure, two more columns may be non-null: an else_line column
+    # (holding, eg, 55, for line 55) to place an else in the sequential program, and last_line (required), to note where
+    # the selection's block ends.
+    cursor.execute("""DROP TABLE IF EXISTS selections""")
+    cursor.execute("""CREATE TABLE selections (
+                        python TEXT NOT NULL,
+                        target_line INTEGER NOT NULL,
+                        elif ROWID,
+                        else_line INTEGER,
+                        last_line INTEGER)""")
+    cursor.execute("""CREATE UNIQUE INDEX spt ON selections(python, target_line)""")
+
+    cursor.execute("""DROP TABLE IF EXISTS sequential_function""")
+    cursor.execute("""CREATE TABLE sequential_function (
+                        line_id INTEGER NOT NULL,
+                        line TEXT NOT NULL)""")
+
+    # In addition to tying control structures to the generated code, E has to know how these relate to the
+    # example lines. There can be many example lines, even within a single example, pointing to the same
+    # control structure.  So, to relate example line conditions to control structures many-to-one (and possibly many-
+    # to-many), two associative tables are needed. iterations_conditions and selections_conditions have two columns:
+    # condition_id and iteration_id or selection_id, respectively.
+    cursor.execute("""DROP TABLE IF EXISTS iterations_conditions""")
+    cursor.execute("""CREATE TABLE iterations_conditions (
+                        condition_id ROWID NOT NULL, -- From the examples
+                        iteration_id ROWID NOT NULL)""")  # From E's imagination
+    cursor.execute("""CREATE UNIQUE INDEX icci ON iterations_conditions(condition_id, iteration_id)""")
+
+    cursor.execute("""DROP TABLE IF EXISTS selections_conditions""")
+    cursor.execute("""CREATE TABLE selections_conditions (
+                        condition_id ROWID NOT NULL, -- From the examples
+                        selection_id ROWID NOT NULL)""")  # From E's imagination
+    cursor.execute("""CREATE UNIQUE INDEX sccs ON selections_conditions(condition_id, selection_id)""")
+
+    cursor.execute("""DROP TABLE IF EXISTS conditions""")
+    cursor.execute("""CREATE TABLE conditions ( -- 1 row for each comma-delimited condition from the 'truth' lines. 
+                        --unnec cid ROWID,
+                        el_id INTEGER NOT NULL,
+                        example_id INTEGER NOT NULL,
+                        condition TEXT NOT NULL,
+                        condition_scheme TEXT NOT NULL, -- schematized(condition)
+                        type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
+                        intraexample_repetition INTEGER NOT NULL DEFAULT 0)""")  # Based on condition_scheme
+    # lp todo For these repetitions, how many can be considered to be followed with the same # of code
+    # lines of exactly 1 further indent? 2/10/19
+    # Old:
+    # python TEXT NOT NULL,
+    # satisfies INTEGER NOT NULL DEFAULT 0, -- Python code satisfies all examples?
+    # approved INTEGER NOT NULL DEFAULT 0)""")  # Python code is user confirmed?
+    cursor.execute("""CREATE UNIQUE INDEX cec ON conditions(el_id, condition)""")
 
     cursor.execute('''DROP TABLE IF EXISTS example_lines''')
     cursor.execute('''CREATE TABLE example_lines (
-                        el_id ROWID, -- autoincrements
-                        example_id INTEGER NOT NULL,  -- example #
-                        step_id INTEGER NOT NULL,  -- relative line # within the example
+                        el_id INTEGER NOT NULL, -- explicitly assigned a line number
+                        example_id INTEGER NOT NULL, -- example #
+                        step_id INTEGER NOT NULL, -- relative line # within the example
                         line TEXT NOT NULL,
                         line_scheme TEXT, -- schematized(line) if line_type == 'truth'
                         loop_likely INTEGER NOT NULL DEFAULT 0, -- see mark_loop_likely()
                         line_type TEXT NOT NULL)''')  # in/out/truth
-    #cursor.execute('''CREATE UNIQUE INDEX e ON example_lines(el_id)''')
-    cursor.execute('''CREATE UNIQUE INDEX es ON example_lines(example_id, step_id)''')
+    cursor.execute('''CREATE UNIQUE INDEX eles ON example_lines(example_id, step_id)''')
 
     # One record per user example.
     cursor.execute('''DROP TABLE IF EXISTS examples''')
     cursor.execute('''CREATE TABLE examples (
                         eid ROWID)''')
-    #cursor.execute('''CREATE UNIQUE INDEX i ON examples(eid)''')  # Not automatic for Sqlite's primary keys.
 
     # One record per loop in target function, because this table notes the last condition of every such loop.
     # todo add loop id (prolly line # in target function) as primary key
@@ -572,7 +692,7 @@ def reset_db() -> None:
                         step_id INTEGER, -- 0-based index
                         loop_step TEXT, -- first and original 'condition' of related loop step
                         loop_likely INTEGER NOT NULL DEFAULT 0)''')
-    cursor.execute('''CREATE UNIQUE INDEX f ON termination(final_cond)''')
+    cursor.execute('''CREATE UNIQUE INDEX tf ON termination(final_cond)''')
 
     # # of `reason`s * # of inputs == # of records. To show how every `reason` evaluates across every example input.
     # For if/elif/else generation.
@@ -582,7 +702,7 @@ def reset_db() -> None:
                         reason TEXT NOT NULL, 
                         reason_explains_io INTEGER NOT NULL, -- 1 iff this inp has this reason in examples (unused)  
                         reason_value INTEGER NOT NULL)''')
-    cursor.execute('''CREATE UNIQUE INDEX ir ON reason_evals(inp, reason)''')
+    cursor.execute('''CREATE UNIQUE INDEX reir ON reason_evals(inp, reason)''')
 
     # # of 'reason's * (# of 'reason's - 1) == # of records.  To show
     # for every `reason`, those (single condition) reasons that can be listed above it in an elif.
@@ -590,7 +710,7 @@ def reset_db() -> None:
     cursor.execute('''CREATE TABLE pretests(
                         pretest TEXT NOT NULL, 
                         condition TEXT NOT NULL)''')
-    cursor.execute('''CREATE UNIQUE INDEX ipc ON pretests(pretest, condition)''')
+    cursor.execute('''CREATE UNIQUE INDEX ppc ON pretests(pretest, condition)''')
 
 
 def find_rel_op(condition: str) -> Tuple:
@@ -667,21 +787,21 @@ def same_step(loop_step: str, condition: str) -> int:
     return False
 
 
-def conditions_str2List(reason: str) -> List[str]:
+def conditions(reason: str) -> List[str]:
     """
     Determine 'reason's list of conditions (in two steps to strip() away whitespace).
     :param reason: str
     :return list of conditions, e.g., ["i1 % (i1-1) != 0c","(i1-1)==2c"]:
     """
     commas = positions_outside_strings(reason, ',')
-    conditions = []
+    result = []
     start = 0
     for comma in commas:
         condition = reason[start: comma]
-        conditions.append(condition.strip())
+        result.append(condition.strip())
         start = comma + 1
-    conditions.append(reason[start:].strip())  # Append last condition in 'reason'
-    return conditions
+    result.append(reason[start:].strip())  # Append last condition in 'reason'
+    return result
 
 
 def get_inc_int_pos(condition: str) -> Tuple[int, int]:
@@ -780,7 +900,7 @@ def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
         reason = reason[0]  # 0 is the only key.
         last_condition_of_reason = False
         i = 0  # Count of conditions examined in this 'reason'.
-        conditions = conditions_str2List(reason)
+        conditions = conditions(reason)
         for condition in conditions:
             increment = get_increment(condition)
 
@@ -849,97 +969,135 @@ def quote_if_str(incoming: str) -> str:
     return "'" + escaped + "'"
 
 
-def relations(truth_line: str):
+def assertion_triple(truth_line: str) -> tuple:
     """
     List the relations in truth_line in a standard form.
-    Ie, each relation will be represented as (left_operand, relational_operator, right_operand).
-    (Also, an unquoted string (assumed to be an identifier) is placed on the right in equality expressions. And double
-    quotes are swapped for single.)
-    Eg, 'guess==10', '10>4', 'guess_count==1' -> [('guess','==','10'), ('10','>','4'), ('guess_count','==','1')]
+    Ie, each relation should be (left_operand, relational_operator, right_operand).
+    Also, an unquoted string (assumed to be an identifier) not of form i[0-9]+ is placed on the right in equality
+    expressions. And double quotes are swapped for single.
     :param truth_line:
-    :return: Yield the (comma separated) relations in truth_line.
+    :return: the operands and relational operator in truth_line.
     """
-    conditions = truth_line.split(',')
-    for relation in conditions:
-        relation = relation.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency.
-        # Create the relation triple: left_operand, relational_operator, right_operand.
-        left_operand, relational_operator, right_operand = '', '', ''
-        for char in relation:
-            if char in " \t\r\n":
-                continue
-            elif char in "=<>!":
-                relational_operator += char
+    # assertions = conditions(truth_line)
+    # for assertion in assertions:
+    assertion = truth_line.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency. todo ignore escaped "s
+    # Create the relation triple: left_operand, relational_operator, right_operand.
+    left_operand, relational_operator, right_operand = '', '', ''
+    for char in assertion:
+        if char in " \t\r\n":
+            continue
+        elif char in "=<>!":
+            relational_operator += char
+        else:
+            if relational_operator:  # Then we're up to the right-hand side of relation.
+                right_operand += char
             else:
-                if relational_operator:  # Then we're up to the right-hand side of relation.
-                    right_operand += char
-                else:
-                    left_operand += char
-        if relational_operator == '==' and re.match('[A-z]', left_operand):
-            # Put identifier in the equivalence on the right, for consistency.
-            temporary = left_operand
-            left_operand = right_operand
-            right_operand = temporary
-        yield left_operand, relational_operator, right_operand
+                left_operand += char
+    if relational_operator == '==' and re.match('[A-z]', left_operand) and not re.match('i[0-9]+', left_operand):
+        # Except for i[0-9]+ (input variable) names, put identifier in the equivalence on *right* for consistency.
+        temporary = left_operand
+        left_operand = right_operand
+        right_operand = temporary
+    return left_operand, relational_operator, right_operand
 
 
-def name(truth_line: str, value: any) -> str:
+if __name__ == "__main__":
+    assert ('10', '==', 'guess') == assertion_triple("guess==10"), "We instead got " + str(assertion_triple("guess==10"))
+    assert ('10', '>', '4') == assertion_triple("10>4"), "We instead got " + str(assertion_triple("10>4"))
+    assert ('1', '==', 'guess_count') == assertion_triple("guess_count==1"), \
+        "We instead got " + str(assertion_triple("guess_count==1"))
+
+
+# Unused after switching back to i1-style references.
+def variable_name_of_value(truth_line: str, value: any) -> str:
     """
-    Determine truth_line's name for value `value`, if any.
-    :param truth_line: Eg, first=="Albert"
-    :param value: Eg, 'Albert'
+    Return truth_line's name for (i.e., equivalence to) `value`, if any.
+    Eg, variable_name_of_value('first=="Albert"', 'Albert') => 'first'
+    :param truth_line:
+    :param value:
     :return: truth_line's name for the variable storing `value`. Or '' if there's no match on `value`.
     """
-    for relation in relations(truth_line):
-        # If relation hints at a variable name, return that name.
-        if relation[1] == '==' and relation[0] == value and \
-                re.match('[A-z]', relation[2]):  # Identifiers must begin with a letter.
-            return relation[2]  # The identifier (eg, first) that `relation` says is equal to `value`.
+    relation = assertion_triple(truth_line)
+    # If relation hints at a variable name, return that name.
+    if relation[1] == '==' and relation[0] == value and \
+            re.match('[A-z]', relation[2]):  # Identifiers must begin with a letter.
+        return relation[2]  # The identifier (eg, first) that `relation` says is equal to `value`.
     return ''
 
 
-def gen_code() -> str:
+def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]*') -> str:
+    """
+    Return truth_line's name for (i.e., equivalence to) the input_variable, if any.
+    Eg, variable_name_of_input('guess==i1, i1>4', 'i1') => 'guess'
+    :param truth_line:
+    :param input_variable: 'i[0-9]+' will select any.
+    :return: what truth_line says is a name equal to input_variable, or '' if no match.
+    """
+    condition = assertion_triple(truth_line)  # (a non-input variable name, if any, will be in condition[2].)
+    # If relation "hints" at a variable name, return that name.
+    if condition[1] == '==' and "Equivalence relation" and \
+            re.match(input_variable, condition[0]) and "input variable name, eg, i1, will be on the left" and \
+            re.match('[A-z]', condition[2]):  # Identifiers must begin with a letter.
+        return condition[2]  # Return that identifier asserted equal to input_variable.
+    return ''
+    # lp todo Ensure input variables on both sides of an equivalence do not cause a problem. 2/10/19
+
+
+def store_code(code):
+    code_lines, line_id = [], 0
+    for line in code.split('\n'):
+        code_lines.append((line_id, line))
+        line_id += 5
+    cursor.executemany("INSERT INTO sequential_function (line_id, line) VALUES (?, ?)", code_lines)
+
+
+def generate_code() -> List:
     """
     Use the info in the tables to generate Python if/elif/else and while loops.
     :return: Python code as `code`
     """
 
-    code = ''  # To be returned
-    prior_input = {}
+    code = []  # To be returned
+    prior_input, preceding_equality, line_within_loop, indent, loop_start = {}, {}, 0, 5, -1
 
-    # First we turn into code the example_lines whose flow pattern is *sequence*.
+    # First we turn into code the example_lines whose flow pattern is ***** sequence *****
 
-    sql = "SELECT el_id, line, line_type FROM example_lines WHERE loop_likely = -1"
+    sql = "SELECT c.el_id, el.line, el.line_type, c.type FROM example_lines el " \
+          "LEFT JOIN conditions c ON el.el_id = c.el_id WHERE loop_likely = -1"  # Remove WHERE todo
     cursor.execute(sql)
     rows = cursor.fetchall()
     if len(rows) == 0:
         print("*Zero* loop_likely==-1 (sequential) rows found.")
 
     # todo Distinguish arguments from variable assignments and input() statements...
-    i = 0
+    i = 0  # example_lines line counter
     for row in rows:
-        el_id, line, line_type = row
+        el_id, line, line_type, condition_type = row
 
         if line_type == 'in':
-            if line == '':  # An empty input implies that it should come from function's user.
-                code += 'input()\n'
-            else:  # Name and assign a new variable.
-                line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-                variable_name = "v" + str(el_id)  # But look for a better variable name:
-                if i+1 < len(rows):
-                    next_row = rows[i+1]
-                    # If the next row is truth and has a relation naming line's value, grab that variable name.
-                    if next_row[2] == 'truth' and name(next_row[1], value=quote_if_str(line)):
-                        variable_name = name(next_row[1], value=quote_if_str(line))
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
+            variable_name = "v" + str(el_id)  # But look for a better variable name:
+            if i+1 < len(rows):
+                next_row = rows[i+1]  # el_id, line, line_type
+                # If the next row is truth and has a relation naming `line`'s value, grab that variable name.
+                if next_row[2] == 'truth' and \
+                        variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1, i1>4', 'i1')
+                    variable_name = variable_name_of_i1(next_row[1], 'i1')
 
-                code += variable_name + " = " + quote_if_str(line) + '\n'  # Add assignment.
-                prior_input[variable_name] = line
+            assignment = ' '*indent + variable_name + " = input('" + variable_name + ":')"
+            if not line_within_loop or not assignment == code[line_within_loop]:
+                code.append(assignment)  # Add assignment unless we're looping.
+            prior_input[variable_name] = line  # Note, eg, prior_input['name'] = 'Albert'
 
         elif line_type == 'out':  # todo Distinguish return from print()'s...
             line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-            for variable_name in prior_input:  # Search for all prior example input in current line of example output.
-                position = line.find(prior_input[variable_name])
-                if position > -1:
-                    new_line = line[0:position] + "' + " + variable_name  # It is good to meet you, ' + v0
+            # Search for prior example input and the preceding truth value(s) in the current line of example output.
+            prior_variables = prior_input  # Combine prior_input and
+            prior_variables.update(preceding_equality)  # preceding_equality.
+            for variable_name in prior_variables:
+                position = line.find(prior_variables[variable_name])
+                if position > -1:  # lp todo Test variable_name to see if str() is needed:
+                    new_line = line[0:position] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
 
                     # Add remainder of line, if any.
                     remainder_of_line = line[position + len(prior_input[variable_name]):]
@@ -947,10 +1105,35 @@ def gen_code() -> str:
                         new_line += " + '" + remainder_of_line
                     line = new_line
 
-            code += "print('" + line + "')\n"
-        i += 1
+            print_line = ' '*indent + "print('" + line + "')"
+            if not line_within_loop or not print_line == code[line_within_loop]:
+                code.append(print_line)  # Add print unless we're looping.
 
-    # Next, we gen code from the IF/ELIF/ELSE conditions, in that order. (old: Reasons where loop_likely==0 map to conditions 1:1.)
+        else:  # Truth   name(next_row[1], value=quote_if_str(input_line)) => :
+            # Retain mention of equivalence values in order to change hard coded values to soft in the next output line:
+            # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!". And:
+            # preceding_equality['guess_count'] = '3'.
+            condition = assertion_triple(line)  # INSTEAD OF BELOW RIGMAROLE, WHY NOT USE CONDITION.TYPE='SA'?
+            if condition[1] == '==' and re.match('[A-z]', condition[2]) \
+                    and (condition[0][0] == "'" or condition[0].isnumeric()):  # Eg, ('i1', '==', 'guess_count')
+                                                                               # or  (   5, '==', 'guess_count')
+                value = condition[0]  # Eg, i1
+                variable_name = condition[2]  # Eg, 'guess_count'
+                preceding_equality[variable_name] = value  # Eg, preceding_equality['guess_count'] = '3'
+                # deleteme:
+                # if variable_name not in prior_input:
+                #     code += variable_name + " = " + value + '\n'  # Eg, guess_count = i1
+            # elif type == 'iterative':
+            #     if loop_start > -1:
+            #         assert i - loop_start
+            #     else:
+            #         loop_start = i  # 0 based
+            #     line_within_loop = len(code)  # Note where
+
+        i += 1  # example_lines line counter
+
+    # Next, we gen code from the ************** IF/ELIF/ELSE ************** conditions, in that order.
+    # (old: Reasons where loop_likely==0 map to conditions 1:1.)
 
     sql = """
         SELECT line, example_id, step_id AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 0
@@ -962,11 +1145,11 @@ def gen_code() -> str:
     if len(conditions) == 0:
         print("*Zero* line_type 'truth', loop_likely==0 rows found. The exact query executed: " + sql)
     else:
-        # The most selective condition, i.e., the one that can most commonly serve as a pretest, should be
-        # the IF condition. (+1 Insightful)
         # todo To help diagnose user error, add a test ensuring that this 'reason' is a valid pretest to all other 'reason's
-        code += "if " + conditions[0][0] + ":\n"
-        code += "    return " + quote_if_str(get_output(conditions[0][1], conditions[0][2])) + '\n'  # get_output(reason_eid, step_id)
+        code += "if " + conditions[0][0] + ":\n"  # This most selective condition is the one that can most commonly
+        # serve as a pretest, therefore it should be the IF condition. (+1 Insightful)
+        # Return output corresponding to this reason and step.
+        code += "    return " + quote_if_str(get_output(conditions[0][1], conditions[0][2])) + '\n'
         del(conditions[0])  # IF is done.
 
         # Add the ELIF and ELSE conditions and their consequents based on the same criteria (order from the SELECT).
@@ -980,7 +1163,7 @@ def gen_code() -> str:
                 code += "elif " + condition + ":\n"
             code += "    return " + quote_if_str(get_output(reason_eid, step_id)) + '\n'
 
-    # Finally, we gen code from the WHILE conditions.
+    # Finally, we gen code from the *********** WHILE *********** conditions.
 
     sql = """
         SELECT line AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 1 ORDER BY step_id DESC, 
@@ -989,7 +1172,7 @@ def gen_code() -> str:
     cursor.execute(sql)
     loop_likely_reasons = cursor.fetchall()  # E.g., [('i1 % 5 == 0',), ('i1 % 3 == 0',)]
     if len(loop_likely_reasons) == 0:
-        return code  # *********************************** RETURNing because no WHILE loop ***
+        return code  # *********************************** RETURNING because no WHILE loop is indicated ***
 
     loop_steps, loop_step_increments = define_loop(loop_likely_reasons)  # *** DEFINE_LOOP() ***
     print("loop_steps:", loop_steps)
@@ -1003,7 +1186,7 @@ def gen_code() -> str:
         code += "accum" + str(i) + " = " + str(-1 * loop_step_increments[i-1]) + "\n"  # E.g., "accum1 = 1\n"
         i += 1
 
-    # Add: WHILE the termination conditions are NOT met, ANDed.
+    # Add: WHILE the ANDed termination conditions are NOT true.
     code += "while "
     cursor.execute('''SELECT final_cond, output, loop_step FROM termination WHERE loop_likely = 1 ORDER BY step_num''')
     terminations = cursor.fetchall()
@@ -1095,7 +1278,7 @@ def dump_table(table: str) -> str:
     return '[' + print_me[0:-2] + ']'  # Rtrim last ',\n'
 
 
-def gen_tests(f_name: str) -> str:
+def genereate_tests(f_name: str) -> str:
     """
     Generate the text of a unit test file that exercises the target function with the given i/o.
     """
@@ -1116,6 +1299,7 @@ def gen_tests(f_name: str) -> str:
         # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    " + f_name + "()  # The function under test.\n"  # TODO need formal params!!!!!!!!
+        #                                       Return the named exem (stripped of comments):
         test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), out_trace)\n"
 
         previous_example_id = example_id
@@ -1221,6 +1405,50 @@ def formal_params() -> str:
     return result.rstrip(", ")
 
 
+def fill_conditions_table():
+    """
+    Fill conditions table with all the true conditions given in the .exem.
+    :return:
+    """
+    all_conditions = []
+    example_lines = cursor.execute("SELECT el_id, example_id, line FROM example_lines WHERE line_type = 'truth'")
+    for example_line in example_lines:
+        el_id, example_id, condition = example_line
+        all_conditions.append((el_id, example_id, condition, schematize(condition), 'TBD herein'))
+    cursor.executemany("INSERT INTO conditions (el_id, example_id, condition, condition_scheme, type) "
+                       "VALUES (?,?,?,?,?)", all_conditions)
+
+    cursor.execute("""SELECT example_id, condition_scheme, COUNT(*) FROM conditions 
+                        GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1""")
+    repeats = cursor.fetchall()
+
+    # Set intraexample_repetition column.
+    # Below can be made more efficient via an executemany per value of intraexample_repetition
+    for row in repeats:
+        # print("debugging  row[0], row[1], row[2]", row[0], row[1], row[2])
+        example_id, condition_scheme, count = row
+        cursor.execute("UPDATE conditions SET intraexample_repetition = ? WHERE example_id = ? AND condition_scheme = ?",
+                       (count, example_id, condition_scheme))
+
+    # Categorize all conditions as simple assignment, iterative, or selective.  Currently, the criteria is simply,
+    # if i1 is being equated with 0 repetition, call it SA. Else, if there's repetition, call it iterative, else,
+    # selective.
+    simple_assignments, iteratives, selectives = [], [], []
+    conditions = cursor.execute("SELECT rowid, condition, intraexample_repetition FROM conditions")
+    for row in conditions:
+        rowid, condition, intraexample_repetition = row
+        # If condition names a variable and it occurs 1x.
+        if variable_name_of_i1(condition, 'i1') and intraexample_repetition == 0:
+            simple_assignments.append((rowid,))
+        elif intraexample_repetition > 0:
+            iteratives.append((rowid,))
+        else:
+            selectives.append((rowid,))
+    cursor.executemany("UPDATE conditions SET type = 'simple assignment' WHERE rowid IN (?)", simple_assignments)
+    cursor.executemany("UPDATE conditions SET type = 'iterative' WHERE rowid IN (?)", iteratives)
+    cursor.executemany("UPDATE conditions SET type = 'selective' WHERE rowid IN (?)", selectives)
+
+
 def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from its .exem `file`.
@@ -1245,22 +1473,29 @@ def reverse_trace(file: str) -> str:
         print(dump_table("example_lines"))
         print(dump_table("termination"))
 
-    # For if/elif/else order, determine how every `reason` evaluates on every input.
-    build_reason_evals()
+    fill_conditions_table()
     if debug_db:
-        print(dump_table("reason_evals"))
+        print(dump_table("conditions"))
+
+    # For if/elif/else order, determine how every `reason` evaluates on every input.
+    # build_reason_evals()
+    # if debug_db:
+    #     print(dump_table("reason_evals"))
 
     # Gather more info for determining if/elif/else order.
-    find_safe_pretests()
-    if debug_db:
-        print(dump_table("pretests"))
+    # find_safe_pretests()
+    # if debug_db:
+    #     print(dump_table("pretests"))
 
     # Use the info in the 3 tables to generate target code.
     f_name = file[0:-5]  # Remove ".exem" extension.
     code = "def " + f_name + "(" + formal_params() + "):\n"  # is named after the input file.
-    for line in gen_code().splitlines(True):  # *** GENERATE FUNCTION CODE ***
-        code += "    " + line                 # then indent each line.
-    print("\n" + code + "\n")  # Show off generated function.
+    for line in generate_code():  # *** GENERATE FUNCTION CODE ***
+        code += line + '\n'       # todo Replace loop with join() if no additional logic required here.
+    # print("\n" + code + "\n")  # Show off generated function.
+    store_code(code)
+    if debug_db:
+        print(dump_table("sequential_function"))
 
     # Create unit tests for function generated.
 
@@ -1271,7 +1506,7 @@ def reverse_trace(file: str) -> str:
     class_name = "Test" + underscore_to_camelcase(f_name)
     class_signature = "class " + class_name + "(unittest.TestCase):"
     starter = starter.replace('<class signature>', class_signature, 1)
-    for line in gen_tests(f_name).splitlines(True):  # *** GENERATE TESTS ***
+    for line in genereate_tests(f_name).splitlines(True):  # *** GENERATE TESTS ***
         starter += "    " + line  # Indent each line, as each test is part of a class.
     starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
     starter += "\n\n''' The source .exem, for reference:\n"
@@ -1295,4 +1530,4 @@ if __name__ == "__main__":  # Run Exemplar against the named .exem file to gener
     class_name = "Test" + underscore_to_camelcase(sys.argv[1][0:-5])  # prime_number.exem -> TestPrimeNumber
     TestClass = importlib.import_module(class_name)
     suite = unittest.TestLoader().loadTestsFromModule(TestClass)
-    unittest.TextTestRunner().run(suite)
+    ## off for now...  unittest.TextTestRunner().run(suite)
