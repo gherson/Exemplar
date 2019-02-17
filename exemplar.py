@@ -269,14 +269,14 @@ def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> 
 
     if line_type == 'in' or line_type == 'out':
         line = line[1:]  # Skip less/greater than symbol.
-        cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_scheme, line_type) 
-                                    VALUES (?,?,?,?,?,?)''',
-                       (line_id, example_id, example_step, remove_c_labels(line), remove_c_labels(line), line_type))
+        cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_type) 
+                                    VALUES (?,?,?,?,?)''',
+                       (line_id, example_id, example_step, remove_c_labels(line), line_type))
     else:
         for assertion in conditions(line):
-            cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_scheme, line_type) 
-                                VALUES (?,?,?,?,?,?)''',
-                           (line_id, example_id, example_step, remove_c_labels(assertion), remove_c_labels(schematize(assertion)), line_type))
+            cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_type) 
+                                VALUES (?,?,?,?,?)''',
+                           (line_id, example_id, example_step, remove_c_labels(assertion), line_type))
             line_id += 5
             example_step += 5
         line_id -= 5
@@ -295,6 +295,7 @@ def process_examples(examples: List) -> None:
     example_id = -1
     example_step = 0  # += 5 each intra-example step
     previous_line = 'B'
+
     examples = clean(examples)
     ##examples += "\n"  # To make sure last example is processed.
     for line in examples:
@@ -342,7 +343,7 @@ def process_examples(examples: List) -> None:
                 previous_line = 'blank'"""
 
 
-# Deprecated as of 2/10/19 because loop_likely column fairly useless: i need to mark each condition as indicating the
+# todo also need to mark each condition as indicating the
 # *start* of a loop or iteration, because an iterative condition can be repeated due to a loop in an enclosing scope.
 def mark_loop_likely() -> None:
     """
@@ -357,6 +358,7 @@ def mark_loop_likely() -> None:
     :return void:
     """
 
+    # Unused as of 2/16/19 as -1 became the default loop_likely value.
     def mark_sequences() -> None:
         """
         Set loop_likely to -1 to designate it as part of sequential (as opposed to selective (0) or iterative (1))
@@ -407,7 +409,7 @@ def mark_loop_likely() -> None:
     reached.
 
     """
-    mark_sequences()
+    #mark_sequences()
 
     # cursor.execute('''UPDATE examples SET loop_likely = 1 WHERE cond_cnt > 1 OR
     #     inp IN (SELECT e1.inp FROM examples e1 WHERE INSTR(e1.reason, reason) AND e1.cond_cnt > 1)''')
@@ -421,23 +423,50 @@ def mark_loop_likely() -> None:
     # Loop thru examples_of_line.  Each element list with length > 1 causes example_id_set.add(example_id) and
     # line_set.add(schematized(line))
     # UPDATE example_lines SET loop_likely = 1 WHERE line IN (line_list) AND example_id IN (examples)
-    # True resetting ? each time step_id == 0.
-    cursor.execute('''SELECT example_id, line_scheme FROM example_lines WHERE line_type != 'in' 
-                        ORDER BY example_id, line_scheme''')
-    loop_likely_schemes = {}
-    records = cursor.fetchall()
-    previous_line_scheme = ''
-    previous_example_id = ''
-    for record in records:
-        example_id = record[0]
-        line_scheme = record[1]
-        if line_scheme == previous_line_scheme and example_id == previous_example_id:  # Same scheme w/in same example.
+    # True resetting ? each time step_id == 0.   SELECT example_id, line FROM
+
+    # Set loop_likely=1 if output 'line' is repeated within an example.
+    cursor.execute('''SELECT example_id, line FROM example_lines WHERE line_type = 'out' 
+                        GROUP BY example_id, line HAVING COUNT(*) > 1''')
+    repeats = cursor.fetchall()
+    for row in repeats:
+        example_id, line = row
+        cursor.execute("UPDATE example_lines SET loop_likely = 1 WHERE line_type='out' AND example_id = ? AND line = ?",
+                       (example_id, line))
+
+    # Repeat above now for 'truth' example_lines, except look at line_scheme instead of 'line'.
+    cursor.execute('''SELECT example_id, condition_scheme FROM conditions  
+    GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1''')
+    repeats = cursor.fetchall()
+    for row in repeats:
+        example_id, line_scheme = row
+        cursor.execute("UPDATE example_lines SET loop_likely = 1 WHERE el_id IN ("
+                       "SELECT el_id FROM conditions WHERE example_id = ? AND condition_scheme = ?)",
+                       (example_id, line_scheme))
+
+    # Finally, mark selections/IFs as those unique 'truth's not equating an identifier to i1 (eg, ignore guess==i1).
+    cursor.execute('''SELECT el_id, line FROM example_lines WHERE loop_likely == -1 AND line_type = 'truth' ''')
+    selections = []
+    rows = cursor.fetchall()
+    for row in rows:
+        el_id, relation = row
+        if not variable_name_of_i1(relation):
+            selections.append(el_id)
+    if len(selections) > 0:
+        cursor.execute("UPDATE example_lines SET loop_likely = 0 WHERE el_id IN (" + ','.join('?' * len(selections)) +
+                       ')', selections)
+
+    return
+
+    """      
+    if line_scheme == previous_line_scheme and example_id == previous_example_id:  # Same scheme w/in same example.
             loop_likely_schemes.add(line_scheme)
     schemes_csv = ''
     for scheme in loop_likely_schemes:
         schemes_csv += scheme + ', '
     cursor.execute('UPDATE example_lines SET loop_likely = 1 WHERE line_scheme IN (' + schemes_csv + ')')
-""" todo
+
+    todo
     # Now use those newly marked examples to update the termination table.
     cursor.execute('''SELECT reason FROM examples WHERE loop_likely == 1''')
     final_conditions = []
@@ -448,7 +477,13 @@ def mark_loop_likely() -> None:
         query = 'UPDATE termination SET loop_likely = 1 WHERE final_cond IN (' + \
                        ','.join('?' * len(final_conditions)) + ')'
         cursor.execute(query, final_conditions)
-"""
+    """
+
+
+def fill_control_tables() -> None:
+    """Gather all repetitions of the same ... first try again to salvage my ? code?"""
+    pass
+
 
 def remove_all_c_labels() -> None:
     # The "c" labels are not needed. (Constants can have a "c" suffix in `reason` and
@@ -655,9 +690,10 @@ def reset_db() -> None:
                         el_id INTEGER NOT NULL,
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
-                        condition_scheme TEXT NOT NULL, -- schematized(condition)
-                        type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
-                        intraexample_repetition INTEGER NOT NULL DEFAULT 0)""")  # Based on condition_scheme
+                        condition_scheme TEXT NOT NULL)""") #-- schematized(condition)
+                        # --type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
+                        # --intraexample_repetition INTEGER NOT NULL DEFAULT 0
+
     # lp todo For these repetitions, how many can be considered to be followed with the same # of code
     # lines of exactly 1 further indent? 2/10/19
     # Old:
@@ -672,8 +708,7 @@ def reset_db() -> None:
                         example_id INTEGER NOT NULL, -- example #
                         step_id INTEGER NOT NULL, -- relative line # within the example
                         line TEXT NOT NULL,
-                        line_scheme TEXT, -- schematized(line) if line_type == 'truth'
-                        loop_likely INTEGER NOT NULL DEFAULT 0, -- see mark_loop_likely()
+                        loop_likely INTEGER NOT NULL DEFAULT -1, -- see mark_loop_likely()
                         line_type TEXT NOT NULL)''')  # in/out/truth
     cursor.execute('''CREATE UNIQUE INDEX eles ON example_lines(example_id, step_id)''')
 
@@ -883,20 +918,36 @@ def get_increment(condition: str) -> int:
     return sign * increment
 
 
-def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
+def define_loop() -> Tuple[List, List]:
     """
-    Decipher the loop by noting its sequence of conditions. Define and return loop_steps, loop_step_increments and
-    update the termination table.
+    Decipher the loop by noting its sequence of example lines. Define and return loop_steps, loop_step_increments and
+    update the ??termination table.
     # todo figure out what to do about steps not given, e.g., (i1-1)>2c, if printing step errors isn't enough.
-    :param loop_likely_reasons: list
+    :param None
     :return loop_steps, loop_step_increments:
     """
     loop_width = 0
     first_condition = ""
     loop_steps = []  # Are here built.
-    loop_step_increments = []  # The change to an input variable before each condition's relational operator (includes
-    # *all* reasons (perhaps uselessly)).
-    for reason in loop_likely_reasons:
+    loop_step_increments = []  # The change to the loop control variable from the prior iteration
+    ## before each condition's relational operator (includes *all* reasons (perhaps uselessly)).
+
+    cursor.execute("""SELECT * FROM example_lines ORDER BY example_id, el_id""")
+    rows = cursor.fetchall()
+    i = 0  # row #
+    for row in rows:  # Break when reach likely end of loop.
+        el_id, example_id, step_id, line, loop_likely, line_type = row
+        if example_id != prior_example_id:
+            if first_loop_start != -1:  # Then a loop just ended,
+                pass  # Find most likely sequential target function (STF) correlate.
+            # Reset per-example variables.
+            first_loop_start = -1
+        if first_loop_start == -1 and loop_likely != 1:  # Each example, skip pre-loop lines.
+            continue
+        if first_loop_start == -1:
+            first_loop_start = i
+
+
         reason = reason[0]  # 0 is the only key.
         last_condition_of_reason = False
         i = 0  # Count of conditions examined in this 'reason'.
@@ -953,6 +1004,9 @@ def define_loop(loop_likely_reasons: List[str]) -> Tuple[List, List]:
 
             loop_step_increments.append(increment)
             i += 1
+
+        prior_example_id = example_id
+        i += 1  # row #
     return loop_steps, loop_step_increments
 
 
@@ -1025,12 +1079,11 @@ def variable_name_of_value(truth_line: str, value: any) -> str:
     return ''
 
 
-def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]*') -> str:
+def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]+') -> str:
     """
     Return truth_line's name for (i.e., equivalence to) the input_variable, if any.
-    Eg, variable_name_of_input('guess==i1, i1>4', 'i1') => 'guess'
     :param truth_line:
-    :param input_variable: 'i[0-9]+' will select any.
+    :param input_variable: 'i[0-9]+' by default.
     :return: what truth_line says is a name equal to input_variable, or '' if no match.
     """
     condition = assertion_triple(truth_line)  # (a non-input variable name, if any, will be in condition[2].)
@@ -1040,7 +1093,16 @@ def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]*') -> str
             re.match('[A-z]', condition[2]):  # Identifiers must begin with a letter.
         return condition[2]  # Return that identifier asserted equal to input_variable.
     return ''
-    # lp todo Ensure input variables on both sides of an equivalence do not cause a problem. 2/10/19
+    # todo Unit tests below. Ensure input variables on both sides of an equivalence do not cause a problem. 2/10/19
+
+
+if __name__ == "__main__":
+    assert 'guess' == variable_name_of_i1('guess==i1')
+    assert '' == variable_name_of_i1('     guess==1')
+    assert 'guess' == variable_name_of_i1('guess==i1', 'i1')
+    assert '' == variable_name_of_i1('   guess == i1', 'i5')
+    assert 'guess' == variable_name_of_i1('guess==i5', 'i5')
+    assert 'guess' == variable_name_of_i1('guess==i5')
 
 
 def store_code(code):
@@ -1062,17 +1124,17 @@ def generate_code() -> List:
 
     # First we turn into code the example_lines whose flow pattern is ***** sequence *****
 
-    sql = "SELECT c.el_id, el.line, el.line_type, c.type FROM example_lines el " \
-          "LEFT JOIN conditions c ON el.el_id = c.el_id WHERE loop_likely = -1"  # Remove WHERE todo
+    sql = "SELECT el.el_id, el.line, el.line_type, el.loop_likely FROM example_lines el "
+          # "LEFT JOIN conditions c ON el.el_id = c.el_id"
     cursor.execute(sql)
     rows = cursor.fetchall()
     if len(rows) == 0:
-        print("*Zero* loop_likely==-1 (sequential) rows found.")
+        print("*Zero* example lines found.")
 
     # todo Distinguish arguments from variable assignments and input() statements...
     i = 0  # example_lines line counter
     for row in rows:
-        el_id, line, line_type, condition_type = row
+        el_id, line, line_type, loop_likely = row
 
         if line_type == 'in':
             line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
@@ -1110,6 +1172,7 @@ def generate_code() -> List:
                 code.append(print_line)  # Add print unless we're looping.
 
         else:  # Truth   name(next_row[1], value=quote_if_str(input_line)) => :
+
             # Retain mention of equivalence values in order to change hard coded values to soft in the next output line:
             # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!". And:
             # preceding_equality['guess_count'] = '3'.
@@ -1123,14 +1186,18 @@ def generate_code() -> List:
                 # deleteme:
                 # if variable_name not in prior_input:
                 #     code += variable_name + " = " + value + '\n'  # Eg, guess_count = i1
-            # elif type == 'iterative':
-            #     if loop_start > -1:
-            #         assert i - loop_start
+
+            # if loop_likely == 1:
+            #     if loop_start == -1:
+            #         loop_start = i  # Row of the Select (0 based)
+            #         code.append()  # Determine loop top, starting with for/while
             #     else:
-            #         loop_start = i  # 0 based
-            #     line_within_loop = len(code)  # Note where
+            #         assert i - loop_start  # AND ??
+            #     line_within_loop = i  # Note where
 
         i += 1  # example_lines line counter
+
+    return code  # ************** TEMPORARY!!!!!!!!! **********
 
     # Next, we gen code from the ************** IF/ELIF/ELSE ************** conditions, in that order.
     # (old: Reasons where loop_likely==0 map to conditions 1:1.)
@@ -1405,21 +1472,25 @@ def formal_params() -> str:
     return result.rstrip(", ")
 
 
-def fill_conditions_table():
+def fill_conditions_table() -> None:
     """
-    Fill conditions table with all the true conditions given in the .exem.
+    Fill conditions table with all the 'truth' relations given in the .exem.
+    Also format them per assertion_triple().
     :return:
     """
     all_conditions = []
     example_lines = cursor.execute("SELECT el_id, example_id, line FROM example_lines WHERE line_type = 'truth'")
     for example_line in example_lines:
         el_id, example_id, condition = example_line
-        all_conditions.append((el_id, example_id, condition, schematize(condition), 'TBD herein'))
-    cursor.executemany("INSERT INTO conditions (el_id, example_id, condition, condition_scheme, type) "
-                       "VALUES (?,?,?,?,?)", all_conditions)
+        left, relational_operator, right = assertion_triple(condition)  # Format
+        condition = left + ' ' + relational_operator + ' ' + right      # condition.
+        all_conditions.append((el_id, example_id, condition, schematize(condition)))
+    cursor.executemany("INSERT INTO conditions (el_id, example_id, condition, condition_scheme) "
+                       "VALUES (?,?,?,?)", all_conditions)
 
-    cursor.execute("""SELECT example_id, condition_scheme, COUNT(*) FROM conditions 
-                        GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1""")
+    return
+    """cursor.execute(""SELECT example_id, condition_scheme, COUNT(*) FROM conditions 
+                        GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1"")
     repeats = cursor.fetchall()
 
     # Set intraexample_repetition column.
@@ -1446,7 +1517,7 @@ def fill_conditions_table():
             selectives.append((rowid,))
     cursor.executemany("UPDATE conditions SET type = 'simple assignment' WHERE rowid IN (?)", simple_assignments)
     cursor.executemany("UPDATE conditions SET type = 'iterative' WHERE rowid IN (?)", iteratives)
-    cursor.executemany("UPDATE conditions SET type = 'selective' WHERE rowid IN (?)", selectives)
+    cursor.executemany("UPDATE conditions SET type = 'selective' WHERE rowid IN (?)", selectives)"""
 
 
 def reverse_trace(file: str) -> str:
@@ -1467,15 +1538,17 @@ def reverse_trace(file: str) -> str:
     reset_db()
     process_examples(examples)  # Insert the .exem file's line into the examples and termination tables.
     remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
-    
+
+    fill_conditions_table()
+    if debug_db:
+        print(dump_table("conditions"))
+
     mark_loop_likely()  # Update the loop_likely column in the examples and termination tables.
     if debug_db:
         print(dump_table("example_lines"))
         print(dump_table("termination"))
 
-    fill_conditions_table()
-    if debug_db:
-        print(dump_table("conditions"))
+
 
     # For if/elif/else order, determine how every `reason` evaluates on every input.
     # build_reason_evals()

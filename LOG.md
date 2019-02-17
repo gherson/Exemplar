@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-16 Except for its line_scheme, conditions table is currently redundant with example_lines table.  Latter's
+loop_likely now noting likely repetitive, selective, and sequential code as intended. 6.25h
 * 2019-02-15 Code committed. Added unit tests directly to examplar.py for documentation; separate testing down, and 
 most example problems not working, as I continue focus on conversational problem guess3. 8h
 * 2019-02-14 generate_code() now generating a list rather than a string of code so prior code lines can be referenced.  Table conditions now left outer joined with example_lines table so the former's rows can be referenced along side where extant. Manually correcting E's output for guess3, I finally saw the simple, code-able decisions involved (e.g., Do not add loop code beyond its 1st iteration). 2.5h
