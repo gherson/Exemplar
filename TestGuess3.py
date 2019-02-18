@@ -20,17 +20,21 @@ def input(line: str = "") -> None:
 
 def guess3():
      print('Hello! What is your name?')
-     name = input('name:')
-     secret = input('secret:')
+     name = input('name:')  # Albert
+     secret = input('secret:')  # 4
      print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
+     assert guess_count==0  # for guess_count in range(0, 3)
      print('Take a guess.')
-     guess = input('guess:')
+     guess = input('guess:')  # 10
+     assert i1>4  # if i1>4:
      print('Your guess is too high.')
      print('Take a guess.')
-     guess = input('guess:')
+     guess = input('guess:')  # 2
+     assert i1<4  # if i1<4:
      print('Your guess is too low.')
      print('Take a guess.')
-     guess = input('guess:')
+     guess = input('guess:')  # 4
+     assert i1==4  # if i1==4:
      print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
 
 

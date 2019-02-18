@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02017 get_range() supplying scope info of FOR loops. generate_code() adding assertions and control info to sequential version of target function.
 * 2019-02-16 Except for its line_scheme, conditions table is currently redundant with example_lines table.  Latter's
 loop_likely now noting likely repetitive, selective, and sequential code as intended. 6.25h
 * 2019-02-15 Code committed. Added unit tests directly to examplar.py for documentation; separate testing down, and 
