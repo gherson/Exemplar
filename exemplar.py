@@ -725,7 +725,8 @@ def reset_db() -> None:
                         el_id INTEGER NOT NULL,
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
-                        condition_scheme TEXT NOT NULL)""") #-- schematized(condition)
+                        condition_scheme TEXT NOT NULL,
+                        python TEXT)""") #-- schematized(condition)
                         # --type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
                         # --intraexample_repetition INTEGER NOT NULL DEFAULT 0
 
@@ -1131,7 +1132,8 @@ def get_range(first_el_id, line):
         if first is None:
             first = row_int  # Eg, value('guess_count==0') => 0
             assert row_el_id == first_el_id, "The first el_id with a scheme equal to that of the given condition, " + \
-                line + ", is " + row_el_id + " and not " + first_el_id + " as expected."
+                line + ", is " + str(row_el_id) + " and not " + str(first_el_id) + " as expected, implying that " + \
+                "this call should have been filtered out."
         elif increment is None:
             increment = row_int - first
         else:
@@ -1140,7 +1142,6 @@ def get_range(first_el_id, line):
         last = row_int
         last_el_id_top = row_el_id
 
-    # Surviving the get_range_pair() call further suggests a for loop.
     last_el_id = get_last_el_id_of_loop(first_el_id, last_el_id_top)
     # todo Use info to end loop block's indent etc in controlled_code.
 
@@ -1148,13 +1149,50 @@ def get_range(first_el_id, line):
 
 
 # Return "if condition:" or, if condition repeats, "while condition:"
-def if_or_while(condition):
-    cursor.execute("""SELECT COUNT(*) FROM conditions WHERE condition_scheme = ? ORDER BY el_id""",
+def if_or_while(el_id, condition, second_pass):
+    cursor.execute("SELECT COUNT(*) FROM conditions WHERE condition_scheme = ? ORDER BY el_id",
                    (scheme(condition),))
     count = cursor.fetchone()
     if count[0] > 1:
         return "while " + str(condition) + ':'
-    return "if " + str(condition) + ':'
+
+    if not second_pass:
+        return "if " + str(condition) + ':'
+    else:
+
+        # On 2nd pass of code generation, combine IF cconditions into what should be clauses of the same IF and
+        # decide their elif order (which will not necessarily preserve the conditions'
+        # given order, of course). For now, gather all IF-type conditions within el_id's most
+        # nested loop (via indent), and assume those with conditions (todo) mutually exclusive with el_id's
+        # condition are the conditions of the same IF structure. todo Improve, eg, order via the examples.
+        indent = len(condition) - len(condition.lstrip())  # condition's indent
+
+        cursor.execute("SELECT el_id, condition FROM conditions WHERE el_id < ? ORDER BY el_id DESC", (el_id,))
+        earlier_rows = cursor.fetchall()
+        first_clause_of_if = el_id
+        for row in earlier_rows:
+            row_el_id, row_condition = row
+            row_indent = len(row_condition) - len(row_condition.lstrip())
+            if row_indent != indent:
+                break
+            first_clause_of_if = el_id
+
+        # (last_clause_of_if unused as of 2/19/19.)
+        cursor.execute("SELECT el_id, condition FROM conditions WHERE el_id > ? ORDER BY el_id", (el_id,))
+        later_rows = cursor.fetchall()
+        last_clause_of_if = el_id
+        for row in later_rows:
+            row_el_id, row_condition = row
+            row_indent = len(row_condition) - len(row_condition.lstrip())
+            if row_indent != indent:
+                break
+            last_clause_of_if = el_id
+
+        if el_id == first_clause_of_if:
+            return "if " + str(condition) + ':'
+        else:
+            return "elif " + str(condition) + ':'
+    # todo check if the above str()'s are necessary
 
 
 # Should only be called with the el_id of a believed for-loop top.
@@ -1195,7 +1233,9 @@ def generate_code() -> List:
     """
 
     code = []  # To be returned
-    prior_input, preceding_equality, line_within_loop, indent, loop_start = {}, {}, 0, 5, -1
+    prior_input, preceding_equality, line_within_loop, indent, loop_start = {}, {}, 0, "    ", -1
+    cursor.execute("SELECT COUNT(*) FROM sequential_function")  # Add control structure if true.
+    second_pass = cursor.fetchone()[0]
 
     # First we turn into code the example_lines whose flow pattern is ***** sequence *****
 
@@ -1222,7 +1262,7 @@ def generate_code() -> List:
                         variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1')
                     variable_name = variable_name_of_i1(next_row[1], 'i1')
 
-            assignment = ' '*indent + variable_name + " = input('" + variable_name + ":')  # " + line
+            assignment = indent + variable_name + " = input('" + variable_name + ":')  # " + line
             if not line_within_loop or not assignment == code[line_within_loop]:
                 code.append(assignment)  # Add assignment unless we're looping.
             prior_input[variable_name] = line  # Note, eg, prior_input['name'] = 'Albert'
@@ -1243,7 +1283,7 @@ def generate_code() -> List:
                         new_line += " + '" + remainder_of_line
                     line = new_line
 
-            print_line = ' '*indent + "print('" + line + "')"
+            print_line = indent + "print('" + line + "')"
             if not line_within_loop or not print_line == code[line_within_loop]:
                 code.append(print_line)  # Add print unless we're looping.
 
@@ -1266,16 +1306,33 @@ def generate_code() -> List:
                 #     code += variable_name + " = " + value + '\n'  # Eg, guess_count = i1
 
                 # Also, non-input variables asserted equal to an integer implies a FOR loop.
-                if scheme(line) not in for_suspects:  # Then scheme(line) is new.
+                if scheme(line) not in for_suspects:  # Then scheme(line) is new. todo Search with indent + line
                     range_pair, last_el_id_of_loop = get_range(el_id, line)
-                    code.append(' ' * indent + "assert " + str(line) +
-                                "  # for " + variable_name + " in range" + str(range_pair))
-                    for_suspects.append(scheme(line))
+                    control = indent + "for " + variable_name + " in range" + str(range_pair) + ':'
+                    if second_pass:
+                        code.append(control)
+                        indent += '    '
+                        control = ''
+                    else:
+                        cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
+                    code.append(indent + "assert " + str(line) + "  #" + control)
+                    for_suspects.append(scheme(line))  # todo add indent for better discriminatino
 
             # Suppress code.append() of i1==variable assertions.
-            # lp todo Only suppress after verifying veracity.
+            # lp todo re: below "not", better to verify than assume an assignment.
             elif not (condition[1] == '==' and re.match(r'i[\d]$', condition[0]) and re.match(r'[A-z]', condition[2])):
-                code.append(' '*indent + "assert " + str(line) + "  # " + if_or_while(line))
+                control = if_or_while(el_id, line, second_pass)  # ********* IF OR WHILE ********
+                if second_pass:
+                    code.append(indent + control)
+                    indent += '    '
+                    # if control[0:3] == 'if ' or control[0:6] == 'while ':
+                    #     indent += '    '
+                    # elif control[0:5] == 'else:':
+                    #     indent -= '    '
+                    control = ''
+                else:
+                    cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
+                code.append(indent + "assert " + str(line) + "  #" + control)
 
             # if loop_likely == 1:
             #     if loop_start == -1:
@@ -1613,6 +1670,9 @@ def fill_conditions_table() -> None:
 def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from its .exem `file`.
+    Pull i/o/truth examples from the .exem, work up its implications into database tables, then call generate_code().
+    Finally, create a file of unit tests based on the examples and run it.\
+
     :param file: A file of examples and 'reason's with extension .exem.
     :return code:
     """
@@ -1638,8 +1698,6 @@ def reverse_trace(file: str) -> str:
         print(dump_table("example_lines"))
         print(dump_table("termination"))
 
-
-
     # For if/elif/else order, determine how every `reason` evaluates on every input.
     # build_reason_evals()
     # if DEBUG_DB:
@@ -1654,11 +1712,13 @@ def reverse_trace(file: str) -> str:
     f_name = file[0:-5]  # Remove ".exem" extension.
     code = "def " + f_name + "(" + formal_params() + "):\n"  # is named after the input file.
     for line in generate_code():  # *** GENERATE FUNCTION CODE ***
-        code += line + '\n'       # todo Replace loop with join() if no additional logic required here.
-    # print("\n" + code + "\n")  # Show off generated function.
+        code += line + '\n'  # todo Replace loop with '\n'.join(generate_code()) if no additional logic required here.
     store_code(code)
-    if DEBUG_DB:
-        print(dump_table("sequential_function"))
+    # if DEBUG_DB:
+    #     print(dump_table("sequential_function"))
+    # Retry to add control structure.
+    code = '\n'.join(generate_code())
+    print("\n" + code + "\n")  # Show off generated function.
 
     # Create unit tests for function generated.
 

@@ -18,25 +18,27 @@ def input(line: str = "") -> None:
     out_trace += "<" + in_trace.pop() + '\n'  # Eg, '<Albert\n'
 
 
-def guess3():
-     print('Hello! What is your name?')
-     name = input('name:')  # Albert
-     secret = input('secret:')  # 4
-     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-     assert guess_count==0  # for guess_count in range(0, 3)
-     print('Take a guess.')
-     guess = input('guess:')  # 10
-     assert i1>4  # if i1>4:
-     print('Your guess is too high.')
-     print('Take a guess.')
-     guess = input('guess:')  # 2
-     assert i1<4  # if i1<4:
-     print('Your guess is too low.')
-     print('Take a guess.')
-     guess = input('guess:')  # 4
-     assert i1==4  # if i1==4:
-     print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
-
+    print('Hello! What is your name?')
+    name = input('name:')  # Albert
+    secret = input('secret:')  # 4
+    print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
+    for guess_count in range(0, 3):
+        assert guess_count==0  #
+        print('Take a guess.')
+        guess = input('guess:')  # 10
+        if i1>4:
+            assert i1>4  #
+            print('Your guess is too high.')
+            print('Take a guess.')
+            guess = input('guess:')  # 2
+            if i1<4:
+                assert i1<4  #
+                print('Your guess is too low.')
+                print('Take a guess.')
+                guess = input('guess:')  # 4
+                if i1==4:
+                    assert i1==4  #
+                    print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
 
 class TestGuess3(unittest.TestCase):
 
