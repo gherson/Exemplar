@@ -19,26 +19,18 @@ def input(line: str = "") -> None:
 
 
     print('Hello! What is your name?')
-    name = input('name:')  # Albert
-    secret = input('secret:')  # 4
+    name = input('name:')  # Eg, Albert
+    secret = input('secret:')  # Eg, 4
     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
     for guess_count in range(0, 3):
-        assert guess_count==0  #
         print('Take a guess.')
-        guess = input('guess:')  # 10
-        if i1>4:
-            assert i1>4  #
+        guess = input('guess:')  # Eg, 10
+        if guess>secret:
             print('Your guess is too high.')
-            print('Take a guess.')
-            guess = input('guess:')  # 2
-            if i1<4:
-                assert i1<4  #
-                print('Your guess is too low.')
-                print('Take a guess.')
-                guess = input('guess:')  # 4
-                if i1==4:
-                    assert i1==4  #
-                    print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
+        elif guess<secret:
+            print('Your guess is too low.')
+        elif guess==secret:
+            print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
 
 class TestGuess3(unittest.TestCase):
 
@@ -66,29 +58,27 @@ if __name__ == '__main__':
 
 ''' The source .exem, for reference:
 """
-The 1st column of line comments map to the code line #s at
-http://inventwithpython.com/invent4thed/chapter3.html.
-The 2nd column map to the code lines of a sequential guess3().
+Todo Enable full line comments. Enable as penultimate line: 3 == guess_count + 1
 """
->Hello! What is your name?                                  # 6                 1
-<Albert                                                     # 7                 2
-name==i1         # simple assignment (SA)                   # 7                 2
-<4                                                          # 9                 3
-secret==i1       # SA                                       # 9                 3
->Well, Albert, I am thinking of a number between 1 and 20.  # 10                4
-guess_count==0   # iteration                                # 12
->Take a guess.                                              # 13                5
-<10                                                         # 14, 15            6
-guess==i1, i1>4  # SA, selection                            # 14, 15, 20        6
->Your guess is too high.                                    # 21                8
-guess_count == 1 # iteration                                # 12                7
->Take a guess.                                              # 13                9
-<2                                                          # 14, 15            10
-guess==i1, i1<4  # SA, selection                            # 14, 15, 17        10
->Your guess is too low.                                     # 18                11
-guess_count==2   # iteration                                # 12
->Take a guess.                                              # 13                12
-<4                                                          # 14, 15            13
-guess==i1, i1==4 # SA, selection                            # 14, 15, 23, 24
->Good job, Albert! You guessed my number in 3 guesses!      # 26, 27, 28        14
+>Hello! What is your name?
+<Albert
+name==i1         # simple assignment (SA)
+<4
+secret==i1       # SA
+>Well, Albert, I am thinking of a number between 1 and 20.
+guess_count==0   # iteration
+>Take a guess.
+<10
+guess==i1, guess>secret  # SA, selection
+>Your guess is too high.
+guess_count == 1 # iteration
+>Take a guess.
+<2
+guess==i1, guess<secret  # SA, selection
+>Your guess is too low.
+guess_count==2   # iteration
+>Take a guess.
+<4
+guess==i1, guess==secret  # SA, selection
+>Good job, Albert! You guessed my number in 3 guesses!
 '''

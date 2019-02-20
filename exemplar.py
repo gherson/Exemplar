@@ -60,26 +60,26 @@ def assertion_triple(truth_line: str) -> tuple:
     return left_operand, relational_operator, right_operand
 
 
+def denude(line: str) -> str:
+    """
+    Remove any surrounding whitespace and line comment from `line` and return it.
+    :rtype: str
+    :param line:  String to denude.
+    :return:
+    """
+    hash_positions = positions_outside_strings(line, '#')
+    if not hash_positions:  # Hash not found.
+        return line.strip()
+    else:
+        return line[0:hash_positions[0]].strip()
+
+
 def clean(examples: List[str]) -> List[str]:
     """
     Remove header and line comments and trim each line.
     :param examples:  An exem file's contents.
     :return:
     """
-
-    def denude(line: str) -> str:
-        """
-        Remove any surrounding whitespace and line comment from `line` and return it.
-        :rtype: str
-        :param line:  String to denude.
-        :return:
-        """
-        hash_positions = positions_outside_strings(line, '#')
-        if not hash_positions:  # Hash not found.
-            return line.strip()
-        else:
-            return line[0:hash_positions[0]].strip()
-
     previous_line = ''
     triple_quote = "'''"
     result = []
@@ -491,6 +491,10 @@ def mark_loop_likely() -> None:
         cursor.execute("UPDATE example_lines SET loop_likely = 0 WHERE el_id IN (" + ','.join('?' * len(selections)) +
                        ')', selections)
 
+    # Put what we learned today into conditions table, to obviate much JOIN.
+    cursor.execute("""UPDATE conditions SET loop_likely = 
+    (SELECT el.loop_likely FROM example_lines el WHERE conditions.el_id = el.el_id)""")
+
     return
 
     """      
@@ -726,6 +730,7 @@ def reset_db() -> None:
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
                         condition_scheme TEXT NOT NULL,
+                        loop_likely INTEGER,
                         python TEXT)""") #-- schematized(condition)
                         # --type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
                         # --intraexample_repetition INTEGER NOT NULL DEFAULT 0
@@ -1154,20 +1159,22 @@ def if_or_while(el_id, condition, second_pass):
                    (scheme(condition),))
     count = cursor.fetchone()
     if count[0] > 1:
-        return "while " + str(condition) + ':'
+        return "while " + condition + ':'
 
     if not second_pass:
-        return "if " + str(condition) + ':'
+        return "if " + condition + ':'
     else:
-
-        # On 2nd pass of code generation, combine IF cconditions into what should be clauses of the same IF and
+        # On 2nd pass of code generation, combine IF conditions into what should be clauses of the same IF and
         # decide their elif order (which will not necessarily preserve the conditions'
-        # given order, of course). For now, gather all IF-type conditions within el_id's most
+        # given order, of course).
+        # For now, gather all IF-type conditions within el_id's most
         # nested loop (via indent), and assume those with conditions (todo) mutually exclusive with el_id's
         # condition are the conditions of the same IF structure. todo Improve, eg, order via the examples.
         indent = len(condition) - len(condition.lstrip())  # condition's indent
 
-        cursor.execute("SELECT el_id, condition FROM conditions WHERE el_id < ? ORDER BY el_id DESC", (el_id,))
+        # Find first_clause_of_if
+        cursor.execute("""SELECT el_id, condition FROM conditions 
+                           WHERE loop_likely = 0 AND el_id < ? ORDER BY el_id DESC""", (el_id,))
         earlier_rows = cursor.fetchall()
         first_clause_of_if = el_id
         for row in earlier_rows:
@@ -1175,10 +1182,11 @@ def if_or_while(el_id, condition, second_pass):
             row_indent = len(row_condition) - len(row_condition.lstrip())
             if row_indent != indent:
                 break
-            first_clause_of_if = el_id
+            first_clause_of_if = row_el_id
 
-        # (last_clause_of_if unused as of 2/19/19.)
-        cursor.execute("SELECT el_id, condition FROM conditions WHERE el_id > ? ORDER BY el_id", (el_id,))
+        # (last_clause_of_if unused as of 2/19/19. todo Use to implement 'else:')
+        cursor.execute("""SELECT el_id, condition FROM conditions 
+                           WHERE loop_likely = 0 AND el_id > ? ORDER BY el_id""", (el_id,))
         later_rows = cursor.fetchall()
         last_clause_of_if = el_id
         for row in later_rows:
@@ -1186,13 +1194,12 @@ def if_or_while(el_id, condition, second_pass):
             row_indent = len(row_condition) - len(row_condition.lstrip())
             if row_indent != indent:
                 break
-            last_clause_of_if = el_id
+            last_clause_of_if = row_el_id
 
         if el_id == first_clause_of_if:
-            return "if " + str(condition) + ':'
+            return "if " + condition + ':'
         else:
-            return "elif " + str(condition) + ':'
-    # todo check if the above str()'s are necessary
+            return "elif " + condition + ':'
 
 
 # Should only be called with the el_id of a believed for-loop top.
@@ -1233,7 +1240,7 @@ def generate_code() -> List:
     """
 
     code = []  # To be returned
-    prior_input, preceding_equality, line_within_loop, indent, loop_start = {}, {}, 0, "    ", -1
+    prior_input, preceding_equality, loop_code, indent, loop_start = {}, {}, [], "    ", -1
     cursor.execute("SELECT COUNT(*) FROM sequential_function")  # Add control structure if true.
     second_pass = cursor.fetchone()[0]
 
@@ -1262,9 +1269,10 @@ def generate_code() -> List:
                         variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1')
                     variable_name = variable_name_of_i1(next_row[1], 'i1')
 
-            assignment = indent + variable_name + " = input('" + variable_name + ":')  # " + line
-            if not line_within_loop or not assignment == code[line_within_loop]:
-                code.append(assignment)  # Add assignment unless we're looping.
+            assignment = variable_name + " = input('" + variable_name + ":')"
+            if not second_pass or assignment not in loop_code:
+                assignment = indent + assignment + "  # Eg, " + line
+                code.append(assignment)
             prior_input[variable_name] = line  # Note, eg, prior_input['name'] = 'Albert'
 
         elif line_type == 'out':  # todo Distinguish return from print()'s...
@@ -1274,7 +1282,7 @@ def generate_code() -> List:
             prior_variables.update(preceding_equality)  # preceding_equality.
             for variable_name in prior_variables:
                 position = line.find(prior_variables[variable_name])
-                if position > -1:  # lp todo Test variable_name to see if str() is needed:
+                if position > -1:
                     new_line = line[0:position] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
 
                     # Add remainder of line, if any.
@@ -1283,21 +1291,20 @@ def generate_code() -> List:
                         new_line += " + '" + remainder_of_line
                     line = new_line
 
-            print_line = indent + "print('" + line + "')"
-            if not line_within_loop or not print_line == code[line_within_loop]:
-                code.append(print_line)  # Add print unless we're looping.
+            print_line = "print('" + line + "')"
+            if not second_pass or print_line not in loop_code:
+                code.append(indent + print_line)
 
         else:  # Truth   name(next_row[1], value=quote_if_str(input_line)) => :
 
-            condition = assertion_triple(line)
+            condition = assertion_triple(line)  # Break up 'line' into 3.
+            # (This logic is spelled out because it differs from that of all loop_likely classes. 2/17/19)
+            if condition[0].isdigit() and condition[1] == '==' and not re.match(r'i\d', condition[2]) and \
+                re.match('[A-z]', condition[2]):  # Eg, ('3', '==', 'guess_count')
+                # 'condition' asserts that an integer is equal to a (non-input) variable. Retain this info:
+                # preceding_equality['guess_count'] = '3'  in order to swap hard coded values for soft in the output:
+                # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
 
-            # If assertion is that a (non-input) variable equal to an integer, retain mention of
-            # equivalence values in order to change hard coded values to soft in the next output line:
-            # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!". And:
-            # preceding_equality['guess_count'] = '3'.
-            # (This logic differs from that of all loop_likely classes. 2/17/19)
-            if condition[1] == '==' and not re.match(r'i\d', condition[2]) and re.match('[A-z]', condition[2]) \
-                    and condition[0].isdigit():  # Eg, ('3', '==', 'guess_count')
                 value = condition[0]  # Eg, '3'
                 variable_name = condition[2]  # Eg, 'guess_count'
                 preceding_equality[variable_name] = value  # Eg, preceding_equality['guess_count'] = '3'
@@ -1305,34 +1312,44 @@ def generate_code() -> List:
                 # if variable_name not in prior_input:
                 #     code += variable_name + " = " + value + '\n'  # Eg, guess_count = i1
 
-                # Also, non-input variables asserted equal to an integer implies a FOR loop.
-                if scheme(line) not in for_suspects:  # Then scheme(line) is new. todo Search with indent + line
+                # Also, non-input variables asserted equal to an integer implies a ***** FOR loop ******
+                if scheme(line) in for_suspects:  # deja vu
+                    if second_pass and not loop_code:  # Then loop_code is undefined.
+                        for index in range(loop_start, len(code)):  # Build loop_code to avoid adding redundant code.
+                            loop_code.append(denude(code[index]))
+                else:  # Then scheme(line) is new. todo Search with indent + line
                     range_pair, last_el_id_of_loop = get_range(el_id, line)
                     control = indent + "for " + variable_name + " in range" + str(range_pair) + ':'
                     if second_pass:
                         code.append(control)
+                        loop_start = len(code)
                         indent += '    '
                         control = ''
                     else:
                         cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
-                    code.append(indent + "assert " + str(line) + "  #" + control)
-                    for_suspects.append(scheme(line))  # todo add indent for better discriminatino
+                    if control:
+                        code.append(indent + "assert " + str(line) + "  #" + control)
+                    for_suspects.append(scheme(line))  # todo add indent for better discrimination
 
-            # Suppress code.append() of i1==variable assertions.
             # lp todo re: below "not", better to verify than assume an assignment.
             elif not (condition[1] == '==' and re.match(r'i[\d]$', condition[0]) and re.match(r'[A-z]', condition[2])):
+                # 'condition' is not a i* == named variable assertion, so it must be an IF clause or WHILE condition.
                 control = if_or_while(el_id, line, second_pass)  # ********* IF OR WHILE ********
                 if second_pass:
-                    code.append(indent + control)
+                    if control[0:3] == 'if ' or control[0:6] == 'while ':
+                        pass
+                    elif control[0:5] == 'elif ' or control[0:5] == 'else:':  # Outdent.
+                        indent = indent[0:-4]
+                    else:
+                        assert False, "Control statement " + control + " starts with an unexpected word."
+                    if control not in loop_code:
+                        code.append(indent + control)
                     indent += '    '
-                    # if control[0:3] == 'if ' or control[0:6] == 'while ':
-                    #     indent += '    '
-                    # elif control[0:5] == 'else:':
-                    #     indent -= '    '
                     control = ''
                 else:
                     cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
-                code.append(indent + "assert " + str(line) + "  #" + control)
+                if control:
+                    code.append(indent + "assert " + str(line) + "  #" + control)
 
             # if loop_likely == 1:
             #     if loop_start == -1:
@@ -1670,8 +1687,8 @@ def fill_conditions_table() -> None:
 def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from its .exem `file`.
-    Pull i/o/truth examples from the .exem, work up its implications into database tables, then call generate_code().
-    Finally, create a file of unit tests based on the examples and run it.\
+    Pull i/o/truth examples from the .exem, work up their implications into database, then call generate_code().
+    Finally, create unit tests from the examples and run them against the generated code.
 
     :param file: A file of examples and 'reason's with extension .exem.
     :return code:
