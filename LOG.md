@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-19 Almost correct function generated from guess3.exem. 7h
 * 2019-02-18 Worked mostly in if_or_while(el_id, line, second_pass) to enable the IFs implied eg in guess3.exem. 4.25h
 * 2019-02-17 get_range() supplying scope info of FOR loops. generate_code() adding assertions and control info to 
 sequential version of target function. 10.5h
