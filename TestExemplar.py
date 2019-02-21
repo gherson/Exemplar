@@ -380,7 +380,7 @@ def test_testing9(self):
     self.assertEqual(True, testing(1009))
 
 """
-        self.assertEqual(expected, exemplar.genereate_tests("testing"))
+        self.assertEqual(expected, exemplar.generate_tests("testing"))
 
     def test_gen_tests2(self):
         exemplar.reset_db()  # Empty the database.
@@ -389,7 +389,7 @@ def test_testing9(self):
     self.assertEqual(True, testing(2))
 
 """
-        self.assertEqual(expected, exemplar.genereate_tests("testing"))
+        self.assertEqual(expected, exemplar.generate_tests("testing"))
 
     def test_underscore_to_camelcase1(self):
         expected = "CamelCase"
