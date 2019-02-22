@@ -20,8 +20,9 @@ Version 1 finished 3/25/2018 can generate one if/elif/else. This version correct
 and leap_year.exem. These 'reason's are 0 or 1 conditions only.
 
 Glossary:
-Example == A trace imagining input, output, and assertions as specification of a desired (target) function.
-Pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
+example == A trace imagining input, output, and assertions as specification of a desired (target) function.
+exem == The user's examples collected in a file of extension .exem.
+pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
 
 
@@ -1018,14 +1019,25 @@ def store_code(code):
     cursor.executemany("INSERT INTO sequential_function (line_id, line) VALUES (?, ?)", code_lines)
 
 
-def get_range(first_el_id, line):
-    # Eg, for line 'guess_count==1', return *0, 3* if the first match on line_scheme 'guess_count == _' is
-    # 'guess_count == 0' and last match is 'guess_count == 2' and increment is 1.
+def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
+    """
+    Help gauge whether first_el_id defines the first value of a FOR loop variable by returning that variable's first
+    and last value over the rows where it increments. Also return the likely loop's last row id, and the pattern of
+    line_type's over the loop.
+    :param first_el_id:  # Eg, 30
+    :param line:  # Eg, 'guess_count==0'
+    :return: (first value of loop control variable, and its last (at loop exit)), last_el_id, loop_pattern
+    """
+    # Eg, for line 'guess_count==1', return *0, 3* if the first match on line_scheme 'guess_count == _' in
+    # conditions.line is value 'guess_count == 0' and the last match is 'guess_count == 2' (with an increment
+    # of 1 between guess_count's values).
     # todo Determine if the end points differ between examples, and use the variable/s concerned instead of constants.
     # todo Return False instead of exit()ing if pattern found appears to rule out a for loop.
+
     cursor.execute("""SELECT el_id, condition FROM conditions WHERE condition_scheme = ? ORDER BY el_id""",
                    (scheme(line),))
     rows = cursor.fetchall()
+    assert len(rows) > 0, "get_range() found zero conditions matching scheme " + scheme(line)
     first, last, increment = None, None, None
     for row in rows:
         row_el_id, condition = row[0], row[1]
@@ -1035,6 +1047,8 @@ def get_range(first_el_id, line):
             assert row_el_id == first_el_id, "The first el_id with a scheme equal to that of the given condition, " + \
                 line + ", is " + str(row_el_id) + " and not " + str(first_el_id) + " as expected, implying that " + \
                 "this call should have been filtered out."
+            if len(rows) == 1:
+                return (first, first), row_el_id, 't'  # A degenerate "loop".
         elif increment is None:
             increment = row_int - first
         else:
@@ -1043,14 +1057,15 @@ def get_range(first_el_id, line):
         last = row_int
         last_el_id_top = row_el_id
 
-    last_el_id = get_last_el_id_of_loop(first_el_id, last_el_id_top)
+    # Armed with the line id of the last top of the likely loop, determine the loop's pattern and loop bottom.
+    loop_pattern, last_el_id = get_last_el_id_of_loop(first_el_id, last_el_id_top)
     # todo Use info to end loop block's indent etc in controlled_code.
 
-    return (first, last + increment), last_el_id
+    return (first, last + increment), last_el_id, loop_pattern  # Eg, (0, 2 + 1), 115, 'toitto, toitto, toittt'
 
 
 # Return "if condition:" or, if condition repeats, "while condition:"
-def if_or_while(el_id, condition, second_pass):
+def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
     # Return "while " + condition + ':' if 'condition' is a recurrent scheme:
     cursor.execute("SELECT COUNT(*) FROM conditions WHERE condition_scheme = ? ORDER BY el_id",
                    (scheme(condition),))
@@ -1099,10 +1114,13 @@ def if_or_while(el_id, condition, second_pass):
             return "elif " + condition + ':'
 
 
-# get_range calls this with the el_id of a believed for-loop top.
-# This prints the initials of the line_types iterated through and
-# returns what is believed to be the last el_id of the loop starting at first_el_id.
-def get_last_el_id_of_loop(first_el_id, last_el_id_top):
+def get_last_el_id_of_loop(first_el_id: int, last_el_id_top: int) -> Tuple[str, int]:
+    """
+    :param first_el_id: Line id of a believed for-loop top.
+    :param last_el_id_top: Line id of the last top of that unravelled for-loop.
+    :return: the initials of the line_types iterated through ('pattern') and
+    the last el_id of the likely loop the input arguments indicate.
+    """
     cursor.execute("""SELECT el_id, line, line_type FROM example_lines WHERE el_id >= ? ORDER BY el_id""",
                    (first_el_id,))
     rows = cursor.fetchall()
@@ -1123,15 +1141,16 @@ def get_last_el_id_of_loop(first_el_id, last_el_id_top):
         pattern += line_type[0]
         loop_length += 1
 
-        if el_id >= last_el_id_top and loop_length == preceding_loop_length:
+        if el_id >= last_el_id_top         and loop_length == preceding_loop_length:
+            # We're past the last loop top and reached the loop's likely bottom.
             break
 
-    print("el_id", str(first_el_id) + "'s loop pattern:", pattern)
-    return el_id  # Last el_id reached.
+    print("loop pattern starting on example line (el_id)", str(first_el_id), "is:", pattern)
+    return pattern, el_id  # Loop pattern (eg, 'toitto, toitto, toittto'), el_id believed to be loop bottom.
 
 
 # In determining the likely data type of variable_name, preference is given to int, then float, then string.
-def likely_data_type(variable_name):  # Eg, SELECT line FROM sequential_function WHERE line LIKE '% guess = %'
+def likely_data_type(variable_name: str) -> str:  # Eg, SELECT line FROM sequential_function WHERE line LIKE '% guess = %'
     cursor.execute("""SELECT line FROM sequential_function WHERE line LIKE '% ' || ? || ' = %'""", (variable_name,))
     rows = cursor.fetchall()
     result = 'int'
@@ -1147,7 +1166,7 @@ def likely_data_type(variable_name):  # Eg, SELECT line FROM sequential_function
 
 def generate_code() -> List:
     """
-    Use the info in the tables to generate Python if/elif/else and while loops.
+    Use the tables to generate exem-conforming Python code with if/elif/else and while control structure.
     :return: Python code as `code`
     """
 
@@ -1226,24 +1245,25 @@ def generate_code() -> List:
                 variable_name = condition[2]  # Eg, 'guess_count'
                 preceding_equality[variable_name] = value  # Eg, preceding_equality['guess_count'] = '3'
 
-                # Also, non-input variables asserted equal to an integer implies a ***** FOR loop ******
+                # Also, non-input variables rhythmically asserted equal to an integer implies a ***** FOR loop ******
                 if scheme(line) in for_suspects:  # deja vu
                     if second_pass and not loop_code:  # Then loop_code is undefined.
                         for index in range(loop_start, len(code)):  # Build loop_code to avoid adding redundant code.
                             loop_code.append(denude(code[index]))
                 else:  # Then scheme(line) is new. todo Search with indent + line
-                    range_pair, last_el_id_of_loop = get_range(el_id, line)
-                    control = indent + "for " + variable_name + " in range" + str(range_pair) + ':'
-                    if second_pass:
-                        code.append(control)
-                        loop_start = len(code)
-                        indent += '    '
-                        control = ''
-                    else:
-                        cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
-                    if control:
-                        code.append(indent + "assert " + str(line) + "  #" + control)
-                    for_suspects.append(scheme(line))  # todo add indent for better discrimination
+                    range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)
+                    if len(loop_pattern) > 1:  # Rhythm possible.
+                        control = indent + "for " + variable_name + " in range" + str(range_pair) + ':'
+                        if second_pass:
+                            code.append(control)
+                            loop_start = len(code)
+                            indent += '    '
+                            control = ''
+                        else:
+                            cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
+                        if control:
+                            code.append(indent + "assert " + str(line) + "  #" + control)
+                        for_suspects.append(scheme(line))  # todo add indent for better discrimination
 
             # lp todo re: below "not", verify it corresponds to an assignment.
             elif not (condition[1] == '==' and re.match(r'i[\d]$', condition[0]) and re.match(r'[A-z]', condition[2])):
@@ -1419,7 +1439,8 @@ def dump_table(table: str) -> str:
     return '[' + print_me[0:-2] + ']'  # Trims last ',\n'
 
 
-def inputs(example_id):
+# Return all inputs (that came from the exem) for the given example.
+def inputs(example_id: int) -> List:
     cursor.execute("""SELECT line FROM example_lines WHERE example_id=? AND line_type='in' ORDER BY el_id""",
                    (example_id,))
     rows = cursor.fetchall()
@@ -1431,7 +1452,7 @@ def inputs(example_id):
 
 def generate_tests(f_name: str) -> str:
     """
-    Generate the text of a unit test file that exercises the target function with the given i/o.
+    Generate the text of a unit test file that exercises the target function using the given .exem's example i/o.
     """
     # For each example, wtf??
     cursor.execute('''SELECT inp.line, output.line, inp.example_id FROM example_lines inp, example_lines output 
@@ -1447,13 +1468,13 @@ def generate_tests(f_name: str) -> str:
             previous_example_id = example_id
             continue
         # Create one test per example.
-        test_code += "def test_" + f_name + str(i) + "(self):\n"
+        test_code += "\ndef test_" + f_name + str(i) + "(self):\n"
         # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    global in_trace\n"
-        test_code += "    in_trace = ['" + "','".join(inputs(example_id)) + "']\n"  # Eg, ['Albert','4','10','2','4']
-        test_code += "    " + f_name + "()  # The function under test.\n"  # TODO need formal params!!!!!!!!
-        #                                       Return the named exem (stripped of comments):
+        test_code += "    in_trace = ['" + "', '".join(inputs(example_id)) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
+        test_code += "    " + f_name + "()  # The function under test is used to write to out_trace.\n"  # TODO need formal params!!
+        #                                       Return the named .exem (stripped of comments):
         test_code += "    self.assertEqual(self.get_expected('" + f_name + ".exem'), out_trace)\n"
 
         previous_example_id = example_id

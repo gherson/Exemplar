@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-21 guess3 function synthesis working in full. Last bit was allowing automatic substitution of literals 
+with expressions asserted equivalent by improving get_range(). 7.25h
 * 2019-02-20 guess3 function synthesis working, including automatic unit testing. But I want a constant replaced with a
 variable in guess3's last line, so that's next. 5.75h
 * 2019-02-19 Almost correct function generated from guess3.exem. 7h
