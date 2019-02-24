@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-23 Discouraging that the problems I'm fixing with guess4's interpretation are the same that I'd fixed in guess3. So I'm thinking about how to use the target function's sequential version, whose generation is much more straightfoward, as a guide rail for the version with control stuctures. 6.25h
 * 2019-02-22 Working on guess4, which combines examples of a player losing and winning the eponymous game. 3.75h
 * 2019-02-21 guess3 function synthesis working in full. Last bit was allowing automatic substitution of literals 
 with expressions asserted equivalent by improving get_range(). 7.25h
