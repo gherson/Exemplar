@@ -18,6 +18,9 @@ def input(line: str = "") -> str:
     return result
 
 
+# The sequential target function under test.
+<stf under test>
+
 # The (generated) function under test.
 <function under test>
 

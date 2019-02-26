@@ -1,0 +1,55 @@
+"""
+This problem comes from http://inventwithpython.com/invent4thed/chapter7.html 2/17/19
+"""
+>H A N G M A N
+>  +---+
+      |
+      |
+      |
+     ===
+>Missed letters:
+>_ _ _
+>Guess a letter.
+<a
+>  +---+
+      |
+      |
+      |
+     ===
+>Missed letters:
+>_ a _
+>Guess a letter.
+<o
+>  +---+
+  O   |
+      |
+      |
+     ===
+>Missed letters: o
+>_ a _
+>Guess a letter.
+<r
+>  +---+
+  O   |
+  |   |
+      |
+     ===
+>Missed letters: or
+>_ a _
+>Guess a letter.
+<t
+>  +---+
+  O   |
+  |   |
+      |
+     ===
+>Missed letters: or
+>_ a t
+>Guess a letter.
+<a
+>You have already guessed that letter. Choose again.
+>Guess a letter.
+<c
+>Yes! The secret word is "cat"! You have won!
+>Do you want to play again? (yes or no)
+<no

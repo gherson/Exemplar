@@ -62,9 +62,7 @@ if __name__ == '__main__':
 
 
 ''' The source .exem, for reference:
-"""
-Todo Enable full line comments. Enable as penultimate line: 3 == guess_count + 1
-"""
+#Testing a full line comment.
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)
@@ -72,6 +70,7 @@ name==i1         # simple assignment (SA)
 secret==i1       # SA
 >Well, Albert, I am thinking of a number between 1 and 20.
 guess_count==0   # iteration
+#Testing a full line comment.
 >Take a guess.
 <10
 guess==i1, guess>secret  # SA, selection
