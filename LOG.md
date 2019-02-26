@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-02-25 Automatic casting of sequential target function (stf)'s inputs allows the STF in TestGuess4.py to pass its unit test. 3.5h
 * 2019-02-24 Studying Silver et al's 2018 AlphaGo paper in Science. In Exemplar, the sequential version of the target function and its unit tests are added to the generated test class. 5h
 * 2019-02-23 Discouraging that the problems I'm fixing with guess4's interpretation are the same that I'd fixed in guess3. So I'm thinking about how to use the target function's sequential version, whose generation is much more straightfoward, as a guide rail for the version with control stuctures. 6.25h
 * 2019-02-22 Working on guess4, which combines examples of a player losing and winning the eponymous game. 3.75h
