@@ -18,6 +18,33 @@ def input(line: str = "") -> str:
     return result
 
 
+# The (working) sequential target function.
+def guess3():
+    print('Hello! What is your name?')
+    name = input('name:')  # Eg, Albert
+    secret = int(input('secret:'))  # Eg, 4
+    print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
+    guess_count=0
+    assert guess_count==0
+    print('Take a guess.')
+    guess = int(input('guess:'))  # Eg, 10
+    assert guess>secret  #if guess>secret:
+    print('Your guess is too high.')
+    guess_count = 1
+    assert guess_count == 1
+    print('Take a guess.')
+    guess = int(input('guess:'))  # Eg, 2
+    assert guess<secret  #if guess<secret:
+    print('Your guess is too low.')
+    guess_count=2
+    assert guess_count==2
+    print('Take a guess.')
+    guess = int(input('guess:'))  # Eg, 4
+    assert guess==secret  #if guess==secret:
+    assert guess_count + 1 == 3
+    print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
+
+
 # The (generated) function under test.
 def guess3():
     print('Hello! What is your name?')
@@ -29,8 +56,11 @@ def guess3():
         guess = int(input('guess:'))  # Eg, 10
         if guess>secret:
             print('Your guess is too high.')
+            print('Take a guess.')
+            guess = int(input('guess:'))  # Eg, 2
         elif guess<secret:
             print('Your guess is too low.')
+            guess = int(input('guess:'))  # Eg, 4
         elif guess==secret:
             print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
 
@@ -62,7 +92,8 @@ if __name__ == '__main__':
 
 
 ''' The source .exem, for reference:
-#Testing a full line comment.
+# From http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
+
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)

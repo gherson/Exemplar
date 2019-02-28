@@ -18,11 +18,11 @@ def input(line: str = "") -> str:
     return result
 
 
-# The sequential target function under test.
-<stf under test>
+# The (working) sequential target function.
+<stf>
 
 # The (generated) function under test.
-<function under test>
+#<function under test>
 
 
 <class signature>

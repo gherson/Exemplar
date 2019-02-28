@@ -251,8 +251,8 @@ def replace_increment(condition: str) -> str:
 
 def scheme(condition: str) -> str:
     """
-    Replace the (non-constant) integers with underscore. And removed unquoted whitespace.
-    So that scheme('guess_count==0') == scheme('guess_count == 1')
+    Replace the (non-constant) integers with underscore.
+    And remove unquoted whitespace so that scheme('guess_count==0') == scheme('guess_count == 1')...
     Ie, replace any number not appended to a valid name and not followed immediately by a period or 'c'.
     Used to find instances of looping, i.e., to match iterations of the same loop step in the target function.
     The regex is from https://regexr.com/48b5v 2/12/19.
@@ -1247,6 +1247,26 @@ def likely_data_type(variable_name: str) -> str:
     return data_type
 
 
+def replace_hard_code(prior_values, line):
+    """
+    Replace anything in 'line' that matches a prior value with a reference to that value's variable.
+    :param prior_values:
+    :param line:
+    :return:
+    """
+    for variable_name in prior_values:
+        position = line.find(prior_values[variable_name])
+        if position > -1:
+            new_line = line[0:position] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
+
+            # Add remainder of line, if any.
+            remainder_of_line = line[position + len(prior_values[variable_name]):]
+            if remainder_of_line:
+                new_line += " + '" + remainder_of_line
+            line = new_line
+    return line
+
+
 def generate_code() -> List:
     """
     Use the tables to generate exem-conforming Python code with if/elif/else and while control structure.
@@ -1255,14 +1275,12 @@ def generate_code() -> List:
 
     code = []  # To be returned
     prior_input, preceding_equality, indent, loop_start = {}, {}, "    ", -1
-    # To have two code versions, we'll add control structures to the code on our second execution:
+    # As a baseline, on our 1st call we create and save a version of the target function that hasn't control structures.
     cursor.execute("SELECT COUNT(*) FROM sequential_function")
-    second_pass = cursor.fetchone()[0]
-
-    # First we turn into code the example_lines whose flow pattern is ***** sequence *****
+    second_pass = cursor.fetchone()[0]  # If this is our 1st call, second_pass will be "false"
 
     sql = "SELECT el.el_id, el.line, el.line_type, el.loop_likely FROM example_lines el "
-    # "LEFT JOIN conditions c ON el.el_id = c.el_id"  Left as an example.
+    # "LEFT JOIN conditions c ON el.el_id = c.el_id"  in case we need more info
     cursor.execute(sql)
     rows = cursor.fetchall()
     if len(rows) == 0:
@@ -1274,12 +1292,17 @@ def generate_code() -> List:
     for row in rows:
         el_id, line, line_type, loop_likely = row
 
+        # Code an unspecified input (the associated value is only hard-coded in the tests and comments).
         if line_type == 'in':
-            if line.strip() == '':  # Then there is no input data associated with this example line.
+
+            if line.strip() == '':  # There's no input data associated with this example line so dismiss with
                 code.append(indent + "input()")
                 continue
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-            variable_name = "v" + str(el_id)  # But look for a better variable name:
+
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
+
+            # Create a default name for the variable then look for a better one.
+            variable_name = "v" + str(el_id)
             if i+1 < len(rows):
                 next_row = rows[i+1]  # el_id, line, line_type
                 # If the next row is truth and has a relation naming `line`'s value, grab that variable name.
@@ -1287,70 +1310,66 @@ def generate_code() -> List:
                         variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1')
                     variable_name = variable_name_of_i1(next_row[1], 'i1')
 
+            # Inputs often need a cast but on the first pass that'll be corrected in the database later.
             if second_pass and likely_data_type(variable_name) != "str":
                 cast = likely_data_type(variable_name)
                 assignment = variable_name + " = " + cast + "(input('" + variable_name + ":'))"
                 # cursor.execute("UPDATE sequential_function SET line = ? WHERE el_id = ?", (assignment, el_id))
-            else:
+            else:  # No cast
                 assignment = variable_name + " = input('" + variable_name + ":')"
+
+            # Conditionally add the input() to the code.
             if not second_pass or (indent + assignment) not in code[loop_start:]:
                 assignment = indent + assignment + "  # Eg, " + line
                 code.append(assignment)
-            prior_input[variable_name] = line  # Note, eg, prior_input['name'] = 'Albert'
+            prior_input[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
 
-        elif line_type == 'out':  # todo Distinguish return from print()'s...
+        elif line_type == 'out':  # The exem line models a print()
+            # todo Distinguish return from print()'s...
             line = line.translate(str.maketrans({"'": r"\'"}))  # Escape '
-            # Search for prior example input and the preceding truth value(s) in the current line of example output.
-            prior_variables = prior_input  # Combine prior_input and
-            prior_variables.update(preceding_equality)  # preceding_equality.
-            for variable_name in prior_variables:
-                position = line.find(prior_variables[variable_name])
-                if position > -1:
-                    new_line = line[0:position] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
 
-                    # Add remainder of line, if any.
-                    remainder_of_line = line[position + len(prior_input[variable_name]):]
-                    if remainder_of_line:
-                        new_line += " + '" + remainder_of_line
-                    line = new_line
+            # Replace anything that matches a prior value.
+            prior_values = prior_input  # Combine prior_input and
+            prior_values.update(preceding_equality)  # the preceding_equality.
+            line = replace_hard_code(prior_values, line)
 
             print_line = "print('" + line + "')"
+            # Conditionally add this print() to the code.
             if not second_pass or (indent + print_line) not in code[loop_start:]:
                 code.append(indent + print_line)
 
         else:  # truth/assertions/reasons/conditions
 
             condition = assertion_triple(line)  # Break up 'line' into its 3 parts.
-            # (Below condition is spelled out because it differs from the loop_likely classes'. 2/17/19)
-            # if, eg, ('3', '==', 'guess_count'):
+
+            # Lines that equate a digit to a (non-input) variable (eg, '3 == guess_count') are noted for
+            # substitution in print()s and, if their scheme repeats, as for_suspects.
+            # ((Below condition is spelled out because it differs from the loop_likely classes'. 2/17/19))
             if condition[0].isdigit() and condition[1] == '==' and not re.match(r'i\d', condition[2]) and \
                 re.match('[A-z]', condition[2]):
-                # 'condition' asserts that an integer is equal to a (non-input) variable. Retain
-                # preceding_equality['guess_count'] = '3'  in order to swap hard coded values for soft in the output:
+
+                # Eg, preceding_equality['guess_count'] = 3 allows swapping guess_count for 3 in a later print():
                 # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
+                value = condition[0]  # 3
+                variable_name = condition[2]  # guess_count
+                preceding_equality[variable_name] = value  # preceding_equality['guess_count'] = 3
 
-                value = condition[0]  # Eg, '3'
-                variable_name = condition[2]  # Eg, 'guess_count'
-                preceding_equality[variable_name] = value  # Eg, preceding_equality['guess_count'] = '3'
-
-                # Also, non-input variables rhythmically asserted equal to an integer implies a ***** FOR loop ******
-                if scheme(line) in for_suspects:  # deja vu
-                    code.append(indent + "#assert " + str(line) + "  #" + control)
-                    # if second_pass and not loop_code:  # Then loop_code is undefined.
-                    #     for index in range(loop_start, len(code)):  # Build loop_code to avoid adding redundant code.
-                    #         loop_code.append(denude(code[index]))
-                else:  # Then scheme(line) is new. todo Search with indent + line
+                # Also, non-input variables rhythmically asserted equal to an integer implies a **** FOR loop ****
+                # Assertions showing a (non-input) variable growing without explicit mechanism is proof of a FOR loop.
+                if not second_pass:  # Force the assertion's truth with assignment.
+                    if condition[2].isidentifier():  # Rule out, eg, 'guess_count + 1'
+                        code.append(indent + str(line).replace('==', '=', 1))  # Eg, guess_count = 2
+                    code.append(indent + "assert " + str(line))
+                if scheme(line) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
                     range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)
                     if len(loop_pattern) > 1:  # Rhythm possible.
                         control = indent + "for " + variable_name + " in range" + str(range_pair) + ':'
-                        if second_pass:
+                        if not second_pass:
+                            cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
+                        else:
                             code.append(control)
                             loop_start = len(code)
-                            indent += '    '  # indent is augmented only on pass 2.
-                            control = ''
-                        else:
-                            code.append(indent + "#assert " + str(line) + "  #" + control)
-                            cursor.execute("UPDATE conditions SET python = ? WHERE el_id = ?", (control, el_id))
+                            indent += '    '  # indent is never augmented on first pass.
                         for_suspects.append(scheme(line))  # todo add indent for better discrimination
 
             # lp todo re: below "not", verify it corresponds to an assignment.
@@ -1722,6 +1741,16 @@ def fill_conditions_table() -> None:
     cursor.executemany("UPDATE conditions SET type = 'selective' WHERE rowid IN (?)", selectives)"""
 
 
+def run_tests(filename: str) -> str:
+    # Run the target function tests just created.
+    class_name = "Test" + underscore_to_camelcase(filename[0:-5])  # Eg, prime_number.exem -> TestPrimeNumber
+    TestClass = importlib.import_module(class_name)
+    suite = unittest.TestLoader().loadTestsFromModule(TestClass)
+    test_results = unittest.TextTestRunner().run(suite)
+    print("There were", len(test_results.errors), "errors and", len(test_results.failures), "failures.")
+    return test_results
+
+
 def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from given 'file':
@@ -1760,37 +1789,36 @@ def reverse_trace(file: str) -> str:
     # if DEBUG_DB:
     #     print(dump_table("pretests"))
 
-    # Use the info in the 3 tables to *** GENERATE FUNCTION CODE ***
+    # Use the info in the 3 tables to **** GENERATE FUNCTION CODE ****
+    # First, for the 1D, sequential target function (STF).
     function_name = file[0:-5]  # Remove ".exem" extension.
-    signatures = ["def " + function_name + "_stf(" + formal_params() + "):\n",
-                  "def " + function_name + "(" + formal_params() + "):\n"]
-    sequential_version = signatures[0] + '\n'.join(generate_code())
+    signature = "def " + function_name + "(" + formal_params() + "):\n"
+    sequential_version = signature + '\n'.join(generate_code())
     store_code(sequential_version)  # (This table still to be updated by likely_data_type())
 
-    # 2nd pass: add control structure.
-    code = signatures[1] + '\n'.join(generate_code())
+    # The second call to generate_code() is a first attempt at adding control structure.
+    code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
     print("\n" + code + "\n")  # Show off generated function.
     if DEBUG_DB:
         print("After second pass.\n" + dump_table("conditions"))
         print(dump_table("sequential_function"))
 
-    # Create unit tests for function generated.
+    # Create unit tests for the sequential version of the target function.
     starter = "".join(from_file("starter"))  # Contains a mocked print() function etc.
     cursor.execute("SELECT line FROM sequential_function ORDER BY line_id")
     rows = cursor.fetchall()
     sequential_version = ''
     for row in rows:
         sequential_version += row[0] + '\n'
-    starter = starter.replace('<stf under test>', sequential_version, 1)  # STF
-    starter = starter.replace('<function under test>', code, 1)  # CODE
+    starter = starter.replace('<stf>', sequential_version, 1)
 
     class_name = "Test" + underscore_to_camelcase(function_name)
     class_signature = "class " + class_name + "(unittest.TestCase):"
     starter = starter.replace('<class signature>', class_signature, 1)
 
     # *** GENERATE TESTS ***
-    for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
-        starter += "    " + line  # Indent each line, as each test is part of a class.
+    # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
+    #     starter += "    " + line  # Indent each line, as each test is part of a class.
     for line in generate_tests(function_name).splitlines(True):
         starter += "    " + line
 
@@ -1802,6 +1830,28 @@ def reverse_trace(file: str) -> str:
     to_file(class_name + ".py", starter)
     print("\n" + starter + "\n")
 
+    test_results = run_tests(file)  # **** RUN TESTS ****
+    if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works. Proceed to optimization.
+        print("error and failure count is 0")
+
+        # Prep file ahead of next run_tests() call.
+        test_file = starter.replace('#<function under test>', code, 1)  # CODE
+        to_file(class_name + ".py", test_file)
+
+        optimized = False  # Determine if code is optimized somehow...
+        # (Optimized===controls added to function make all assertions matter (altered the function beyond a comment,
+        # assertion, or pointless assignment) and all tests pass.)
+        while len(test_results.errors) or len(test_results.errors) or not optimized:  # todo Make last a function call
+            if not test_file:  # test_file is "true" only on first execution of this line.
+                # Find better code.
+                code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
+                print("\n" + code + "\n")  # Show off generated function.
+                test_file = starter.replace('#<function under test>', code, 1)  # CODE
+                to_file(class_name + ".py", test_file)
+                test_file = ''
+            test_results = run_tests(file)  # **** RUN TESTS ****
+            optimized = True  # temporary hack
+
     return code
 
 
@@ -1809,9 +1859,3 @@ if __name__ == "__main__":
     if len(sys.argv) == 1 or sys.argv[1] == "":
         sys.exit("Usage: exemplar my_examples.exem")
     reverse_trace(file=sys.argv[1])  # RUN ALL OF THE ABOVE against given .exem file.
-
-    # Run the target function tests just created.
-    class_name = "Test" + underscore_to_camelcase(sys.argv[1][0:-5])  # Eg, prime_number.exem -> TestPrimeNumber
-    TestClass = importlib.import_module(class_name)
-    suite = unittest.TestLoader().loadTestsFromModule(TestClass)
-    unittest.TextTestRunner().run(suite)
