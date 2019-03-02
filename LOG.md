@@ -7,6 +7,9 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-01 Designing means and database columns to scope control structures. 7.75h
+* 2019-02-28 Produced a plan and schedule of needed R&D accomplishments and shared with my student, TG. 1h
+* 2019-02-27 Fixed an issue where guess3.exem's guess_count + 1 == 3 was showing up in the generated Python code as an assignment instead of as an assertion. 1h
 * 2019-02-26 I decided that Exemplar (E) cannot always guess a correct interpretation of a correctly specified .exem, so I enabled 
 a generate-and-test approach in E which will involve looping until it has generated a function, with control structures,
  that passes all unit tests and that accounts for every user assertion. Got https://repl.it/@gherson/Exemplar working again. 6.25h
