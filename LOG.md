@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-02 Rewriting get_range() as fill_control_table(). 4.75h
 * 2019-03-01 Designing means and database columns to scope control structures. 7.75h
 * 2019-02-28 Produced a plan and schedule of needed R&D accomplishments and shared with my student, TG. 1h
 * 2019-02-27 Fixed an issue where guess3.exem's guess_count + 1 == 3 was showing up in the generated Python code as an assignment instead of as an assertion. 1h
