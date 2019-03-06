@@ -18,38 +18,44 @@ def input(line: str = "") -> str:
     return result
 
 
-# The sequential target function under test.
-def guess4_stf():
+# The (working) sequential target function.
+def guess4():
     print('Hello! What is your name?')
     name = input('name:')  # Eg, John
     secret = int(input('secret:'))  # Eg, 3
     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-    #assert guess_count==0  #    for guess_count in range(0, 6):
+    guess_count=0
+    assert guess_count==0
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 11
     assert guess>secret  #if guess>secret:
     print('Your guess is too high.')
-    #assert guess_count == 1  #if guess>secret:
+    guess_count = 1
+    assert guess_count == 1
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 1
     assert guess<secret  #if guess<secret:
     print('Your guess is too low.')
-    #assert guess_count==2  #if guess<secret:
+    guess_count=2
+    assert guess_count==2
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 2
     assert guess<secret  #if guess<secret:
     print('Your guess is too low.')
-    #assert guess_count==3  #if guess<secret:
+    guess_count=3
+    assert guess_count==3
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 10
     assert guess>secret  #if guess>secret:
     print('Your guess is too high.')
-    #assert guess_count==4  #if guess>secret:
+    guess_count=4
+    assert guess_count==4
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 9
     assert guess>secret  #if guess>secret:
     print('Your guess is too high.')
-    #assert guess_count==5  #if guess>secret:
+    guess_count=5
+    assert guess_count==5
     print('Take a guess.')
     guess = int(input('guess:'))  # Eg, 8
     assert guess>secret  #if guess>secret:
@@ -68,19 +74,9 @@ def guess4():
         guess = int(input('guess:'))  # Eg, 11
         if guess>secret:
             print('Your guess is too high.')
-            #assert guess_count == 1  #
-            print('Take a guess.')
-            guess = int(input('guess:'))  # Eg, 1
         elif guess<secret:
             print('Your guess is too low.')
-            #assert guess_count==2  #
-            guess = int(input('guess:'))  # Eg, 2
-            #assert guess_count==3  #
-            guess = int(input('guess:'))  # Eg, 10
-            #assert guess_count==4  #
-            guess = int(input('guess:'))  # Eg, 9
-            #assert guess_count==5  #
-            guess = int(input('guess:'))  # Eg, 8
+        elif guess>secret:
             print('Nope. The number I was thinking of was ' + str(secret) + '.')
 
 
@@ -99,12 +95,6 @@ class TestGuess4(unittest.TestCase):
                 out_exem_lines.append(line)
         return '\n'.join(out_exem_lines) + '\n'
     
-    def test_guess4_stf1(self):
-        global in_trace
-        in_trace = ['John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
-        guess4_stf()  # The function under test is used to write to out_trace.
-        self.assertEqual(self.get_expected('guess4.exem'), out_trace)
-    
     def test_guess41(self):
         global in_trace
         in_trace = ['John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
@@ -114,48 +104,3 @@ class TestGuess4(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-''' The source .exem, for reference:
-# From http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
-
-# User loses.
->Hello! What is your name?
-<John
-name==i1
-<3
-secret==i1
->Well, John, I am thinking of a number between 1 and 20.
-guess_count==0
->Take a guess.
-<11
-guess==i1, guess>secret
->Your guess is too high.
-guess_count == 1
->Take a guess.
-<1
-guess==i1, guess<secret
->Your guess is too low.
-guess_count==2
->Take a guess.
-<2
-guess==i1, guess<secret
->Your guess is too low.
-guess_count==3
->Take a guess.
-<10
-guess==i1, guess>secret
->Your guess is too high.
-guess_count==4
->Take a guess.
-<9
-guess==i1, guess>secret
->Your guess is too high.
-guess_count==5
->Take a guess.
-<8
-guess==i1, guess>secret
->Your guess is too high.
->Nope. The number I was thinking of was 3.
-
-'''

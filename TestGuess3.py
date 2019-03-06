@@ -56,11 +56,8 @@ def guess3():
         guess = int(input('guess:'))  # Eg, 10
         if guess>secret:
             print('Your guess is too high.')
-            print('Take a guess.')
-            guess = int(input('guess:'))  # Eg, 2
         elif guess<secret:
             print('Your guess is too low.')
-            guess = int(input('guess:'))  # Eg, 4
         elif guess==secret:
             print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
 
@@ -89,32 +86,3 @@ class TestGuess3(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-
-''' The source .exem, for reference:
-# From http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
-
->Hello! What is your name?
-<Albert
-name==i1         # simple assignment (SA)
-<4
-secret==i1       # SA
->Well, Albert, I am thinking of a number between 1 and 20.
-guess_count==0   # iteration
-#Testing a full line comment.
->Take a guess.
-<10
-guess==i1, guess>secret  # SA, selection
->Your guess is too high.
-guess_count == 1 # iteration
->Take a guess.
-<2
-guess==i1, guess<secret  # SA, selection
->Your guess is too low.
-guess_count==2   # iteration
->Take a guess.
-<4
-guess==i1, guess==secret  # SA, selection
-guess_count + 1 == 3  # SA
->Good job, Albert! You guessed my number in 3 guesses!
-'''
