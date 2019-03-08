@@ -4,7 +4,7 @@ import re
 from inspect import currentframe, getframeinfo  # For line #
 import importlib  # To import and run the test file we create.
 import unittest
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 DEBUG = True  # Set to True for more feedback.
 DEBUG_DB = True  # Set to True to enable table to screen dumps.
@@ -1122,21 +1122,10 @@ def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
     # conditions.line is value 'guess_count == 0' and the last match is 'guess_count == 2' (with an increment
     # of 1 between guess_count's values).
     # todo Determine if the end points differ between examples, and use the variable/s concerned instead of constants.
-    # todo Return False instead of exit()ing if pattern found appears to rule out a for loop.
+    # todo Return False? if pattern found appears to rule out a for loop. 3/6/19
 
-    # For this function, examine the example that has the most instances of the given scheme. Ie, find max_example_id.
-    # cursor.execute("SELECT example_id, COUNT(*) FROM conditions GROUP BY example_id, condition_scheme")
-    # rows = cursor.fetchall()
-    # assert len(rows) > 0, "get_range() found no conditions matching scheme " + scheme(line)
-    # max_count = 0
-    # for row in rows:
-    #     if row[1] > max_count:
-    #         max_count = row[1]
-    #         max_example_id = row[0]
-    # When using this code, add   example_id = ? AND    max_example_id,   to the below SELECT.
-
-    # Below is unnecessary for the for0 loops: we just GROUP BY example_id. But we should always consider inner loop
-    # repetitions only, otherwise, the repetition of a given scheme may be due to the loop it is nested in. todo
+    # todo Below is unnecessary for the for0 loops: we just GROUP BY example_id. But we should also always consider
+    # inner loop repetitions only, otherwise, the repetition of a given scheme may be due to the loop it is nested in.
     # cursor.execute("SELECT el_id FROM conditions WHERE control_id='for0'")
     # rows = cursor.fetchall()  # Would also work: c.condition_scheme='_==__example__'
     # example_ranges = []  # First element should be (el_id) 0, and the 3rd element minus the 2nd should be 5.
@@ -1203,6 +1192,13 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
     if not second_pass:
         return "if " + condition + ':'
     else:
+        """Re: IF processing: 
+        IF clauses (alone) are open to re-ordering, and switching between if/elif/else.  As with for loops, the 
+        last_el_id field values are shared (duplicated) across the clauses of a single IF.  3/2/19
+        A series of IFs == one IF/ELIF if their conditions are all mutually exclusive. 
+        In each example, E can only count on the user providing the true IF clause of an IF/ELIF. On the + side, this  
+        helps differentiate an IF series from an IF/ELIF. 3/5/19"""
+
         # Combine IF conditions into what should be clauses of the same IF and
         # decide their elif order (which will not necessarily preserve the conditions'
         # given order, of course).
@@ -1318,24 +1314,27 @@ def likely_data_type(variable_name: str) -> str:
     return data_type
 
 
-def replace_hard_code(prior_values, line):
+def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     """
-    Replace anything in 'line' that matches a prior value with a reference to that value's variable.
+    Replace any word in 'line' that matches a prior input value with that value's variable name.
     :database: not involved.
     :param prior_values:
     :param line:
     :return:
     """
-    for variable_name in prior_values:
-        position = line.find(prior_values[variable_name])
-        if position > -1:
-            new_line = line[0:position] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
+    for variable_name in prior_values:  # Eg, prior_values is {name: Albert, guess: 5}
+        if variable_name == '__example__':  # Skip that special variable.
+            continue
+        #  "r'\bfoo\b' matches 'foo', 'foo.', '(foo)', 'bar foo baz' but not 'foobar' or 'foo3'." -- bit.ly/2EWdcBL
+        match = re.search(r'\b' + prior_values[variable_name] + r'\b', line)
+        if match:  # position > -1:
+            new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
 
             # Add remainder of line, if any.
-            remainder_of_line = line[position + len(prior_values[variable_name]):]
+            remainder_of_line = line[match.start() + len(match.group(0)):]
             if remainder_of_line:
                 new_line += " + '" + remainder_of_line
-            line = new_line
+            line = new_line  # fixme 'line' will get re-searched and we shouldn't have to worry about variable names being matched.
     return line
 
 
@@ -1440,7 +1439,7 @@ def generate_code() -> List[str]:
                         code_stripped.append(denude("assert " + str(line)))
                     if scheme(line) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
                         range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)
-                        if len(loop_pattern) > 1:  # The scheme repeats. (Repeats should only count in current scope, so fill_control_table() to scope.)
+                        if len(loop_pattern) > 1:  # The scheme repeats w/in an example.
                             control = indent + "for " + right + " in range" + str(range_pair) + ':'
                             if second_pass:
                                 code.append(control)
