@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h
 * 2019-03-05 get_range() now looking at one example at a time. 3.75h
 * 2019-03-04 Adding and shuffling code between get_range(), fill_conditions_table(), fill_control_table(), and generate_code() to marshall enough info, in the right order, to solve the scoping problem. 7.25h
