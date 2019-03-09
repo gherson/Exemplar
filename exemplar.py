@@ -402,25 +402,24 @@ def mark_loop_likely() -> None:
                        (example_id, line))
 
     # Assertion scheme repeats within an example with relop ==, an identifier, and a integer: also loop_likely==1 (for)
-    cursor.execute('''SELECT example_id, condition_scheme FROM conditions  
-    GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1''')
+    cursor.execute('''SELECT example_id, scheme FROM conditions GROUP BY example_id, scheme HAVING COUNT(*) > 1''')
     rows = cursor.fetchall()
     for row in rows:  # These rows are scheme dupes, now see if they have relop ==, an identifier, and an integer.
-        example_id, condition_scheme = row
-        condition_scheme_qualified = False
+        example_id, scheme = row
+        scheme_qualified = False
         cursor.execute('''SELECT left_side, relop, right_side FROM conditions 
-        WHERE example_id=? AND condition_scheme=?''', (example_id, condition_scheme))
+        WHERE example_id=? AND scheme=?''', (example_id, scheme))
         rows2 = cursor.fetchall()
         for row2 in rows2:
             left_side, relop, right_side = row2
             if relop == '==' and left_side.isdigit() and right_side[0]>='A' and right_side<='z':
-                if not condition_scheme_qualified:
-                    condition_scheme_qualified = True
-                else:  # This is the second condition_scheme in this example.
+                if not scheme_qualified:
+                    scheme_qualified = True
+                else:  # This is the second scheme in this example.
                     #                      vVv
                     cursor.execute("UPDATE example_lines SET loop_likely = 1 WHERE el_id IN ("
-                                   "SELECT el_id FROM conditions WHERE example_id = ? AND condition_scheme = ?)",
-                                   (example_id, condition_scheme))
+                                   "SELECT el_id FROM conditions WHERE example_id = ? AND scheme = ?)",
+                                   (example_id, scheme))
 
     """
     Below produces:
@@ -647,7 +646,7 @@ def reset_db() -> None:
     # cursor.execute("""CREATE TABLE  ()""")
     # cursor.execute("""CREATE UNIQUE INDEX  ON ()""")
 
-    # TABLES FROM HERE DOWN TO...
+    # Below top tables, down to loops, will be deleted.  3/8/19
     # iterations (1:1 with suspected loops) with columns python (eg, 'while i<4:', 'for i in range(5):', target_line to
     # place that code within the sequential program, and last_line, to note the # of the control block's last line.
     cursor.execute("""DROP TABLE IF EXISTS iterations""")
@@ -693,19 +692,37 @@ def reset_db() -> None:
                         selection_id ROWID NOT NULL)""")  # From E's imagination
     cursor.execute("""CREATE UNIQUE INDEX sccs ON selections_conditions(condition_id, selection_id)""")
 
+    cursor.execute("""DROP TABLE IF EXISTS loops""")  # 1-to-1 with code loops (for's and while's).
+    cursor.execute("""CREATE TABLE loops (
+                        control_id ROWID NOT NULL,
+                        python TEXT NOT NULL)""")
+    cursor.execute("""CREATE UNIQUE INDEX lc ON loops(control_id)""")
+
+    # To predict where a loop ends, build a table of loop iteration patterns, then search it for the best match (matches?).
+    # POssible problem: pattern can change based on interpretation of the exem.
+    cursor.execute("""DROP TABLE IF EXISTS loop_patterns""")  # 1-to-1 with each iteration in the exem.
+    cursor.execute("""CREATE TABLE loop_patterns (
+                        control_id ROWID NOT NULL, 
+                        ct_id ROWID NOT NULL,
+                        iteration INTEGER NOT NULL,
+                        pattern TEXT NOT NULL,   
+                            FOREIGN KEY (control_id) REFERENCES loops(control_id),
+                            FOREIGN KEY (ct_id) REFERENCES control_traces(ct_id))""")
+    cursor.execute("""CREATE UNIQUE INDEX lpci ON loop_patterns(ct_id, iteration)""")
+
     # 1 row for each clause of a re/started code control. (Each time an outer loop starts an inner counts as a start.)
-    # 1-to-many with conditions table, because the latter has a record of all loop iterations, not just the first and last.
-    # many-to-1 with code controls (control.control_id values are 1-to-1 with code controls).
-    cursor.execute('''DROP TABLE IF EXISTS control''')  # conditions table has the non-terminal el_ids.
-    cursor.execute('''CREATE TABLE control (
-                        python TEXT NOT NULL, 
+    # 1-to-many with conditions table, because latter has a record of all loop iterations, not just the first and last.
+    # many-to-1 with code controls (control_traces.control_id values are 1-to-1 with code controls).
+    cursor.execute('''DROP TABLE IF EXISTS control_traces''')  # conditions table has the non-terminal el_ids.
+    cursor.execute('''CREATE TABLE control_traces (
+                        ct_id ROWID NOT NULL,
+                        python TEXT NOT NULL, -- MOVE TO LOOPS 
                         indents INTEGER NOT NULL DEFAULT 1, -- # of indents to place before the code in field 'python'.
                         first_el_id INTEGER NOT NULL,
-                        last_el_id1 INTEGER, -- These are the 1st, 
-                        last_el_id2 INTEGER, -- likely, and 
-                        last_el_id3 INTEGER, -- last possible last lines of the control. (Duplicated across IF clauses.)
+                        last_el_id_1st_possible INTEGER, -- 1st possible last line of the control trace. 
+                        last_el_id_last_possible INTEGER, -- Last possible last line of the control trace. (Duplicated across IF clauses.)
                         control_id TEXT NOT NULL)''')  # if#/for#/while#
-    cursor.execute('''CREATE UNIQUE INDEX cpf ON control(python, first_el_id)''')
+    cursor.execute('''CREATE UNIQUE INDEX cpf ON control_traces(python, first_el_id)''')
 
     # 1 row for each example_line of line_type 'truth'
     cursor.execute("""DROP TABLE IF EXISTS conditions""")
@@ -713,7 +730,7 @@ def reset_db() -> None:
                         el_id INTEGER NOT NULL,
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
-                        condition_scheme TEXT NOT NULL, 
+                        scheme TEXT NOT NULL, 
                         left_side TEXT NOT NULL,
                         relop TEXT NOT NULL,
                         right_side TEXT NOT NULL,
@@ -1127,20 +1144,20 @@ def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
     # todo Below is unnecessary for the for0 loops: we just GROUP BY example_id. But we should also always consider
     # inner loop repetitions only, otherwise, the repetition of a given scheme may be due to the loop it is nested in.
     # cursor.execute("SELECT el_id FROM conditions WHERE control_id='for0'")
-    # rows = cursor.fetchall()  # Would also work: c.condition_scheme='_==__example__'
+    # rows = cursor.fetchall()  # Would also work: c.scheme='_==__example__'
     # example_ranges = []  # First element should be (el_id) 0, and the 3rd element minus the 2nd should be 5.
     # for row in rows:     # More importantly, example_ranges allows every el_id to be mapped to its example.
     #     example_ranges.append(row[0])
 
     # Assuming scheme is of a FOR loop, determine the example garnering the most iterations.
-    cursor.execute("""SELECT COUNT(*), example_id FROM conditions WHERE condition_scheme=? GROUP BY example_id
+    cursor.execute("""SELECT COUNT(*), example_id FROM conditions WHERE scheme=? GROUP BY example_id
         ORDER BY COUNT(*) DESC, example_id LIMIT 1""", (scheme(line),))
     row = cursor.fetchone()
     count, example_id = row
     assert count > 0, "get_range() found zero conditions matching scheme " + scheme(line)
 
     # If the iterations are >1, note the last_value and last_el_id_top.
-    cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_scheme=? AND example_id=? ORDER BY el_id",
+    cursor.execute("SELECT el_id, condition FROM conditions WHERE scheme=? AND example_id=? ORDER BY el_id",
                    (scheme(line), example_id))
     rows = cursor.fetchall()
     first_value, last_value, increment = None, None, None
@@ -1156,7 +1173,7 @@ def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
                 return (first_value, first_value), row_el_id, 't'
         elif increment is None:  # Our second iteration
             increment = row_int - first_value
-        # Below check commented out because it fails with inner loops and the check is done better anyway in fill_control_table(). 3/3/19
+        # Below check commented out because it fails with inner loops and the check is done better anyway in fill_control_traces_table(). 3/3/19
         # else:
         #     if row_int - last_value != increment:
         #         exit("Line " + condition + "'s expected increment " + str(increment) + " was instead " + str(row_int - last_value))
@@ -1273,7 +1290,8 @@ def get_last_el_id_of_loop(first_el_id: int, last_el_id_top: int) -> Tuple[str, 
             loop_pattern += line_type[0]  # i or o
         loop_length += 1
 
-        if el_id >= last_el_id_top and loop_length == preceding_loop_length:  # Look at all iterations to confirm this makes sense.
+        # fixme This is crap. Generate-and-test in order or search past loop patterns for best match. 3/8/19
+        if el_id >= last_el_id_top and loop_length == preceding_loop_length:
             # We're past the last loop top and reached the loop's likely bottom.
             break
 
@@ -1318,6 +1336,10 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     """
     Replace any word in 'line' that matches a prior input value with that value's variable name.
     :database: not involved.
+    # todo we shouldn't have to worry about variable names being matched in the new 'line'. 3/7/19
+    # todo hard coded values should only be replaced if the variable's value matches the
+    # output value without failing a unit test. So generate-and-test this or postpone it until
+    # unit tests are passing so this optimization can be tested before made. 3/7/19
     :param prior_values:
     :param line:
     :return:
@@ -1334,7 +1356,7 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
             remainder_of_line = line[match.start() + len(match.group(0)):]
             if remainder_of_line:
                 new_line += " + '" + remainder_of_line
-            line = new_line  # fixme 'line' will get re-searched and we shouldn't have to worry about variable names being matched.
+            line = new_line
     return line
 
 
@@ -1845,7 +1867,7 @@ def fill_conditions_table() -> None:
             #if scheme(condition) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
                 #When det'ing FORs, a repeated scheme should only count in current scope, but get_range() doesn't know
                 #scopes, because they take alot of info to guess the ends of, so I had to comment
-                #this out. Therefore, fill_control_table() will have to deal with false 'for' positives. 3/4/19
+                #this out. Therefore, fill_control_traces_table() will have to deal with false 'for' positives. 3/4/19
                 #range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, condition)
                 #if len(loop_pattern) > 1:  # The scheme repeats.
             condition_type = "for"
@@ -1861,22 +1883,22 @@ def fill_conditions_table() -> None:
             condition_type = control.partition(' ')[0]
         all_conditions.append((el_id, example_id, condition, scheme(condition), left, operator, right, condition_type))
 
-    cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, condition_scheme, left_side, relop, 
+    cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, 
     right_side, condition_type) VALUES (?,?,?,?,?,?,?,?)""", all_conditions)
 
     return
     """ May become useful if more condition tables are needed:
-    cursor.execute(""SELECT example_id, condition_scheme, COUNT(*) FROM conditions 
-                        GROUP BY example_id, condition_scheme HAVING COUNT(*) > 1"")
+    cursor.execute(""SELECT example_id, scheme, COUNT(*) FROM conditions 
+                        GROUP BY example_id, scheme HAVING COUNT(*) > 1"")
     repeats = cursor.fetchall()
 
     # Set intraexample_repetition column.
     # Below can be made more efficient via an executemany per value of intraexample_repetition
     for row in repeats:
         # print("debugging  row[0], row[1], row[2]", row[0], row[1], row[2])
-        example_id, condition_scheme, count = row
-        cursor.execute("UPDATE conditions SET intraexample_repetition = ? WHERE example_id = ? AND condition_scheme = ?",
-                       (count, example_id, condition_scheme))
+        example_id, scheme, count = row
+        cursor.execute("UPDATE conditions SET intraexample_repetition = ? WHERE example_id = ? AND scheme = ?",
+                       (count, example_id, scheme))
 
     # Categorize all conditions as simple assignment, iterative, or selective.  Currently, the criteria is simply,
     # if i1 is being equated with 0 repetition, call it SA. Else, if there's repetition, call it iterative, else,
@@ -1912,16 +1934,62 @@ def run_tests(filename: str) -> str:
     return test_results
 
 
-def fill_control_table():  # Note scopes.
+def insert_for_loop(ct_id: int, python: str, first_el_id: int, control_id: int, iteration: int) -> int:
+    """
+    :database: INSERTs control_traces
+    :param ct_id:
+    :param python:
+    :param first_el_id:
+    :param control_id:
+    :param iteration:
+    :return:
+    """
+    # todo This needs to be postponed until have a best guess as to last el_id of the control in question.
+    # cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<?",
+    #                (control_id, scheme(condition), first_el_id, el_id2))
+
+    cursor.execute("INSERT INTO loops VALUES (?,?)", (control_id, python))
+
+    cursor.execute("""INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)""",
+                   (ct_id, python, first_el_id, control_id))
+    return cursor.lastrowid  # The ct_id just created.
+    # todo The newly inserted control_traces records still need indents and last_el_id2 set.
+
+
+def el_id_peek(start_el_id: int, distance: int) -> int:
+    """
+    el_id_peek(15, 1) means return the closest el_id value to 15 that is >15.
+    el_id_peek(15, -2) means return the 2nd closest el_id value to 15 that is <15.
+    :database: SELECTs example_lines
+    :param start_el_id:
+    :param distance: the # of el_id values from the given el_id.
+    :return: the el_id value 'distance' ordered records from 'el_id' in table example_lines.
+    """
+    if distance < 0:
+        direction = 'DESC'
+        sign = '<'
+    else:
+        direction = 'ASC'
+        sign = '>'
+    cursor.execute("SELECT el_id FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " + direction + " LIMIT ?",
+                   (start_el_id, abs(distance)))
+    rows = cursor.fetchall()
+    for row in rows:
+        el_id = row[0]
+    return el_id
+    # todo return -1 if no such value or error out?
+
+
+def fill_control_traces_table() -> None:  # Note scopes.
     """
     We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
     todo last_el_id2 and indents via another loop.
     todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
     conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
-    :database: SELECTs and UPDATEs conditions. INSERTs control.
+    :database: SELECTs and UPDATEs conditions. INSERTs control_traces.
     :return:
     """
-    condition_schemes_seen = []  # To avoid redundant analyses.
+    schemes_seen = []  # To avoid redundant analyses.
 
     # Scope the FOR loops by creating 1 control record for every time a loop structure is started.
     # First, pull all the assignments to FOR loop variables (id'ed in fill_conditions_table()).
@@ -1931,14 +1999,15 @@ def fill_control_table():  # Note scopes.
     for row in rows:
         el_id, condition = row
 
-        if scheme(condition) not in condition_schemes_seen:  # (We assume loop variables aren't re-used.)
+        if scheme(condition) not in schemes_seen:  # (We assume loop variables aren't re-used.)
             # Second, pull all the possible increments to 'condition's FOR loop variable (ie, 'condition's schemes)
             # to note the loop variable's first and last values, the control id, and starting Python line. Also confirm
             # that the loop variable always starts with the same integer and increments by the same amount.
-            cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_scheme = ? ORDER BY el_id",
+            cursor.execute("SELECT el_id, condition FROM conditions WHERE scheme = ? ORDER BY el_id",
                            (scheme(condition),))
             rows2 = cursor.fetchall()
             loop_variable, loop_increment = None, None
+            iteration = 0
             for row2 in rows2:
                 el_id2, condition2 = row2
                 left, operator, right = assertion_triple(condition2)  # Eg, 5, ==, guess_count
@@ -1954,26 +2023,45 @@ def fill_control_table():  # Note scopes.
                     assert loop_increment == left - last_value, str(left - last_value) + \
                         " found where FOR loop increment " + str(loop_increment) + " was expected, at assertion: " + condition2
                     last_value = left
-                else:  # The loop variable is back to (eg) 0, meaning that an outer loop has restarted this one.
-                    # Note lessons.
+                else:  # The loop variable is back to (usually) 0, meaning that an outer loop has restarted this one.
+                    # Save the loop info.
                     control_id = 'for' + str(control_count['for'])
-                    cursor.execute("UPDATE conditions SET control_id=? WHERE condition_scheme=? AND el_id>=? AND el_id<?",
-                                   (control_id, scheme(condition), first_el_id, el_id2))
-                    cursor.execute("""INSERT INTO control (python, first_el_id, last_el_id3, control_id) VALUES 
-                    ('for ' || ? || ' in range(' || ? || ',' || ? || ')', ?, ?, ?)""",  # Eg, 'for count in range(0, 3)'
-                            (loop_variable, first_value, last_value + 1, first_el_id, el_id2 - 1, control_id))
+                    ct_id = str(control_id) + '_' + str(first_el_id)
+                    python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
+                    new_ct_id = insert_for_loop(ct_id, python, first_el_id, control_id, iteration)
+                    # The elid in front of el_id2 is the *last possible* last_el_id of the loop just ended (as there can
+                    # be lines between the end of an inner loop and the end of an outer loop). Store that info:
+                    cursor.execute("UPDATE control_traces SET last_el_id_last_possible = ? WHERE ct_id = ?",
+                                   (el_id_peek(el_id2, -1), new_ct_id))
                     first_value = left
                     first_el_id = el_id2
                     loop_increment = None
                 assert loop_variable == right, right + " found where FOR loop variable " + loop_variable + \
                     " was expected, at assertion: " + condition2
+                iteration += 1
+
             # scheme(condition) exhausted.
-            cursor.execute("""INSERT INTO control (python, first_el_id, last_el_id1, control_id) VALUES 
-                ('for ' || ? || ' in range(' || ? || ',' || ? || ')', ?, ?, ?)""",  # Eg, 'for guess_count in range(0, 6)'
-                (loop_variable, first_value, last_value + 1, first_el_id, el_id2 + 1, 'for' + str(control_count['for'])))
-            # N.B. The newly inserted control records still need indents and last_el_id2 set. todo
-            condition_schemes_seen.append(scheme(condition))
+            # todo account for possibility that above loop was broken (via break) right after the above
+            # insert_for_loop(), making below insert_for_loop() call redundant. 3/8/19
+            control_id = 'for' + str(control_count['for'])
+            ct_id = str(control_id) + '_' + str(first_el_id)
+            # python is eg, 'for guess_count in range(0, 6)'
+            python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
+            new_ct_id = insert_for_loop(ct_id, python, first_el_id, control_id, iteration)
+            # We know only the *1st possible* last_el_id of the current loop trace: the *one after* the el_id2 with
+            # which we exited the above loop. Store that info:
+            cursor.execute("""UPDATE control_traces SET last_el_id_1st_possible = ? WHERE ct_id = ?""",
+                           (el_id_peek(el_id2, 1), new_ct_id))
+            schemes_seen.append(scheme(condition))
             control_count['for'] += 1
+
+
+"""def fill_loop_patterns_table():
+
+    # Now fill the loop_patterns table using the known example_lines of first to penultimate iterations.
+    Should that be 'in', out line, scheme(condition)? or simply the raw example_lines?
+    Actually, I'm not convinced this is cost effective.  First scope the starts to all control structures. 3/8/19 
+    cursor.execute("INSERT INTO loop_patterns VALUES (?,?,?,?)", (control_id, ct_id, iteration, pattern))"""
 
 
 def reverse_trace(file: str) -> str:
@@ -1981,7 +2069,7 @@ def reverse_trace(file: str) -> str:
     Reverse engineer a function from given 'file':
     Pull i/o/truth examples from the .exem, work up implications in database, then generate_code() and generate_tests()
     until tests pass?
-    :database: SELECTs sequential_function. Indirectly, all tables involved.
+    :database: SELECTs sequential_function. Indirectly, all tables are involved.
     :param file: An .exem file of examples
     :return code: A \n delimited string
     """
@@ -2000,9 +2088,12 @@ def reverse_trace(file: str) -> str:
     fill_conditions_table()  # The table of true conditions aka assertions.
     #print(dump_table("conditions"))
 
-    fill_control_table()  # The table of control clauses, ie, non-assignment assertions, type for/while/if/elif/else.
+    fill_control_traces_table()  # control trace clauses, ie, non-assignment assertions, type for/while/if/elif/else.
     if DEBUG_DB:
-        print(dump_table("control"))
+        print(dump_table("control_traces"))
+    # fill_loop_patterns_table()
+    # if DEBUG_DB:
+    #     print(dump_table("loop_patterns"))
 
     mark_loop_likely()  # Set the loop_likely column in the example_lines and condition tables.
     if DEBUG_DB:
