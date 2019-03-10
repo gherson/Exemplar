@@ -36,7 +36,7 @@ def assertion_triple(truth_line: str) -> tuple:
     :param truth_line:
     :return: the operands and relational operator in truth_line.
     """
-    # assertions = conditions(truth_line)
+    # assertions = list_conditions(truth_line)
     # for assertion in assertions:
     assertion = truth_line.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency. todo ignore escaped "s
     # Create the relation triple: left_operand, relational_operator, right_operand.
@@ -300,6 +300,20 @@ if __name__ == '__main__':
     assert '1c==guess_count' == scheme('1c==guess_count')
     assert 'i1>_' == scheme('i1>4')
     assert '_<i1' == scheme('4<i1')
+    assert "guess+_==_" == scheme(scheme('guess + 1 == 3')), scheme(scheme('guess + 1 == 3'))
+    assert scheme('_==guess_count') == scheme(scheme('guess_count == 1'))
+    assert 'guess_count1' == scheme(scheme('guess_count 1')), scheme(scheme('guess_count 1'))
+    assert 'guess_count1' == scheme(scheme('guess_count1'))
+    assert 'guess_count==_' == scheme(scheme('guess_count == 1')), scheme(scheme('guess_count == 1'))
+    assert 'guess_count==_' == scheme(scheme('guess_count==1'))
+    assert '1c==guess_count' == scheme(scheme('guess_count == 1c'))  # Leave constants alone.
+    assert '1.==guess_count' == scheme(scheme('guess_count==1.'))  # Leave floats alone.
+    assert 'guess_count==_' == scheme(scheme('1 == guess_count')), scheme(scheme('1 == guess_count'))
+    assert 'guess_count==_' == scheme(scheme('1==guess_count'))
+    assert '1.==guess_count' == scheme(scheme('1. == guess_count'))
+    assert '1c==guess_count' == scheme(scheme('1c==guess_count'))
+    assert 'i1>_' == scheme(scheme('i1>4'))
+    assert '_<i1' == scheme(scheme('4<i1'))
 
 
 def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> int:
@@ -328,7 +342,7 @@ def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> 
                                     VALUES (?,?,?,?,?)''',
                        (line_id, example_id, example_step, remove_c_labels(line), line_type))
     else:
-        for assertion in conditions(line):
+        for assertion in list_conditions(line):
             cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_type) 
                                 VALUES (?,?,?,?,?)''',
                            (line_id, example_id, example_step, remove_c_labels(assertion), line_type))
@@ -377,6 +391,7 @@ def process_examples(examples: List) -> None:
 
 # todo also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
 # can be repeated due to a loop in an enclosing scope.
+# This whole thing may be redundant with the fill_*_table() functions... 3/9/19
 def mark_loop_likely() -> None:
     """
     Assign the example_lines.loop_likely and conditions.loop_likely columns per
@@ -401,7 +416,7 @@ def mark_loop_likely() -> None:
         cursor.execute("UPDATE example_lines SET loop_likely = 1 WHERE line_type='out' AND example_id = ? AND line = ?",
                        (example_id, line))
 
-    # Assertion scheme repeats within an example with relop ==, an identifier, and a integer: also loop_likely==1 (for)
+    # Scheme repeats within an example with relop ==, an identifier, and a integer: also loop_likely==1 (for)
     cursor.execute('''SELECT example_id, scheme FROM conditions GROUP BY example_id, scheme HAVING COUNT(*) > 1''')
     rows = cursor.fetchall()
     for row in rows:  # These rows are scheme dupes, now see if they have relop ==, an identifier, and an integer.
@@ -412,7 +427,7 @@ def mark_loop_likely() -> None:
         rows2 = cursor.fetchall()
         for row2 in rows2:
             left_side, relop, right_side = row2
-            if relop == '==' and left_side.isdigit() and right_side[0]>='A' and right_side<='z':
+            if relop == '==' and left_side.isdigit() and right_side.isidentifier():
                 if not scheme_qualified:
                     scheme_qualified = True
                 else:  # This is the second scheme in this example.
@@ -475,7 +490,7 @@ equality should be tested in the WHILE loop top. how can that be seen from examp
         cursor.execute("UPDATE example_lines SET loop_likely = 0 WHERE el_id IN (" + ','.join('?' * len(selections)) +
                        ')', selections)
 
-    # Put what we learned today into conditions table, to obviate much JOIN.
+    # Put what we learned today into conditions table, to obviate JOINs.
     cursor.execute("""UPDATE conditions SET loop_likely = 
     (SELECT el.loop_likely FROM example_lines el WHERE conditions.el_id = el.el_id)""")
 
@@ -859,7 +874,7 @@ def same_step(loop_step: str, condition: str) -> int:
     return False
 
 
-def conditions(reason: str) -> List[str]:
+def list_conditions(reason: str) -> List[str]:
     """
     Determine 'reason's list of conditions (in two steps to strip() away whitespace).
     :database: not involved.
@@ -992,7 +1007,7 @@ def define_loop() -> Tuple[List, List]:
         reason = reason[0]  # 0 is the only key.
         last_condition_of_reason = False
         i = 0  # Count of conditions examined in this 'reason'.
-        conditions = conditions(reason)
+        conditions = list_conditions(reason)
         for condition in conditions:
             increment = get_increment(condition)
 
@@ -1150,10 +1165,7 @@ def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
     #     example_ranges.append(row[0])
 
     # Assuming scheme is of a FOR loop, determine the example garnering the most iterations.
-    cursor.execute("""SELECT COUNT(*), example_id FROM conditions WHERE scheme=? GROUP BY example_id
-        ORDER BY COUNT(*) DESC, example_id LIMIT 1""", (scheme(line),))
-    row = cursor.fetchone()
-    count, example_id = row
+    count, example_id = most_repeats_in_an_example(assertion_scheme=line)
     assert count > 0, "get_range() found zero conditions matching scheme " + scheme(line)
 
     # If the iterations are >1, note the last_value and last_el_id_top.
@@ -1199,11 +1211,11 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
     :param second_pass:
     :return: an if/elif/else or while command's first line
     """
-    # Return "while " + condition + ':' if 'condition' recurs exactly:  TOO CRUDE at least scope the search.
+    # Return "while " + condition + ':' if 'condition' recurs exactly in an example.
+    # : TOO CRUDE. At least scope the search.
     cursor.execute("SELECT COUNT(*) FROM conditions WHERE condition = ? AND el_id >= ? ORDER BY el_id",
                    (condition, el_id))
-    count = cursor.fetchone()
-    if count[0] > 1:
+    if most_repeats_in_an_example(assertion=condition)[0] > 1:
         return "while " + condition + ':'
 
     if not second_pass:
@@ -1214,7 +1226,7 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
         last_el_id field values are shared (duplicated) across the clauses of a single IF.  3/2/19
         A series of IFs == one IF/ELIF if their conditions are all mutually exclusive. 
         In each example, E can only count on the user providing the true IF clause of an IF/ELIF. On the + side, this  
-        helps differentiate an IF series from an IF/ELIF. 3/5/19"""
+        helps differentiate a series of IFs from an IF/ELIF. 3/5/19"""
 
         # Combine IF conditions into what should be clauses of the same IF and
         # decide their elif order (which will not necessarily preserve the conditions'
@@ -1838,14 +1850,35 @@ def formal_params() -> str:
     return result.rstrip(", ")
 
 
+def most_repeats_in_an_example(assertion=None, assertion_scheme=None):
+    """
+    Whether we have a given assertion or assertion scheme, find the example that has the most of them.
+    :param assertion: condition of interest
+    :param assertion_scheme: scheme of interest
+    :return: count of matching assertion/scheme in a found example_id, as a tuple. Eg, 5, 2
+    """
+    if assertion:
+        where_clause = "condition = '" + assertion + "'"
+    else:
+        where_clause = "scheme = '" + scheme(assertion_scheme) + "'"
+    cursor.execute("SELECT COUNT(*), example_id FROM conditions WHERE " + where_clause + """ GROUP BY example_id
+            ORDER BY COUNT(*) DESC, example_id LIMIT 1""")
+    row = cursor.fetchone()
+    if row:
+        return row  # count, example_id
+    else:
+        return 0, -1
+
+
 def fill_conditions_table() -> None:
     """
     Fill the conditions table with all the 'truth' in the .exem, formatted per assertion_triple(), after determining
-    each's condition_type where we can.
+    each's condition_type if possible.
     :database: SELECTs example_lines. INSERTs conditions.
     :return:
     """
-    all_conditions, for_suspects = [], []
+    # Step 1: Dump example_lines into conditions table.
+    all_conditions = []
     cursor.execute("SELECT el_id, example_id, line FROM example_lines WHERE line_type = 'truth'")
     example_lines = cursor.fetchall()
 
@@ -1854,37 +1887,51 @@ def fill_conditions_table() -> None:
         left, operator, right = assertion_triple(condition)  # Format
         condition = left + ' ' + operator + ' ' + right      # condition.
 
-        condition_type = ''  # We now attempt to improve on this.
-        # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats, as for_suspects.
-        # ((Below condition is spelled out because it differs from the loop_likely classes'. Except for .isidentifier(),
-        # below condition is re-used in generate_code(). 3/4/19))
-        # Eg,           3                  == guess_count
-        if left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
-                right.isidentifier():
-
-            # A non-input variable rhythmically asserted (alone) equal to an integer implies a **** FOR loop ****
-            # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
-            #if scheme(condition) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
-                #When det'ing FORs, a repeated scheme should only count in current scope, but get_range() doesn't know
-                #scopes, because they take alot of info to guess the ends of, so I had to comment
-                #this out. Therefore, fill_control_traces_table() will have to deal with false 'for' positives. 3/4/19
-                #range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, condition)
-                #if len(loop_pattern) > 1:  # The scheme repeats.
-            condition_type = "for"
-                #for_suspects.append(scheme(condition))  # todo add indent for better discrimination
-
-        elif operator == "==" and (re.match(r'i[\d]$', left) or not right.isidentifier()):
-            condition_type = "assign"
-
-        # elif not an assignment from input, then assume IF or WHILE.
-        # todo confirm that our "==" "if"s don't correspond to an assignment used, eg, in a print substitution in the STF.
-        elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):
-            control = if_or_while(el_id, condition, 0)  # ********* IF OR WHILE ********
-            condition_type = control.partition(' ')[0]
-        all_conditions.append((el_id, example_id, condition, scheme(condition), left, operator, right, condition_type))
+        all_conditions.append((el_id, example_id, condition, scheme(condition), left, operator, right))
 
     cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, 
-    right_side, condition_type) VALUES (?,?,?,?,?,?,?,?)""", all_conditions)
+    right_side) VALUES (?,?,?,?,?,?,?)""", all_conditions)
+
+    # Step 2: Fill in condition.condition_type. (This is a separate step so that the below most_repeats_in_an_example()
+    # call can work: it selects from the conditions table.)
+    cursor.execute("SELECT el_id, example_id, condition FROM conditions")
+    rows = cursor.fetchall()
+
+    for row in rows:
+        el_id, example_id, condition = row
+        left, operator, right = assertion_triple(condition)  # Format
+        condition_type = ''  # We now attempt to fill this in.
+        # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
+        # **** FOR_SUSPECTS ****
+        # ((Below condition is spelled out because it differs from the loop_likely classes'. Except for .isidentifier(),
+        # below condition is re-used in generate_code(). 3/4/19))
+        # Eg,          3                   == guess_count
+        if left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
+                right.isidentifier() and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
+
+            # A non-input variable rhythmically asserted (alone) equal to an integer implies a ****** FOR loop ******
+            # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
+            # if scheme(condition) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
+                # get_range() doesn't know scopes, because they take alot of info to guess the ends of, so I had to comment
+                # this out. 3/4/19
+                # range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, condition)
+                # if len(loop_pattern) > 1:  # The scheme repeats.
+            # for_suspects.append(scheme(condition))  # todo add indent for better discrimination
+            # Ideally, a scheme repetition only counts in the scope of a putative control structure but to start with
+            # we're going with example scope (with the above most_repeats_in_an_example() call). 3/9/19
+            condition_type = "for"
+
+        # A condition like 'i1 == count' or '3 == count + 1' indicates a simple assignment.
+        elif operator == "==" and (re.match(r'i[\d]$', left) or not right.isidentifier()):  # ***** ASSIGN *****
+            condition_type = "assign"
+
+        # elif 'condition', in addition to all the other things it's not, is also not an assignment from input,
+        # then assume it's an IF or WHILE.
+        elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):  # Eg, not 'i1 == a'
+            control = if_or_while(el_id, condition, second_pass=0)  # ********* IF OR WHILE ********
+            condition_type = control.partition(' ')[0]  # 1st word of 'control'
+
+        cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
 
     return
     """ May become useful if more condition tables are needed:
@@ -1948,7 +1995,7 @@ def insert_for_loop(ct_id: int, python: str, first_el_id: int, control_id: int, 
     # cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<?",
     #                (control_id, scheme(condition), first_el_id, el_id2))
 
-    cursor.execute("INSERT INTO loops VALUES (?,?)", (control_id, python))
+    cursor.execute("INSERT OR REPLACE INTO loops VALUES (?,?)", (control_id, python))
 
     cursor.execute("""INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)""",
                    (ct_id, python, first_el_id, control_id))
@@ -1980,13 +2027,14 @@ def el_id_peek(start_el_id: int, distance: int) -> int:
     # todo return -1 if no such value or error out?
 
 
-def fill_control_traces_table() -> None:  # Note scopes.
+# todo Doc
+def load_for_loops() -> None:  # Note scopes.
     """
     We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
     todo last_el_id2 and indents via another loop.
     todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
     conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
-    :database: SELECTs and UPDATEs conditions. INSERTs control_traces.
+    :database: SELECTs conditions. INSERTs control_traces.
     :return:
     """
     schemes_seen = []  # To avoid redundant analyses.
@@ -2056,6 +2104,43 @@ def fill_control_traces_table() -> None:  # Note scopes.
             control_count['for'] += 1
 
 
+# todo Doc
+def fill_control_traces_table() -> None:  # Note scopes.
+    """
+    We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
+    todo last_el_id2 and indents via another loop.
+    todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
+    conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
+    :database: SELECTs conditions. INSERTs control_traces.
+    :return:
+    """
+    load_ifs()
+    load_for_loops()
+
+
+# todo Doc
+# To first learn what it is i'm trying to do, i'll manually place the guess4.exem conditions where
+# they need to go...  making them indepedent IFs  3/9/19
+def load_ifs():
+    schemes_seen = []  # To avoid redundant analyses.
+
+    # Scope the IFs by creating 1 control record for every IF clause.
+    # First, pull all conditions adjudicated to be IF related (id'ed in fill_conditions_table()).
+    cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_type='if' ORDER BY el_id")
+    rows = cursor.fetchall()
+    control_count = {'if': 0}
+
+    for row in rows:
+        el_id, condition = row
+        left, operator, right = assertion_triple(condition)  # Eg, guess == secret
+        control_id = 'if' + str(control_count['if'])
+        ct_id = str(control_id) + '_' + str(el_id)
+        python = "if " + condition + ':'
+        cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
+                       (ct_id, python, el_id, control_id))
+        control_count['if'] += 1
+
+
 """def fill_loop_patterns_table():
 
     # Now fill the loop_patterns table using the known example_lines of first to penultimate iterations.
@@ -2067,8 +2152,8 @@ def fill_control_traces_table() -> None:  # Note scopes.
 def reverse_trace(file: str) -> str:
     """
     Reverse engineer a function from given 'file':
-    Pull i/o/truth examples from the .exem, work up implications in database, then generate_code() and generate_tests()
-    until tests pass?
+    Pull i/o/truth examples from the .exem, work up their implications in database, then generate_code() and
+    generate_tests() until tests pass?
     :database: SELECTs sequential_function. Indirectly, all tables are involved.
     :param file: An .exem file of examples
     :return code: A \n delimited string

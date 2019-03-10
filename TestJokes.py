@@ -67,7 +67,7 @@ if __name__ == '__main__':
 """
 jokes from http://inventwithpython.com/invent4thed/chapter4.html.
 
-N.B. this is a script without conditions or variables.
+N.B. this is a script without list_conditions or variables.
 """
 >What do you get when you cross a snowman with a vampire?
 <

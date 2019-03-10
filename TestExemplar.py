@@ -102,7 +102,7 @@ class TestExemplar(unittest.TestCase):
         self.assertEqual(expected, exemplar.cursor.fetchone()[0])
 
     def test_mark_loop_likely2(self):
-        # Confirming that an exact match on a single condition 'reason' (of inp = 2) among the conditions of
+        # Confirming that an exact match on a single condition 'reason' (of inp = 2) among the list_conditions of
         # multi-condition examples also leads to that single condition example's loop_likely being set to 1.
         exemplar.cursor.execute("UPDATE examples SET reason = 'i1 == 1, i1 == 2c', cond_cnt = 2 WHERE inp = 1")
         exemplar.mark_loop_likely()
@@ -211,15 +211,15 @@ class TestExemplar(unittest.TestCase):
 
     def test_list_conditions1(self):
         expected = ['i1 % (i1-1) != 0c']
-        self.assertEqual(expected, exemplar.conditions('  i1 % (i1-1) != 0c  '))
+        self.assertEqual(expected, exemplar.list_conditions('  i1 % (i1-1) != 0c  '))
 
     def test_list_conditions2(self):
         expected = ['i1 % (i1-1) != 0c', '(i1-1)=="hi, joe"']
-        self.assertEqual(expected, exemplar.conditions('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
+        self.assertEqual(expected, exemplar.list_conditions('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  '))
 
     def test_list_conditions3(self):
         expected = ['']
-        self.assertEqual(expected, exemplar.conditions(''))
+        self.assertEqual(expected, exemplar.list_conditions(''))
 
     def test_get_inc_pos1(self):
         expected = (9, 10)
