@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
 * 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), load_for_loops(), load_ifs(). 6.75h
 * 2019-03-08 More for-loop logistics in new functions el_id_peek(), insert_for_loop(). 7.75h
