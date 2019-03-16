@@ -22,6 +22,7 @@ and leap_year.exem. These 'reason's are 0 or 1 conditions only.
 Glossary:
 example == A trace imagining input, output, and assertions as specification of a desired (target) function.
 exem == The user's examples collected in a file of extension .exem.
+loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
 
@@ -30,8 +31,8 @@ def assertion_triple(truth_line: str) -> tuple:
     """
     List the relations in truth_line in a standard form.
     Ie, each relation should be (left_operand, relational_operator, right_operand).
-    Also, an unquoted string (assumed to be an identifier) not of form i[0-9]+ is placed on the right in equality
-    expressions. And double quotes are swapped for single.
+    A valid identifier not of form i[0-9]+ is placed on the right in equality expressions.
+    Double quotes are swapped for single.
     :database: not involved.
     :param truth_line:
     :return: the operands and relational operator in truth_line.
@@ -51,7 +52,7 @@ def assertion_triple(truth_line: str) -> tuple:
                 right_operand += char
             else:
                 left_operand += char
-    if relational_operator == '==' and re.match('[A-z]', left_operand) and not re.match('i[0-9]+', left_operand):
+    if relational_operator == '==' and left_operand.isidentifier() and not re.match('i[0-9]+', left_operand):
         # Except for i[0-9]+ (input variable) names, put identifier in the equivalence on *right* for consistency.
         temporary = left_operand
         left_operand = right_operand
@@ -286,7 +287,7 @@ def scheme(condition: str) -> str:
 
 
 if __name__ == '__main__':
-    assert "_==guess+_" == scheme('guess + 1 == 3'), scheme('guess + 1 == 3')
+    assert "guess+_==_" == scheme('guess + 1 == 3'), scheme('guess + 1 == 3')
     assert scheme('guess_count==0') == scheme('guess_count == 1')
     assert 'guess_count1' == scheme('guess_count 1'), scheme('guess_count 1')
     assert 'guess_count1' == scheme('guess_count1')
@@ -361,9 +362,9 @@ def process_examples(examples: List) -> None:
     :database: insert_line() inserts into examples and example_lines tables.
     :param examples: all the lines from exem.
     """
-    line_id = 0  # += 5 each insert call
+    line_id = 5  # += 5 each insert call
     example_id = -1
-    example_step = 0  # += 5 each intra-example step
+    example_step = 5  # += 5 each intra-example step
     previous_line = 'B'
 
     examples = clean(examples)
@@ -371,7 +372,7 @@ def process_examples(examples: List) -> None:
 
         if previous_line == 'B':  # Then starting on a new example.
             assert line, "This line must be part of an example, not be blank."
-            example_step = 0
+            example_step = 5
             example_id += 1
             line_id, example_step = insert_line(line_id, example_id, example_step, line)
             previous_line = 'E'
@@ -531,7 +532,7 @@ def build_reason_evals() -> None:
     all_reasons = cursor.fetchall()
 
     # All step 0 inputs not involved in looping.
-    cursor.execute("SELECT DISTINCT line FROM example_lines WHERE line_type = 'in' AND loop_likely = 0 AND step_id = 0")
+    cursor.execute("SELECT DISTINCT line FROM example_lines WHERE line_type = 'in' AND loop_likely = 0 AND step_id = 5")
     all_inputs = cursor.fetchall()
         
     locals_dict = locals()  # Used in our exec() calls.
@@ -735,6 +736,7 @@ def reset_db() -> None:
                         indents INTEGER NOT NULL DEFAULT 1, -- # of indents to place before the code in field 'python'.
                         first_el_id INTEGER NOT NULL,
                         last_el_id_1st_possible INTEGER, -- 1st possible last line of the control trace. 
+                        last_el_id INTEGER, -- Actual last line of the control trace. (>=1 of these 3 is always set.)
                         last_el_id_last_possible INTEGER, -- Last possible last line of the control trace. (Duplicated across IF clauses.)
                         control_id TEXT NOT NULL)''')  # if#/for#/while#
     cursor.execute('''CREATE UNIQUE INDEX cpf ON control_traces(python, first_el_id)''')
@@ -1211,12 +1213,13 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
     :param second_pass:
     :return: an if/elif/else or while command's first line
     """
-    # Return "while " + condition + ':' if 'condition' recurs exactly in an example.
-    # : TOO CRUDE. At least scope the search.
-    cursor.execute("SELECT COUNT(*) FROM conditions WHERE condition = ? AND el_id >= ? ORDER BY el_id",
-                   (condition, el_id))
-    if most_repeats_in_an_example(assertion=condition)[0] > 1:
-        return "while " + condition + ':'
+    # guess4.exem shows this as too crude, so no WHILEs for now... I believe this all needs to go in the generate-and-
+    # test pot... 3/10/19
+    # Return "while " + condition + ':' if 'condition' recurs in an example.
+    # cursor.execute("SELECT COUNT(*) FROM conditions WHERE condition = ? AND el_id >= ? ORDER BY el_id",
+    #                (condition, el_id))
+    # if most_repeats_in_an_example(assertion=condition)[0] > 1:
+    #     return "while " + condition + ':'
 
     if not second_pass:
         return "if " + condition + ':'
@@ -1387,7 +1390,8 @@ def generate_code() -> List[str]:
     second_pass = cursor.fetchone()[0]  # If this is our 1st call, second_pass will be "false"
 
     # Loop over every example_line.
-    sql = """SELECT el.el_id, el.line, el.line_type, el.loop_likely FROM example_lines el ORDER BY el.el_id"""
+    sql = """SELECT el.el_id, el.line, el.line_type, el.loop_likely, c.control_id FROM example_lines el 
+    LEFT JOIN conditions c ON el.el_id = c.el_id ORDER BY el.el_id"""
     # "LEFT JOIN conditions c ON el.el_id = c.el_id"  in case we need more info
     cursor.execute(sql)
     rows = cursor.fetchall()
@@ -1398,7 +1402,7 @@ def generate_code() -> List[str]:
     for_suspects = []
     i = 0  # example_lines line counter
     for row in rows:
-        el_id, line, line_type, loop_likely = row
+        el_id, line, line_type, loop_likely, control_id = row
 
         # Code an unspecified input (the associated value is only hard-coded in the tests and comments).
         if line_type == 'in':
@@ -1421,7 +1425,7 @@ def generate_code() -> List[str]:
 
             # Non-string inputs need a cast.
             if second_pass and likely_data_type(variable_name) != "str":
-                cast = likely_data_type(variable_name)  # Updates sequential_function.
+                cast = likely_data_type(variable_name)  # Updates sequential_function after looking at its 'Eg's.
                 assignment = variable_name + " = " + cast + "(input('" + variable_name + ":'))"
                 # cursor.execute("UPDATE sequential_function SET line = ? WHERE el_id = ?", (assignment, el_id))
             else:  # On the first pass, casting is added later, via the database.
@@ -1451,6 +1455,19 @@ def generate_code() -> List[str]:
 
         else:  # truth/assertions/reasons/conditions
 
+            # Grab control info if it exists.
+            if control_id:
+                cursor.execute("""SELECT ct.python, ct.first_el_id FROM conditions c LEFT JOIN control_traces ct 
+                            ON c.control_id = ct.control_id WHERE c.el_id=?""", (el_id,))
+                row = cursor.fetchone()
+                """
+                control_traces has the python code and first_el_id of each control. 
+                Use the python code when el_id == first_el_id.
+                Indent until another control, then outdent?  
+                """
+                python, first_el_id = row
+                print("el_id, python, first_el_id:", el_id, python, first_el_id)
+
             left, operator, right = assertion_triple(line)  # Break up 'line' into its 3 parts.
 
             # Lines that equate a digit to a (non-input) variable are noted for
@@ -1464,8 +1481,9 @@ def generate_code() -> List[str]:
                 preceding_equality[right] = left  # preceding_equality['guess_count'] = 3
 
                 if right.isidentifier():  # Rule out un-assignable left hand sides like 'guess_count + 1'
-                    # A non-input identifier rhythmically asserted equal to an integer implies a **** FOR loop ****
-                    # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
+            # A non-input identifier rhythmically asserted equal to an integer implies a **** FOR loop ****
+            # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
+
                     if not second_pass:  # then force the assertion's truth with an assignment:
                         code.append(indent + str(line).replace('==', '=', 1))  # Eg, guess_count = 2
                         code_stripped.append(denude(str(line).replace('==', '=', 1)))
@@ -1686,7 +1704,7 @@ def generate_tests(function_name: str) -> str:
     # # For each example, wtf??
     # cursor.execute('''SELECT inp.line, output.line, inp.example_id FROM example_lines inp, example_lines output
     #                     WHERE inp.example_id = output.example_id AND inp.line_type = 'in' AND output.line_type = 'out'
-    #                     AND (inp.step_id = 0 OR output.step_id = 0) ORDER BY inp.example_id, output.step_id DESC''')
+    #                     AND (inp.step_id = 5 OR output.step_id = 5) ORDER BY inp.example_id, output.step_id DESC''')
     # # The above DESC and the 'continue' below implement MAX(output.step_id) per example_id.
 
     cursor.execute("SELECT eid FROM examples ORDER BY eid")
@@ -1750,8 +1768,9 @@ def from_file(filename: str) -> List[str]:
     :param filename:
     :return:
     """
+    prefix = "./" if sys.platform != "win32" else ''
     try:
-        handle = open('./' + filename, "r")  # Eg, hello_world.exem
+        handle = open(prefix + filename, "r")  # Eg, hello_world.exem
     except FileNotFoundError as err:
         print(err)
         sys.exit()
@@ -1767,8 +1786,9 @@ def to_file(filename: str, text: str) -> None:
     :param text:
     :return:
     """
+    prefix = "./" if sys.platform != "win32" else ''
     try:
-        handle = open('./' + filename, 'w')  # Eg, TestHelloWorld.py
+        handle = open(prefix + filename, 'w')  # Eg, TestHelloWorld.py.
     except FileNotFoundError as err:  # Any other error catchable?
         print(err)
         sys.exit()
@@ -1900,6 +1920,7 @@ def fill_conditions_table() -> None:
     for row in rows:
         el_id, example_id, condition = row
         left, operator, right = assertion_triple(condition)  # Format
+
         condition_type = ''  # We now attempt to fill this in.
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
         # **** FOR_SUSPECTS ****
@@ -1981,21 +2002,25 @@ def run_tests(filename: str) -> str:
     return test_results
 
 
-def insert_for_loop(ct_id: int, python: str, first_el_id: int, control_id: int, iteration: int) -> int:
+def insert_for_loop(ct_id: int, python: str, first_el_id: int, el_id: int, control_id: int, assertion_scheme: str) -> int:
     """
-    :database: INSERTs control_traces
+    :database: INSERTs control_traces and loops, UPDATEs conditions.
     :param ct_id:
     :param python:
     :param first_el_id:
+    :param el_id:
     :param control_id:
-    :param iteration:
+    :param assertion_scheme:
     :return:
     """
     # todo This needs to be postponed until have a best guess as to last el_id of the control in question.
     # cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<?",
     #                (control_id, scheme(condition), first_el_id, el_id2))
 
-    cursor.execute("INSERT OR REPLACE INTO loops VALUES (?,?)", (control_id, python))
+    cursor.execute("""INSERT OR REPLACE INTO loops VALUES (?,?)""", (control_id, python))
+
+    cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<=?",
+                   (control_id, assertion_scheme, first_el_id, el_id))
 
     cursor.execute("""INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)""",
                    (ct_id, python, first_el_id, control_id))
@@ -2028,6 +2053,12 @@ def el_id_peek(start_el_id: int, distance: int) -> int:
 
 
 # todo Doc
+def el_id_last():
+    cursor.execute("SELECT MAX(el_id) FROM example_lines")
+    return cursor.fetchone()[0]
+
+
+# todo Doc
 def load_for_loops() -> None:  # Note scopes.
     """
     We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
@@ -2046,13 +2077,13 @@ def load_for_loops() -> None:  # Note scopes.
     control_count = {'for': 0}
     for row in rows:
         el_id, condition = row
-
-        if scheme(condition) not in schemes_seen:  # (We assume loop variables aren't re-used.)
+        assertion_scheme = scheme(condition)
+        if assertion_scheme not in schemes_seen:  # (We assume loop variables aren't re-used.)
             # Second, pull all the possible increments to 'condition's FOR loop variable (ie, 'condition's schemes)
             # to note the loop variable's first and last values, the control id, and starting Python line. Also confirm
             # that the loop variable always starts with the same integer and increments by the same amount.
             cursor.execute("SELECT el_id, condition FROM conditions WHERE scheme = ? ORDER BY el_id",
-                           (scheme(condition),))
+                           (assertion_scheme,))
             rows2 = cursor.fetchall()
             loop_variable, loop_increment = None, None
             iteration = 0
@@ -2076,11 +2107,11 @@ def load_for_loops() -> None:  # Note scopes.
                     control_id = 'for' + str(control_count['for'])
                     ct_id = str(control_id) + '_' + str(first_el_id)
                     python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
-                    new_ct_id = insert_for_loop(ct_id, python, first_el_id, control_id, iteration)
+                    new_row_id = insert_for_loop(ct_id, python, first_el_id, el_id2, control_id, assertion_scheme)
                     # The elid in front of el_id2 is the *last possible* last_el_id of the loop just ended (as there can
                     # be lines between the end of an inner loop and the end of an outer loop). Store that info:
-                    cursor.execute("UPDATE control_traces SET last_el_id_last_possible = ? WHERE ct_id = ?",
-                                   (el_id_peek(el_id2, -1), new_ct_id))
+                    cursor.execute("UPDATE control_traces SET last_el_id_last_possible = ? WHERE ROWID = ?",
+                                   (el_id_peek(el_id2, -1), new_row_id))
                     first_value = left
                     first_el_id = el_id2
                     loop_increment = None
@@ -2095,12 +2126,16 @@ def load_for_loops() -> None:  # Note scopes.
             ct_id = str(control_id) + '_' + str(first_el_id)
             # python is eg, 'for guess_count in range(0, 6)'
             python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
-            new_ct_id = insert_for_loop(ct_id, python, first_el_id, control_id, iteration)
+            new_row_id = insert_for_loop(ct_id, python, first_el_id, el_id2, control_id, assertion_scheme)
             # We know only the *1st possible* last_el_id of the current loop trace: the *one after* the el_id2 with
             # which we exited the above loop. Store that info:
-            cursor.execute("""UPDATE control_traces SET last_el_id_1st_possible = ? WHERE ct_id = ?""",
-                           (el_id_peek(el_id2, 1), new_ct_id))
-            schemes_seen.append(scheme(condition))
+            if loop_variable == '__example__':  # Special case
+                cursor.execute("""UPDATE control_traces SET last_el_id = ? WHERE ROWID = ?""",
+                               (el_id_last(), new_row_id))
+            else:
+                cursor.execute("""UPDATE control_traces SET last_el_id_1st_possible = ? WHERE ROWID = ?""",
+                               (el_id_peek(el_id2, 1), new_row_id))
+            schemes_seen.append(assertion_scheme)
             control_count['for'] += 1
 
 
@@ -2114,8 +2149,28 @@ def fill_control_traces_table() -> None:  # Note scopes.
     :database: SELECTs conditions. INSERTs control_traces.
     :return:
     """
+    load_for_loops()  # Loops first so we can determine if each IF is in a loop.
     load_ifs()
-    load_for_loops()
+
+
+# todo Doc
+# Find the first_el_id of the innermost loop still open (if one exists) at the given el_id.
+# todo Pick an last_el_id and keep track of the guess so it can be incremented on test failure... 3/11/19
+def start_of_open_loop(el_id):
+    # If there's a FOR loop open at line el_id, it's selected by:
+    cursor.execute("SELECT MAX(first_el_id) FROM control_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id<=?",
+                   (el_id,))
+    row = cursor.fetchone()
+    if row:
+        first_el_id = row[0]
+        # Determining if that loop is still open at line 'el_id' requires knowing its last line, which can be a dicey
+        # proposition, unfortunately.  If 'el_id' is in the grey zone, note the threshold for the next run and flip
+        # a coin.
+        cursor.execute("""SELECT last_el_id_1st_possible, last_el_id, last_el_id_last_possible FROM control_traces 
+        WHERE SUBSTR(control_id,0,3)='for' AND first_el_id = ?""", (first_el_id,))
+        last_el_id_1st_possible, last_el_id, last_el_id_last_possible = cursor.fetchone()
+        if last_el_id and last_el_id >= el_id:  # This is a sure stop location.
+            return last_el_id
 
 
 # todo Doc
@@ -2132,12 +2187,24 @@ def load_ifs():
 
     for row in rows:
         el_id, condition = row
-        left, operator, right = assertion_triple(condition)  # Eg, guess == secret
+        # Before adding to the code load, determine if the 'el_id' IF duplicates one in the innermost open loop.
+        # (if yes, pull that IF's control_id to update
+        # the conditions table with that control_id at the 'el_id' row, instead of adding to the control_traces table.)
+        # To determine this, we determine the start of the innermost open loop then, if it exists, search within those
+        # el_id's.
+        loop_start = start_of_open_loop(el_id)
+        if loop_start:
+            pass
+            # cursor.execute("""SELECT el_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?""",
+            #                (condition, start_of_open_loop(el_id), el_id))
+            # row = cursor.fetchone()
+            # left, operator, right = assertion_triple(condition)  # Eg, guess == secret
         control_id = 'if' + str(control_count['if'])
         ct_id = str(control_id) + '_' + str(el_id)
         python = "if " + condition + ':'
         cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
                        (ct_id, python, el_id, control_id))
+        cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
         control_count['if'] += 1
 
 
@@ -2147,6 +2214,29 @@ def load_ifs():
     Should that be 'in', out line, scheme(condition)? or simply the raw example_lines?
     Actually, I'm not convinced this is cost effective.  First scope the starts to all control structures. 3/8/19 
     cursor.execute("INSERT INTO loop_patterns VALUES (?,?,?,?)", (control_id, ct_id, iteration, pattern))"""
+
+
+# todo Doc
+def generate_code2():
+    cursor.execute("""SELECT el.el_id, el.example_id, el.step_id, el.line, el.loop_likely, el.line_type, c.control_id 
+    FROM example_lines el LEFT JOIN conditions c ON el.el_id = c.el_id ORDER BY el_id""")
+    rows = cursor.fetchall()
+    for row in rows:
+        el_id, example_id, step_id, line, loop_likely, line_type, control_id = row
+
+        if line_type == 'truth':
+            # Grab control info if it exists.
+            if control_id:
+                cursor.execute("""SELECT ct.python, ct.first_el_id FROM conditions c LEFT JOIN control_traces ct 
+                ON c.control_id = ct.control_id WHERE c.el_id=?""", (el_id,))
+                row = cursor.fetchone()
+                """
+                control_traces has the python code and first_el_id of each control. 
+                Use the python code when el_id == first_el_id.
+                Indent until another control, then outdent?  
+                """
+                python, first_el_id = row
+
 
 
 def reverse_trace(file: str) -> str:
@@ -2197,8 +2287,8 @@ def reverse_trace(file: str) -> str:
     #     print(dump_table("pretests"))
     # Once stabilized, put below into a create_test_class() function. 3/1/19
 
-    #                                      **********************
-    # Use the info in the database to **** GENERATE CODE 1st pass ****
+    #                                 **********************
+    # Use the info in the database to **** GENERATE STF ****
     # First build the 1D, sequential target function (STF).
     function_name = file[0:-5]  # Remove ".exem" extension.
     signature = "def " + function_name + '(' + formal_params() + "):\n"
@@ -2207,8 +2297,8 @@ def reverse_trace(file: str) -> str:
     # generate_code() on 2nd pass.)
 
     # The second call to generate_code() is a first attempt at adding control structure.
-    #                                                     **********************
-    code = signature + '\n'.join(generate_code())  # **** GENERATE CODE 2nd pass ****
+    #                                                ***********************
+    code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
     print("\n" + code + "\n")  # Show off generated function.
     if DEBUG_DB:
         print("After second pass.\n" + dump_table("conditions"))
