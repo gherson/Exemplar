@@ -1,0 +1,69 @@
+# From http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
+# Experimenting with all examples mashed together, using run as the loop variable, so that E 
+# doesn't have to analyze each example in isolation then try to collate results. 3/1/19
+
+__example__==0
+# User wins.
+>Hello! What is your name?
+<Albert
+name==i1         # simple assignment (SA)
+<4
+secret==i1       # SA
+>Well, Albert, I am thinking of a number between 1 and 20.
+guess_count==0   # iteration
+#Testing a full line comment.
+>Take a guess.
+<10
+guess==i1, guess>secret  # SA, selection
+>Your guess is too high.
+guess_count == 1 # iteration
+>Take a guess.
+<2
+guess==i1, guess<secret  # SA, selection
+>Your guess is too low.
+guess_count==2   # iteration
+>Take a guess.
+<4
+guess==i1, guess==secret  # SA, selection
+guess_count + 1 == 3  # SA
+>Good job, Albert! You guessed my number in 3 guesses!
+__example__==1
+# User loses.
+>Hello! What is your name?
+<John
+name==i1
+<3
+secret==i1
+>Well, John, I am thinking of a number between 1 and 20.
+guess_count==0
+>Take a guess.
+<11
+guess==i1, guess>secret
+>Your guess is too high.
+guess_count == 1
+>Take a guess.
+<1
+guess==i1, guess<secret
+>Your guess is too low.
+guess_count==2
+>Take a guess.
+<2
+guess==i1, guess<secret
+>Your guess is too low.
+guess_count==3
+>Take a guess.
+<10
+guess==i1, guess>secret
+>Your guess is too high.
+guess_count==4
+>Take a guess.
+<9
+guess==i1, guess>secret
+>Your guess is too high.
+guess_count==5
+>Take a guess.
+<8
+guess==i1, guess>secret
+>Your guess is too high.
+>Nope. The number I was thinking of was 3.
+
