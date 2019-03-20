@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-19 Finished start_of_open_loop(), which forks the python/sqlite process to deal with ambiguity. 3h
+* 2019-03-18 TG and I finished the JavaScript creating an example table from user input ("exem"). 3h
 * 2019-03-17 Continuing to fill out start_of_open_loop(). 5h
 * 2019-03-16 Got Exemplar running in Linux VM on PyCharm. 2.75h 
 * 2019-03-13 - 2019-03-15. Adjustments to Linux virtual machine, caught up on IRL chores. 2.25h

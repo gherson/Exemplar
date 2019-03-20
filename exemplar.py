@@ -5,6 +5,7 @@ from inspect import currentframe, getframeinfo  # For line #
 import importlib  # To import and run the test file we create.
 import unittest
 from typing import List, Tuple, Dict, Any
+import os
 
 DEBUG = True  # Set to True for more feedback.
 DEBUG_DB = True  # Set to True to enable table to screen dumps.
@@ -735,6 +736,7 @@ def reset_db() -> None:
                         python TEXT NOT NULL, -- MOVE TO LOOPS 
                         indents INTEGER NOT NULL DEFAULT 1, -- # of indents to place before the code in field 'python'.
                         first_el_id INTEGER NOT NULL,
+                        last_el_id_sorta INTEGER, -- hypothesized last_el_id
                         last_el_id_1st_possible INTEGER, -- 1st possible last line of the control trace. 
                         last_el_id INTEGER, -- Actual last line of the control trace. (>=1 of these 3 is always set.)
                         last_el_id_last_possible INTEGER, -- Last possible last line of the control trace. (Duplicated across IF clauses.)
@@ -1884,7 +1886,7 @@ def most_repeats_in_an_example(assertion=None, assertion_scheme=None):
     cursor.execute("SELECT COUNT(*), example_id FROM conditions WHERE " + where_clause + """ GROUP BY example_id
             ORDER BY COUNT(*) DESC, example_id LIMIT 1""")
     row = cursor.fetchone()
-    if row:
+    if row[0]:
         return row  # count, example_id
     else:
         return 0, -1
@@ -2153,30 +2155,57 @@ def fill_control_traces_table() -> None:  # Note scopes.
     load_ifs()
 
 
-# todo Doc
-# Find the first_el_id of the innermost loop still open (if one exists) at the given el_id.
-# todo Pick an last_el_id and keep track of the guess so it can be incremented on test failure... 3/11/19
+# todo Pick a last_el_id_sorta... 3/17/19
 def start_of_open_loop(el_id):
-    # If there's a FOR loop open at line el_id, it's selected by:
+    """
+    Find the first_el_id of the innermost loop still open (if any) at the given el_id.
+    :param el_id: The given el_id
+    :return: first_el_id of the prior loop closest to 'el_id' (or None if none)
+    """
+    # Determine if the latest for-loop start <= 'el_id' is still open at 'el_id'.
     cursor.execute("SELECT MAX(first_el_id) FROM control_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id<=?",
                    (el_id,))
     row = cursor.fetchone()
-    if row:
+    if row[0]:  # Then get its details.
         first_el_id = row[0]
-        # Determining if that loop is still open at line 'el_id' requires knowing its last line, which can be a dicey
-        # proposition, unfortunately.  If 'el_id' is in the grey zone, note the threshold for the next run and flip
-        # a coin.
-        cursor.execute("""SELECT last_el_id_1st_possible, last_el_id, last_el_id_last_possible FROM control_traces 
-        WHERE SUBSTR(control_id,0,3)='for' AND first_el_id = ?""", (first_el_id,))
-        last_el_id_1st_possible, last_el_id, last_el_id_last_possible = cursor.fetchone()
-        if last_el_id and last_el_id >= el_id:  # This is a sure stop location.
-            return last_el_id
+        # Determining if that loop is still open at line 'el_id' requires knowing the loop's last line.
+        # We usually don't, in which case 'el_id' divides the possibilities. Follow both possibilities with fork().
+        cursor.execute("""SELECT last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, 
+        ct_id FROM control_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id = ?""", (first_el_id,))
+        last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, ct_id = cursor.fetchone()
+        if last_el_id:  # Certain loop stop found.
+            if last_el_id >= el_id:
+                return first_el_id
+            else:
+                return None
+        elif last_el_id_sorta:  # Loop stop location already chosen.
+            if last_el_id_sorta >= el_id:
+                return first_el_id
+            else:
+                return None
+        elif last_el_id_1st_possible and last_el_id_1st_possible >= el_id:
+            return first_el_id
+        elif last_el_id_last_possible and last_el_id_last_possible < el_id:
+            return None
+        else:  # We decide on two last_el_id_sorta values, one per fork.
+            pid = os.fork()
+            if pid == 0:  # child
+                print("child")
+                last_el_id_sorta = el_id  # Loop's open (ends at 'el_id').
+            else:  # parent
+                print("parent")
+                last_el_id_sorta = el_id_peek(el_id, -1)  # Loop ends just before 'el_id'.
+            cursor.execute("UPDATE control_traces SET last_el_id_sorta=? WHERE ct_id=?", (last_el_id_sorta, ct_id))
+            if pid == 0:
+                return first_el_id
+            else:
+                return None  # Consider closest prior loop closed.
 
 
 # todo Doc
 # To first learn what it is i'm trying to do, i'll manually place the guess4.exem conditions where
-# they need to go...  making them indepedent IFs  3/9/19
-def load_ifs():
+# they need to go...  making them independent IFs  3/9/19
+def load_ifs():  # into the control_traces table.
     schemes_seen = []  # To avoid redundant analyses.
 
     # Scope the IFs by creating 1 control record for every IF clause.
@@ -2187,25 +2216,25 @@ def load_ifs():
 
     for row in rows:
         el_id, condition = row
-        # Before adding to the code load, determine if the 'el_id' IF duplicates one in the innermost open loop.
-        # (if yes, pull that IF's control_id to update
-        # the conditions table with that control_id at the 'el_id' row, instead of adding to the control_traces table.)
-        # To determine this, we determine the start of the innermost open loop then, if it exists, search within those
-        # el_id's.
+        # Before adding to the code load, determine if the 'el_id' IF duplicates one in the closest prior loop,
+        # if it is open at 'el_id'.
+        # todo (if yes, pull that IF's control_id to update the conditions table with that control_id at the 'el_id'
+        # row, instead of adding to the control_traces table.)
+        # To determine this, first get the start of the innermost open loop.
         loop_start = start_of_open_loop(el_id)
-        if loop_start:
-            pass
-            # cursor.execute("""SELECT el_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?""",
-            #                (condition, start_of_open_loop(el_id), el_id))
-            # row = cursor.fetchone()
-            # left, operator, right = assertion_triple(condition)  # Eg, guess == secret
-        control_id = 'if' + str(control_count['if'])
-        ct_id = str(control_id) + '_' + str(el_id)
-        python = "if " + condition + ':'
-        cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
-                       (ct_id, python, el_id, control_id))
-        cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
-        control_count['if'] += 1
+        if loop_start:  # Then see if there's a match on 'line' in this loop.
+
+            cursor.execute("""SELECT el_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?""",
+                           (condition, loop_start, el_id))
+            row = cursor.fetchone()
+            left, operator, right = assertion_triple(condition)  # Eg, guess == secret
+        # control_id = 'if' + str(control_count['if'])
+        # ct_id = str(control_id) + '_' + str(el_id)
+        # python = "if " + condition + ':'
+        # cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
+        #                (ct_id, python, el_id, control_id))
+        # cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
+        # control_count['if'] += 1
 
 
 """def fill_loop_patterns_table():
