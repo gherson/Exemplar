@@ -37,7 +37,7 @@ def generate(file=""):
 
 
 def html(examples, code):
-    top_html = """<!DOCTYPE html><html>
+    head_html = """<!DOCTYPE html><html>
     <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
 
 <script type="text/javascript">
@@ -80,25 +80,19 @@ function exem_table(examples) { // From iterable to fields to calling table_make
 // Creating an examples array: 
     var examples = new Array();\n"""
 
+    # Back to python to...
     clean_examples = e.clean(examples)  # Snip comments and header.
     i = 0
-    for example in clean_examples:  # Back to python...
-        top_html += "\texamples[" + str(i) + '] = "' + example.rstrip() + '";\n'
+    for example in clean_examples:  # Create a large JS array.
+        head_html += "\texamples[" + str(i) + '] = "' + example.rstrip() + '";\n'
         i += 1
-
-    """ E.g.,
+    """ What the JS array looks like:
     examples[0] = '>Hello! What is your name?';
     examples[1] = '<Albert';
     examples[2] = 'name==i1';
-    examples[3] = '>Hello Friend';
-    examples[4] = '<I am not your friend';
-    examples[5] = 'True that!';
     """
 
-    top_html += """</script></head>\n
-<body onload="exem_table(examples)"><p><b>Instructions</b>: Enter &lt;input↲&gt;output↲assertions↲
-    examples of desired behavior on the left then press Tab.  (Assertions may be omitted or comma separated.) 
-    Exemplar will attempt to generate conforming Python code on the right.</p>\n"""
+    head_html += "</script></head>\n"
 
     demos_html = """<br/><i>Sorry, demos are Under Construction</i><br/>Or, click a button for another demonstration. 
     (There may be a <5sec pause while tests are run in the console.)\n
@@ -113,8 +107,12 @@ function exem_table(examples) { // From iterable to fields to calling table_make
 
     # print("example:", examples)  # Took a few restarts to appear (in console).
 
+    body_top = """<body onload="exem_table(examples)"><p><b>Instructions</b>: Enter &lt;input↲&gt;output↲assertions↲
+    examples of desired behavior on the left then press Tab.  (Assertions may be omitted or comma separated.) 
+    Exemplar will attempt to generate conforming Python code on the right.</p>\n"""
+
     # Show the raw examples, the code, choice of demos, and finally the examples tabulated.
-    return top_html + """<table><tr><th>Examples</th><th>Code generated</th></tr><tr><td>\n
+    return head_html + body_top + """<table><tr><th>Examples</th><th>Code generated</th></tr><tr><td>\n
     <form id="examples_f" method="POST" action="/generate">\n
     <textarea id="examples_ta" name="examples_ta" rows="14" cols="40" onchange="submit();">""" + ''.join(examples) + \
            """</textarea></form></td><td>\n

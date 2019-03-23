@@ -1770,7 +1770,11 @@ def from_file(filename: str) -> List[str]:
     :param filename:
     :return:
     """
-    prefix = "./" if sys.platform != "win32" else ''
+    # prefix = "./" if sys.platform != "win32" else ''
+    if sys.platform == "win32":
+        prefix = __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
+    else:
+        prefix = __file__[0:__file__.rfind('/')+1]
     try:
         handle = open(prefix + filename, "r")  # Eg, hello_world.exem
     except FileNotFoundError as err:
@@ -1788,7 +1792,11 @@ def to_file(filename: str, text: str) -> None:
     :param text:
     :return:
     """
-    prefix = "./" if sys.platform != "win32" else ''
+    # prefix = "./" if sys.platform != "win32" else ''
+    if sys.platform == "win32":
+        prefix = __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
+    else:
+        prefix = __file__[0:__file__.rfind('/')+1]
     try:
         handle = open(prefix + filename, 'w')  # Eg, TestHelloWorld.py.
     except FileNotFoundError as err:  # Any other error catchable?
