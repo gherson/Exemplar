@@ -2054,20 +2054,13 @@ def el_id_peek(start_el_id: int, distance: int) -> int:
     # todo return -1 if no such value or error out?
 
 
-# todo Doc
-def el_id_last():
-    cursor.execute("SELECT MAX(el_id) FROM example_lines")
-    return cursor.fetchone()[0]
-
-
-# todo Doc
-def load_for_loops() -> None:  # Note scopes.
+def load_for_loops() -> None:  # into control_traces, noting scopes.
     """
     We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
     todo last_el_id2 and indents via another loop.
     todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
     conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
-    :database: SELECTs conditions. INSERTs control_traces.
+    :database: SELECTs conditions. INSERTs control_traces indirectly. UPDATEs control_traces
     :return:
     """
     schemes_seen = []  # To avoid redundant analyses.
@@ -2132,8 +2125,8 @@ def load_for_loops() -> None:  # Note scopes.
             # We know only the *1st possible* last_el_id of the current loop trace: the *one after* the el_id2 with
             # which we exited the above loop. Store that info:
             if loop_variable == '__example__':  # Special case
-                cursor.execute("""UPDATE control_traces SET last_el_id = ? WHERE ROWID = ?""",
-                               (el_id_last(), new_row_id))
+                cursor.execute("""UPDATE control_traces SET last_el_id = (SELECT MAX(el_id) FROM example_lines) 
+                WHERE ROWID = ?""", (new_row_id,))
             else:
                 cursor.execute("""UPDATE control_traces SET last_el_id_1st_possible = ? WHERE ROWID = ?""",
                                (el_id_peek(el_id2, 1), new_row_id))
@@ -2141,26 +2134,25 @@ def load_for_loops() -> None:  # Note scopes.
             control_count['for'] += 1
 
 
-# todo Doc
 def fill_control_traces_table() -> None:  # Note scopes.
     """
     We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
     todo last_el_id2 and indents via another loop.
     todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
     conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
-    :database: SELECTs conditions. INSERTs control_traces.
+    :database: All indirectly: SELECTs conditions. INSERTs control_traces. UPDATEs conditions, control_traces.
     :return:
     """
-    load_for_loops()  # Loops first so we can determine if each IF is in a loop.
+    load_for_loops()  # Loops before IFs to allow determination of whether an IF is in a loop.
     load_ifs()
 
 
 # todo Pick a last_el_id_sorta... 3/17/19
 def start_of_open_loop(el_id):
     """
-    Find the first_el_id of the innermost loop still open (if any) at the given el_id.
+    If the latest for-loop start <= 'el_id' is of a for-loop still open at 'el_id', return that starting el_id.
     :param el_id: The given el_id
-    :return: first_el_id of the prior loop closest to 'el_id' (or None if none)
+    :return: first_el_id or None
     """
     # Determine if the latest for-loop start <= 'el_id' is still open at 'el_id'.
     cursor.execute("SELECT MAX(first_el_id) FROM control_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id<=?",
@@ -2173,7 +2165,7 @@ def start_of_open_loop(el_id):
         cursor.execute("""SELECT last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, 
         ct_id FROM control_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id = ?""", (first_el_id,))
         last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, ct_id = cursor.fetchone()
-        if last_el_id:  # Certain loop stop found.
+        if last_el_id:  # Certain loop stop line.
             if last_el_id >= el_id:
                 return first_el_id
             else:
@@ -2191,25 +2183,27 @@ def start_of_open_loop(el_id):
             pid = os.fork()
             if pid == 0:  # child
                 print("child")
-                last_el_id_sorta = el_id  # Loop's open (ends at 'el_id').
+                last_el_id_sorta = el_id  # Loop's open, and we make it end at 'el_id'.
             else:  # parent
                 print("parent")
-                last_el_id_sorta = el_id_peek(el_id, -1)  # Loop ends just before 'el_id'.
+                last_el_id_sorta = el_id_peek(el_id, -1)  # We'll say that loop ends just before 'el_id'.
             cursor.execute("UPDATE control_traces SET last_el_id_sorta=? WHERE ct_id=?", (last_el_id_sorta, ct_id))
             if pid == 0:
                 return first_el_id
             else:
-                return None  # Consider closest prior loop closed.
+                return None  # Closest prior loop considered closed.
 
 
-# todo Doc
-# To first learn what it is i'm trying to do, i'll manually place the guess4.exem conditions where
-# they need to go...  making them independent IFs  3/9/19
-def load_ifs():  # into the control_traces table.
-    schemes_seen = []  # To avoid redundant analyses.
-
-    # Scope the IFs by creating 1 control record for every IF clause.
-    # First, pull all conditions adjudicated to be IF related (id'ed in fill_conditions_table()).
+# To first learn what it is i'm trying to do, the IFs become independent IFs rather than nested... 3/9/19
+def load_ifs() -> None:  # into control_traces table (to track their scope).
+    """
+    We iterate through all IFs in 'conditions', attempting to insert into CT table only those that represent unique
+    code lines, by excluding those repeated per a loop. Where repeats are found, 'conditions' is updated to note the
+    pre-existing control_id.
+    :database: SELECTs conditions. INSERTs control_traces. UPDATEs conditions.
+    :return:
+    """
+    # First, pull all conditions adjudicated by fill_conditions_table()) to be IF related.
     cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_type='if' ORDER BY el_id")
     rows = cursor.fetchall()
     control_count = {'if': 0}
@@ -2217,31 +2211,33 @@ def load_ifs():  # into the control_traces table.
     for row in rows:
         el_id, condition = row
         # Before adding to the code load, determine if the 'el_id' IF duplicates one in the closest prior loop,
-        # if it is open at 'el_id'.
-        # todo (if yes, pull that IF's control_id to update the conditions table with that control_id at the 'el_id'
-        # row, instead of adding to the control_traces table.)
-        # To determine this, first get the start of the innermost open loop.
-        loop_start = start_of_open_loop(el_id)
-        if loop_start:  # Then see if there's a match on 'line' in this loop.
-
-            cursor.execute("""SELECT el_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?""",
+        # if that loop is indeed open at 'el_id'.
+        loop_start = start_of_open_loop(el_id)  # MAX(first_el_id) <= 'el_id'. Or None if that loop's closed.
+        if loop_start:  # Then see if there's a match on 'line' anywhere between loop_start and 'el_id'.
+            cursor.execute("SELECT control_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?",
                            (condition, loop_start, el_id))
             row = cursor.fetchone()
-            left, operator, right = assertion_triple(condition)  # Eg, guess == secret
-        # control_id = 'if' + str(control_count['if'])
-        # ct_id = str(control_id) + '_' + str(el_id)
-        # python = "if " + condition + ':'
-        # cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
-        #                (ct_id, python, el_id, control_id))
-        # cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
-        # control_count['if'] += 1
+        if not loop_start or row[0] is None:  # No match.
+            # Prepare for INSERT and UPDATE.
+            control_id = 'if' + str(control_count['if'])
+            ct_id = control_id + '_' + str(el_id)  # Eg, 'if3_45'
+            python = "if " + condition + ':'
+            cursor.execute("INSERT INTO control_traces (ct_id, python, first_el_id, control_id) VALUES (?,?,?,?)",
+                           (ct_id, python, el_id, control_id))
+            # Back in 'conditions', note the control_id just constructed for el_id.
+            cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
+            control_count['if'] += 1
+        elif row[0]:  # Instead of adding to the control_traces table, pull the found IF's control_id from
+            # 'conditions' and update'conditions' at later row 'el_id'.
+            control_id = row[0]
+            cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))
 
 
 """def fill_loop_patterns_table():
 
     # Now fill the loop_patterns table using the known example_lines of first to penultimate iterations.
     Should that be 'in', out line, scheme(condition)? or simply the raw example_lines?
-    Actually, I'm not convinced this is cost effective.  First scope the starts to all control structures. 3/8/19 
+    ***Actually, I'm not convinced this is cost effective.  First scope the starts to all control structures. 3/8/19 
     cursor.execute("INSERT INTO loop_patterns VALUES (?,?,?,?)", (control_id, ct_id, iteration, pattern))"""
 
 
