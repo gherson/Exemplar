@@ -1771,12 +1771,8 @@ def from_file(filename: str) -> List[str]:
     :return:
     """
     # prefix = "./" if sys.platform != "win32" else ''
-    if sys.platform == "win32":
-        prefix = __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
-    else:
-        prefix = __file__[0:__file__.rfind('/')+1]
     try:
-        handle = open(prefix + filename, "r")  # Eg, hello_world.exem
+        handle = open(exemplar_path() + filename, "r")  # Eg, hello_world.exem
     except FileNotFoundError as err:
         print(err)
         sys.exit()
@@ -1793,12 +1789,8 @@ def to_file(filename: str, text: str) -> None:
     :return:
     """
     # prefix = "./" if sys.platform != "win32" else ''
-    if sys.platform == "win32":
-        prefix = __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
-    else:
-        prefix = __file__[0:__file__.rfind('/')+1]
     try:
-        handle = open(prefix + filename, 'w')  # Eg, TestHelloWorld.py.
+        handle = open(exemplar_path() + filename, 'w')  # Eg, TestHelloWorld.py.
     except FileNotFoundError as err:  # Any other error catchable?
         print(err)
         sys.exit()
@@ -1997,6 +1989,13 @@ def fill_conditions_table() -> None:
     cursor.executemany("UPDATE conditions SET type = 'selective' WHERE rowid IN (?)", selectives)"""
 
 
+def exemplar_path():
+    if sys.platform == "win32":
+        return __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
+    else:
+        return __file__[0:__file__.rfind('/')+1]
+
+
 def run_tests(filename: str) -> str:
     """
     Run the unittest tests of the named file and print and return the results.
@@ -2005,6 +2004,7 @@ def run_tests(filename: str) -> str:
     :return: results of the tests
     """
     class_name = "Test" + underscore_to_camelcase(filename[0:-5])  # Eg, prime_number.exem -> TestPrimeNumber
+    importlib.invalidate_caches()
     TestClass = importlib.import_module(class_name)
     suite = unittest.TestLoader().loadTestsFromModule(TestClass)
     test_results = unittest.TextTestRunner().run(suite)
