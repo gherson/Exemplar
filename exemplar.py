@@ -2004,7 +2004,7 @@ def run_tests(filename: str) -> str:
     :return: results of the tests
     """
     class_name = "Test" + underscore_to_camelcase(filename[0:-5])  # Eg, prime_number.exem -> TestPrimeNumber
-    importlib.invalidate_caches()
+    sys.path.append(exemplar_path())  # imports don't take absolute paths.
     TestClass = importlib.import_module(class_name)
     suite = unittest.TestLoader().loadTestsFromModule(TestClass)
     test_results = unittest.TextTestRunner().run(suite)
