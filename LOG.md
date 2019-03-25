@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-24 Working to improve and replace logic in generate_code() with use of new info, e.g., control scope, from the conditions and control_traces tables. 4.25h
+* 2019-03-23 Re-enabled pycallgraph, created call_graph4_cropped.png. 5h
 * 2019-03-22 Completed 1st version of load_ifs(). 2.5h
 * 2019-03-20 - 2019-03-21 Troubleshot https://repl.it/@gherson/Exemplar website and working with a student assistant. 4h 
 * 2019-03-19 Finished start_of_open_loop(), which forks the python/sqlite process to deal with ambiguity. 3h
