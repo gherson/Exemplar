@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-27 Improved UI significantly (i.e., main.py, visible at the repl.it url, below).
+* 2019-03-26 Re-enabled test execution. Removed use of examples table. Altered process_examples() to combine examples. 6.75h
 * 2019-03-25 Researched integration testing options. Enabled my Data Source in PyCharm and its database tool by switching Exemplar's memory database to file. 2.5h
 * 2019-03-24 Working to improve and replace logic in generate_code() with use of new info, e.g., control scope, from the conditions and control_traces tables. 4.25h
 * 2019-03-23 Re-enabled pycallgraph, created call_graph4_cropped.png. 5h
