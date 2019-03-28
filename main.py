@@ -1,9 +1,23 @@
 # main.py is repl.it's starting point for projects of type 'Python'.
 import exemplar as e
+import html as h  # To avoid weird "AttributeError: 'function' object has no attribute 'escape'" error.
 import importlib, unittest, random
 from flask import Flask, request  # Flask is a micro web framework.
+from typing import List
 
 app = Flask(__name__)
+
+
+def colorize(lines: List[str]) -> str:
+    colorized = ''
+    for line in lines:
+        if line[0] == '<':
+            colorized += "<font color='blue'>" + h.escape(line) + "</font>"
+        elif line[0] == '>':
+            colorized += "<font color='green'>" + h.escape(line) + "</font>"
+        else:
+            colorized += h.escape(line)
+    return colorized
 
 
 @app.route('/')
@@ -22,7 +36,7 @@ def generate(file=""):
         user_examples = e.from_file(file)
     else:
         # Write the user's examples from the request object into a file.
-        user_examples = request.form['examples_ta']
+        user_examples = request.form['examples_edit']
         file = 'e' + str(random.randrange(10)) + ".exem"  # Pick a name at random.
         e.to_file(file, user_examples)  # Write to it.
     code = e.reverse_trace(file)  # Capture code for display.
@@ -37,13 +51,15 @@ def generate(file=""):
 
 
 def html(examples, code):
-    head_html = """<!DOCTYPE html><html>
+    head_html = """<!DOCTYPE html><html lang="en">
     <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <title>Exemplar</title>
 
-<script type="text/javascript">
+<script>
 function table_maker(input, truth, output) { // Line by line.
     var examples = document.getElementById("examples_t");
-    examples_t.innerHTML += "<tr><td>" + input + "</td><td>" + truth + "</td><td>" + output + "</td></tr>\\n";
+    examples_t.innerHTML += "<tr><td>" + input + "</td><td>" + truth + "</td><td>" + \
+    output + "</td></tr>\\n";
 }
 function exem_table(examples) { // From iterable to fields to calling table_maker() a line at a time.
     input = ''; truth = ''; 
@@ -107,20 +123,27 @@ function exem_table(examples) { // From iterable to fields to calling table_make
 
     # print("example:", examples)  # Took a few restarts to appear (in console).
 
-    body_top = """<body onload="exem_table(examples)"><p><b>Instructions</b>: Enter &lt;input↲&gt;output↲assertions↲
-    examples of desired behavior on the left then press Tab.  (Assertions may be omitted or comma separated.) 
-    Exemplar will attempt to generate conforming Python code on the right.</p>\n"""
+    body_top = """<body onload="exem_table(examples)">
+    <h1>Exemplar</h1> <h2>code generation from examples</h2>
+    <p><b>Instructions</b>: 
+    <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
+    sequences demonstrating desired behavior on the left.</li>\n
+    <li>Assertions may be omitted or comma separated.</li>\n
+    <li>Separate example runs with a blank line.</li>\n
+    <li>Press Tab. Exemplar will attempt to generate conforming Python code on the right.</li>\n  
+    </ol>\n"""
 
-    # Show the raw examples, the code, choice of demos, and finally the examples tabulated.
-    return head_html + body_top + """<table><tr><th>Examples</th><th>Code generated</th></tr><tr><td>\n
-    <form id="examples_f" method="POST" action="/generate">\n
-    <textarea id="examples_ta" name="examples_ta" rows="14" cols="40" onchange="submit();">""" + ''.join(examples) + \
-           """</textarea></form></td><td>\n
-       <textarea id="code_generated" rows="14" cols="40" readonly="readonly">""" + \
-           code + '</textarea></td></tr></table>\n' + \
-           demos_html + key + \
-           '''<!-- EXAMPLES TABLE -->\n<table id="examples_t" cellpadding="1" border="1"><tr><th>input</th><th>truth</th>
-            <th>output</th></tr></table></html>'''
+    # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
+    return head_html + body_top + """<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated</th></tr>\n
+    <tr><td valign="top"><form id="examples_f" method="POST" action="/generate">\n
+        <div id="examples_edit" contenteditable="true" style="border: thin solid black" onchange="submit();"><pre>""" + colorize(
+        examples) + \
+           """</pre></div></form></td>\n
+    <td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><u><font color="blue">input</font></u></th><th><u>truth</u></th>
+     <th><u><font color="green">output</font></u></th></tr></table></td>\n""" + \
+           '<td valign="top"><textarea id="code_generated" rows="40" cols="60" readonly="readonly">' + \
+           code + '</textarea></td></tr></table>' + demos_html + key + \
+           '</html>'
 
 
 if __name__ == '__main__':

@@ -10,11 +10,15 @@ import os
 DEBUG = True  # Set to True for more feedback.
 DEBUG_DB = True  # Set to True to enable table to screen dumps.
 
+# (For speed, replace the db filename with ':memory:') (No isolation for auto-commit.)
+db = sqlite3.connect('examplar.db', isolation_level=None)
+cursor = db.cursor()
+
 """
 reverse_trace(file) reverse engineers a function from the examples in the named .exem `file`.
 
-Version 3, started 1/26/2019, models state and user interaction, and the input file changes from single 
-i/o[/reasons] triples per example to an unbounded # of lines of <inputs, >outputs, and assertions per example. 
+Version 3, started 1/26/2019, models state and user interaction. The input file has changed from examples of a single 
+i/o[/reasons] triple to examples of an unbounded # of lines of <inputs, >outputs, and assertions. 
 Version 2 finished 10/20/2018 can also generate a while loop. This version can also handle prime_number.exem. 
 'reason's are now an unlimited # of conditions.  
 Version 1 finished 3/25/2018 can generate one if/elif/else. This version correctly handles fizz_buzz.exem, guess2.exem, 
@@ -26,6 +30,17 @@ exem == The user's examples collected in a file of extension .exem.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
+
+
+class MockCursor:
+    """A class that mocks the database cursor, to hijack and record calls to the database during tests."""
+    actual = []
+
+    def execute(self, query, tuple_of_values):
+        self.actual.append((query, tuple_of_values))
+
+    def get_actual(self):
+        return self.actual
 
 
 def assertion_triple(truth_line: str) -> tuple:
@@ -287,7 +302,7 @@ def scheme(condition: str) -> str:
     return underscored
 
 
-if __name__ == '__main__':
+if DEBUG and __name__ == '__main__':
     assert "guess+_==_" == scheme('guess + 1 == 3'), scheme('guess + 1 == 3')
     assert scheme('guess_count==0') == scheme('guess_count == 1')
     assert 'guess_count1' == scheme('guess_count 1'), scheme('guess_count 1')
@@ -318,15 +333,32 @@ if __name__ == '__main__':
     assert '_<i1' == scheme(scheme('4<i1'))
 
 
-def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> int:
+def list_conditions(reason: str) -> List[str]:
     """
-    Called as examples are processed to insert the given line into the database.
-    :database: Tables examples and example_lines are inserted.
+    Determine 'reason's list of conditions (in two steps to strip() away whitespace).
+    :database: not involved.
+    :param reason: str
+    :return list of conditions, e.g., ["i1 % (i1-1) != 0c","(i1-1)==2c"]:
+    """
+    commas = positions_outside_strings(reason, ',')
+    result = []
+    start = 0
+    for comma in commas:
+        condition = reason[start: comma]
+        result.append(condition.strip())
+        start = comma + 1
+    result.append(reason[start:].strip())  # Append last condition in 'reason'
+    return result
+
+
+def insert_line(line_id: int, example_id: int, line: str) -> int:
+    """
+    Insert the given line into the database and return next line_id to use.
+    :database: INSERTs example_lines.
     :param line_id: becomes an el_id
-    :param example_id: becomes eid
-    :param example_step: becomes step_id
+    :param example_id:
     :param line: a line or comma separated value from exem, with only leading < or > removed.
-    :return: line_id and example_step incremented by five for each INSERTion.
+    :return: line_id incremented by five for each INSERT (# of conditions in a 'line' of 'truth').
     """
     if line.startswith('<'):
         line_type = 'in'
@@ -335,60 +367,60 @@ def insert_line(line_id: int, example_id: int, example_step: int, line: str) -> 
     else:
         line_type = 'truth'  # True condition
 
-    if example_step == 0:  # New example.
-        cursor.execute('''INSERT INTO examples (eid) VALUES (?)''', (example_id,))
-
     if line_type == 'in' or line_type == 'out':
         line = line[1:]  # Skip less/greater than symbol.
-        cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_type) 
-                                    VALUES (?,?,?,?,?)''',
-                       (line_id, example_id, example_step, remove_c_labels(line), line_type))
+        cursor.execute('''INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
+                       (line_id, example_id, remove_c_labels(line), line_type))
+        line_id += 5
     else:
         for assertion in list_conditions(line):
-            cursor.execute('''INSERT INTO example_lines (el_id, example_id, step_id, line, line_type) 
-                                VALUES (?,?,?,?,?)''',
-                           (line_id, example_id, example_step, remove_c_labels(assertion), line_type))
+            cursor.execute('''INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
+                           (line_id, example_id, remove_c_labels(assertion), line_type))
             line_id += 5
-            example_step += 5
-        line_id -= 5
-        example_step -= 5
     # cursor.execute('''SELECT * FROM example_lines''')
     # print("fetchall:", cursor.fetchall())
-    return line_id, example_step
+    return line_id
 
 
-def process_examples(examples: List) -> None:
+def process_examples(example_lines: List) -> None:
     """
-    Go through .exem file to build `examples` and example_lines tables.
-    :database: insert_line() inserts into examples and example_lines tables.
-    :param examples: all the lines from exem.
+    Go through .exem file to build example_lines table.
+    :database: indirectly INSERTs example_lines.
+    :param example_lines: all the lines from exem.
     """
+    example_id = 0
     line_id = 5  # += 5 each insert call
-    example_id = -1
-    example_step = 5  # += 5 each intra-example step
-    previous_line = 'B'
+    previous_line_blank = True  # If there was a previous line, it'd be blank.
 
-    examples = clean(examples)
-    for line in examples:
+    example_lines = clean(example_lines)
+    example_lines.insert(0, "__example__==0")  # 'line' 0
+    for line in example_lines:
 
-        if previous_line == 'B':  # Then starting on a new example.
+        if previous_line_blank:  # Then starting on a new example.
             assert line, "This line must be part of an example, not be blank."
-            example_step = 5
-            example_id += 1
-            line_id, example_step = insert_line(line_id, example_id, example_step, line)
-            previous_line = 'E'
+            line_id = insert_line(line_id, example_id, line)
+            previous_line_blank = False
 
-        elif previous_line == 'E':  # Then current line must continue the example or be blank.
-            if not line:
-                previous_line = 'B'
-            else:
-                example_step += 5  # 5 instead of 1 in order to allow INSERT.
-                line_id, example_step = insert_line(line_id, example_id, example_step, line)
+        else:  # Previous line not blank, so current line can either continue the example or be blank.
+            if not line:  # Current line is blank, signifying a new example.
+                example_id += 1
+                line_id = insert_line(line_id, example_id, "__example__==" + str(example_id))
+                previous_line_blank = True
+            else:  # Example continues.
+                line_id = insert_line(line_id, example_id, line)
 
-        else:
-            assert False, "previous_line must be B(lank) or E(xample), not " + previous_line
 
-        line_id += 5  # (The increment is higher than 1 in order to allow inserting rows, in build_reason_evals())
+if DEBUG and __name__ == '__main__':
+    db_cursor = cursor  # Temporarily hijack cursor for testing.
+    cursor = MockCursor()  # So that calls to cursor.execute() append to cursor.actual.
+    example_lines = ["<Albert"]
+    process_examples(example_lines)  # Call under test.
+    expected = [("""INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)""",
+                 (5, 0, '__example__==0', 'truth')),
+                ("""INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)""",
+                 (10, 0, 'Albert', 'in'))]
+    assert expected == cursor.get_actual(), "Expected " + str(expected) + ", but  got " + str(cursor.get_actual())
+    cursor = db_cursor  # Restore cursor.
 
 
 # todo also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
@@ -649,10 +681,6 @@ def reset_db() -> None:
     :database: CREATEs all tables.
     :return: None
     """
-    db = sqlite3.connect(':memory:')
-    global cursor  # So db is available to all functions.
-    cursor = db.cursor()
-
     # cursor.execute("""DROP TABLE IF EXISTS io_log""")
     # cursor.execute("""CREATE TABLE io_log (
     #                     iid ROWID,
@@ -682,7 +710,7 @@ def reset_db() -> None:
     cursor.execute("""CREATE TABLE selections (
                         python TEXT NOT NULL,
                         target_line INTEGER NOT NULL,
-                        elif ROWID,
+                        elif INTEGER,
                         else_line INTEGER,
                         last_line INTEGER)""")
     cursor.execute("""CREATE UNIQUE INDEX spt ON selections(python, target_line)""")
@@ -699,32 +727,31 @@ def reset_db() -> None:
     # condition_id and iteration_id or selection_id, respectively.
     cursor.execute("""DROP TABLE IF EXISTS iterations_conditions""")
     cursor.execute("""CREATE TABLE iterations_conditions (
-                        condition_id ROWID NOT NULL, -- From the examples
-                        iteration_id ROWID NOT NULL)""")  # From E's imagination
+                        condition_id INTEGER NOT NULL, -- From the examples
+                        iteration_id INTEGER NOT NULL)""")  # From E's imagination
     cursor.execute("""CREATE UNIQUE INDEX icci ON iterations_conditions(condition_id, iteration_id)""")
 
     cursor.execute("""DROP TABLE IF EXISTS selections_conditions""")
     cursor.execute("""CREATE TABLE selections_conditions (
-                        condition_id ROWID NOT NULL, -- From the examples
-                        selection_id ROWID NOT NULL)""")  # From E's imagination
+                        condition_id INTEGER NOT NULL, -- From the examples
+                        selection_id INTEGER NOT NULL)""")  # From E's imagination
     cursor.execute("""CREATE UNIQUE INDEX sccs ON selections_conditions(condition_id, selection_id)""")
 
     cursor.execute("""DROP TABLE IF EXISTS loops""")  # 1-to-1 with code loops (for's and while's).
     cursor.execute("""CREATE TABLE loops (
-                        control_id ROWID NOT NULL,
+                        control_id INTEGER PRIMARY KEY,
                         python TEXT NOT NULL)""")
-    cursor.execute("""CREATE UNIQUE INDEX lc ON loops(control_id)""")
 
     # To predict where a loop ends, build a table of loop iteration patterns, then search it for the best match (matches?).
     # POssible problem: pattern can change based on interpretation of the exem.
     cursor.execute("""DROP TABLE IF EXISTS loop_patterns""")  # 1-to-1 with each iteration in the exem.
     cursor.execute("""CREATE TABLE loop_patterns (
-                        control_id ROWID NOT NULL, 
-                        ct_id ROWID NOT NULL,
+                        control_id INTEGER NOT NULL, 
+                        ct_id INTEGER NOT NULL,
                         iteration INTEGER NOT NULL,
                         pattern TEXT NOT NULL,   
-                            FOREIGN KEY (control_id) REFERENCES loops(control_id),
-                            FOREIGN KEY (ct_id) REFERENCES control_traces(ct_id))""")
+                        FOREIGN KEY (control_id) REFERENCES loops(control_id),
+                        FOREIGN KEY (ct_id) REFERENCES control_traces(ct_id))""")
     cursor.execute("""CREATE UNIQUE INDEX lpci ON loop_patterns(ct_id, iteration)""")
 
     # 1 row for each clause of a re/started code control. (Each time an outer loop starts an inner counts as a start.)
@@ -732,7 +759,7 @@ def reset_db() -> None:
     # many-to-1 with code controls (control_traces.control_id values are 1-to-1 with code controls).
     cursor.execute('''DROP TABLE IF EXISTS control_traces''')  # conditions table has the non-terminal el_ids.
     cursor.execute('''CREATE TABLE control_traces (
-                        ct_id ROWID NOT NULL,
+                        ct_id TEXT PRIMARY KEY, -- Eg, for0_40
                         python TEXT NOT NULL, -- MOVE TO LOOPS 
                         indents INTEGER NOT NULL DEFAULT 1, -- # of indents to place before the code in field 'python'.
                         first_el_id INTEGER NOT NULL,
@@ -746,7 +773,7 @@ def reset_db() -> None:
     # 1 row for each example_line of line_type 'truth'
     cursor.execute("""DROP TABLE IF EXISTS conditions""")
     cursor.execute("""CREATE TABLE conditions ( -- 1 row for each comma-delimited condition from the 'truth' lines. 
-                        el_id INTEGER NOT NULL,
+                        el_id INTEGER PRIMARY KEY,
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
                         scheme TEXT NOT NULL, 
@@ -755,7 +782,8 @@ def reset_db() -> None:
                         right_side TEXT NOT NULL,
                         loop_likely INTEGER,
                         control_id INTEGER,
-                        condition_type TEXT)""")  # assign/if/for/while
+                        condition_type TEXT,
+                        FOREIGN KEY(el_id) REFERENCES example_lines(el_id))""")  # assign/if/for/while
                         #-- python TEXT)
                         #-- schematized(condition)
                         # --type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
@@ -764,22 +792,14 @@ def reset_db() -> None:
     # lines of exactly 1 further indent? 2/10/19
     # satisfies INTEGER NOT NULL DEFAULT 0, -- Python code satisfies all examples?
     # approved INTEGER NOT NULL DEFAULT 0)""")  # Python code is user confirmed?
-    cursor.execute("""CREATE UNIQUE INDEX ce ON conditions(el_id)""") #, condition)""")  WHY condition?
 
     cursor.execute('''DROP TABLE IF EXISTS example_lines''')
     cursor.execute('''CREATE TABLE example_lines (
-                        el_id INTEGER NOT NULL, -- explicitly assigned a line number
-                        example_id INTEGER NOT NULL, -- example #
-                        step_id INTEGER NOT NULL, -- relative line # within the example
+                        el_id INTEGER PRIMARY KEY, -- explicitly assigned a line number
+                        example_id INTEGER NOT NULL,
                         line TEXT NOT NULL,
                         loop_likely INTEGER NOT NULL DEFAULT -1, -- see mark_loop_likely()
                         line_type TEXT NOT NULL)''')  # in/out/truth
-    cursor.execute('''CREATE UNIQUE INDEX eles ON example_lines(example_id, step_id)''')
-
-    # One record per user example.
-    cursor.execute('''DROP TABLE IF EXISTS examples''')
-    cursor.execute('''CREATE TABLE examples (
-                        eid ROWID)''')
 
     # # of `reason`s * # of inputs == # of records. To show how every `reason` evaluates across every example input.
     # For if/elif/else generation.
@@ -876,24 +896,6 @@ def same_step(loop_step: str, condition: str) -> int:
     elif loop_step[pos1[1]:] == condition[pos2[1]:]:  # Right sides identical.
         return scheme(loop_step[0:pos1[0]]) == scheme(condition[0:pos2[0]])  # Check "    "
     return False
-
-
-def list_conditions(reason: str) -> List[str]:
-    """
-    Determine 'reason's list of conditions (in two steps to strip() away whitespace).
-    :database: not involved.
-    :param reason: str
-    :return list of conditions, e.g., ["i1 % (i1-1) != 0c","(i1-1)==2c"]:
-    """
-    commas = positions_outside_strings(reason, ',')
-    result = []
-    start = 0
-    for comma in commas:
-        condition = reason[start: comma]
-        result.append(condition.strip())
-        start = comma + 1
-    result.append(reason[start:].strip())  # Append last condition in 'reason'
-    return result
 
 
 # Unused because predates move to new </>/assertion format. 2/20/19
@@ -1084,7 +1086,7 @@ def quote_if_str(incoming: str) -> str:
     return "'" + escaped + "'"
 
 
-if __name__ == "__main__":
+if DEBUG and __name__ == "__main__":
     assert ('10', '==', 'guess') == assertion_triple("guess==10"), "We instead got " + str(assertion_triple("guess==10"))
     assert ('10', '>', '4') == assertion_triple("10>4"), "We instead got " + str(assertion_triple("10>4"))
     assert ('1', '==', 'guess_count') == assertion_triple("guess_count==1"), \
@@ -1127,7 +1129,7 @@ def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]+') -> str
     # todo Ensure input variables on both sides of an equivalence do not cause a problem. 2/10/19
 
 
-if __name__ == "__main__":
+if DEBUG and __name__ == "__main__":
     assert 'guess' == variable_name_of_i1('guess==i1')
     assert '' == variable_name_of_i1('     guess==1')
     assert 'guess' == variable_name_of_i1('guess==i1', 'i1')
@@ -1697,8 +1699,9 @@ def inputs(example_id: int) -> List:
 
 def generate_tests(function_name: str) -> str:
     """
-    Generate unit tests using the .exem's examples (specifically, their i/o).
-    :database: SELECT examples.
+    Generate a unit test per example in the .exem: each example's input and output lines will be compared to the
+    io_trace filled in by the print()s and input()s called by the target function, while operating on the example_input.
+    :database: SELECT example_lines.
     :param function_name: used for test function name and calling the function under test.
     """
     # # For each example, ??
@@ -1707,7 +1710,7 @@ def generate_tests(function_name: str) -> str:
     #                     AND (inp.step_id = 5 OR output.step_id = 5) ORDER BY inp.example_id, output.step_id DESC''')
     # # The above DESC and the 'continue' below implement MAX(output.step_id) per example_id.
 
-    cursor.execute("SELECT eid FROM examples ORDER BY eid")
+    cursor.execute("SELECT DISTINCT example_id FROM example_lines ORDER BY example_id")
     all_examples = cursor.fetchall()
     test_code = ""
     i = 1  # For appending to the test name.
@@ -1721,14 +1724,14 @@ def generate_tests(function_name: str) -> str:
         test_code += "\ndef test_" + function_name + str(i) + "(self):\n"
         # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
-        test_code += "    global in_trace\n"
-        test_code += "    in_trace = ['" + "', '".join(inputs(row[0])) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
-        test_code += "    " + function_name + "()  # The function under test is used to write to out_trace.\n"  # TODO need formal params!!
+        test_code += "    global example_input\n"
+        test_code += "    example_input = ['" + "', '".join(inputs(row[0])) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
+        test_code += "    " + function_name + "()  # The function under test is used to write to io_trace.\n"  # TODO need formal params!!
         #                                       Return the named .exem (stripped of comments):
+        f_name = function_name
         if len(function_name) > 4 and function_name[-4:] == '_stf':  # Remove "_stf" when naming the .exem file.
-            test_code += "    self.assertEqual(self.get_expected('" + function_name[0:-4] + ".exem'), out_trace)\n"
-        else:
-            test_code += "    self.assertEqual(self.get_expected('" + function_name + ".exem'), out_trace)\n"
+            f_name = f_name[0:-4]
+        test_code += "    self.assertEqual(get_expected('" + f_name + ".exem'), io_trace)\n"
 
         # previous_example_id = example_id
         i += 1
@@ -1752,7 +1755,7 @@ def underscore_to_camelcase(s: str) -> str:
     return ''.join(camelcase_words(s.split('_')))
 
 
-if __name__ == "__main__":
+if DEBUG and __name__ == "__main__":
     assert 'TestPrimeNumber' == underscore_to_camelcase('test_prime_number')
     assert 'Get_ThisValue' == underscore_to_camelcase('get__this_value'), underscore_to_camelcase('get__this_value')
     assert '_Get_ThisValue' == underscore_to_camelcase('_get__this_value'), underscore_to_camelcase('_get__this_value')
@@ -1806,8 +1809,8 @@ def formal_params() -> str:
     """
     result = ''
     # Ordering by example_id to glean arguments one example at a time.
-    # Ordering by step_id within examples to determine argument order.
-    sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY example_id, step_id"
+    # Ordering by example_id within examples to determine argument order.
+    sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY example_id, el_id"
     cursor.execute(sql)
     rows = cursor.fetchall()
     previous_example_id = ''
@@ -2010,7 +2013,7 @@ def run_tests(filename: str) -> str:
     return test_results
 
 
-def insert_for_loop(ct_id: int, python: str, first_el_id: int, el_id: int, control_id: int, assertion_scheme: str) -> int:
+def insert_for_loop(ct_id: str, python: str, first_el_id: int, el_id: int, control_id: int, assertion_scheme: str) -> int:
     """
     :database: INSERTs control_traces and loops, UPDATEs conditions.
     :param ct_id:
@@ -2025,7 +2028,7 @@ def insert_for_loop(ct_id: int, python: str, first_el_id: int, el_id: int, contr
     # cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<?",
     #                (control_id, scheme(condition), first_el_id, el_id2))
 
-    cursor.execute("""INSERT OR REPLACE INTO loops VALUES (?,?)""", (control_id, python))
+    # cursor.execute("""INSERT OR REPLACE INTO loops VALUES (?,?)""", (control_id, python))
 
     cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<=?",
                    (control_id, assertion_scheme, first_el_id, el_id))
@@ -2106,7 +2109,7 @@ def load_for_loops() -> None:  # into control_traces, noting scopes.
                 else:  # The loop variable is back to (usually) 0, meaning that an outer loop has restarted this one.
                     # Save the loop info.
                     control_id = 'for' + str(control_count['for'])
-                    ct_id = str(control_id) + '_' + str(first_el_id)
+                    ct_id = str(control_id) + '_' + str(first_el_id)  # Eg, for0_40
                     python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
                     new_row_id = insert_for_loop(ct_id, python, first_el_id, el_id2, control_id, assertion_scheme)
                     # The elid in front of el_id2 is the *last possible* last_el_id of the loop just ended (as there can
@@ -2292,10 +2295,10 @@ def reverse_trace(file: str) -> str:
 
     # Read input .exem
     print("\nProcessing", file)
-    examples = from_file(file)
+    example_lines = from_file(file)
 
     reset_db()
-    process_examples(examples)  # Insert the .exem's lines into the database.
+    process_examples(example_lines)  # Insert the .exem's lines into the database.
     remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
     #print(dump_table("example_lines"))
 
