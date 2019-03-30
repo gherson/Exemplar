@@ -7,8 +7,8 @@ import unittest
 from typing import List, Tuple, Dict, Any
 import os
 
-DEBUG = True  # Set to True for more feedback.
-DEBUG_DB = True  # Set to True to enable table to screen dumps.
+DEBUG = True  # True turns on testing and more feedback.
+DEBUG_DB = True  # True sets database testing (from an hour apart) to always-on, when DEBUG is also True.
 
 # (For speed, replace the db filename with ':memory:') (No isolation for auto-commit.)
 db = sqlite3.connect('examplar.db', isolation_level=None)
@@ -30,17 +30,6 @@ exem == The user's examples collected in a file of extension .exem.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
-
-
-class MockCursor:
-    """A class that mocks the database cursor, to hijack and record calls to the database during tests."""
-    actual = []
-
-    def execute(self, query, tuple_of_values):
-        self.actual.append((query, tuple_of_values))
-
-    def get_actual(self):
-        return self.actual
 
 
 def assertion_triple(truth_line: str) -> tuple:
@@ -76,6 +65,43 @@ def assertion_triple(truth_line: str) -> tuple:
     return left_operand, relational_operator, right_operand
 
 
+def positions_outside_strings(string: str, character: str) -> List[int]:
+    """
+    Find and return the positions of the given character, unescaped and outside of strings, in the given string.
+    :database: not involved.
+    :param string:
+    :param character: item to search for.
+    :return list of `character` positions, [] if `character` not found:
+    """
+    positions = []
+    open_string = False
+    previous_char = ''
+    i = 0
+    for c in string:
+        if c == '"' and previous_char != '\\':
+            if not open_string:
+                open_string = '"'  # Note we're in a "-delimited string.
+            else:  # Already in a string.
+                if open_string == '"':  # String closed.
+                    open_string = False
+        # Repeat above, for single quote.
+        if c == "'" and previous_char != '\\':
+            if not open_string:
+                open_string = "'"
+            else:
+                if open_string == "'":
+                    open_string = False
+        if c == character and not open_string and previous_char != '\\':
+            positions.append(i)
+        previous_char = c  # Set up for next iteration.
+        i += 1
+    return positions
+
+
+if DEBUG and __name__ == '__main__':
+    assert [47, 51, 53, 54], positions_outside_strings("'# These ttt will be ignored' including \this but not tthese", 't')
+
+
 def denude(line: str) -> str:
     """
     Remove any surrounding whitespace and line comment from `line` and return it.
@@ -89,6 +115,13 @@ def denude(line: str) -> str:
         return line.strip()
     else:
         return line[0:hash_positions[0]].strip()
+
+
+if DEBUG and __name__ == '__main__':
+    assert "code" == denude('  code  ')
+    assert "code" == denude(" code # This should be removed. # 2nd comment ")
+    assert "code \# This should NOT be removed." == denude(" code \# This should NOT be removed. # 1st comment ")
+    assert "code '# This should NOT be removed.'" == denude(" code '# This should NOT be removed.' # 1st comment ")
 
 
 def clean(examples: List[str]) -> List[str]:
@@ -137,39 +170,6 @@ def clean(examples: List[str]) -> List[str]:
                 previous_line = 'B'  # On the next line must start an example.
             result.append(line)  # Retain both examples and their delimiters, blank lines.
     return result
-
-
-def positions_outside_strings(string: str, character: str) -> List[int]:
-    """
-    Find and return the positions of the given character, unescaped and outside of strings, in the given string.
-    :database: not involved.
-    :param string:
-    :param character: item to search for.
-    :return list of `character` positions, [] if `character` not found:
-    """
-    positions = []
-    open_string = False
-    previous_char = ''
-    i = 0
-    for c in string:
-        if c == '"' and previous_char != '\\':
-            if not open_string:
-                open_string = '"'  # Note we're in a "-delimited string.
-            else:  # Already in a string.
-                if open_string == '"':  # String closed.
-                    open_string = False
-        # Repeat above, for single quote.
-        if c == "'" and previous_char != '\\':
-            if not open_string:
-                open_string = "'"
-            else:
-                if open_string == "'":
-                    open_string = False
-        if c == character and not open_string and previous_char != '\\':
-            positions.append(i)
-        previous_char = c  # Set up for next iteration.
-        i += 1
-    return positions
 
 
 # c labels aren't being used. 2/20/19
@@ -225,7 +225,10 @@ def remove_c_labels(trace_line: str) -> str:
     return return_value
 
 
-# Unused. 2/20/19
+if DEBUG and __name__ == '__main__':
+    assert 'i1 % (i1-1) != 0, (i1-1)>2' == remove_c_labels('i1 % (i1-1) != 0c, (i1-1)>2c')
+
+
 def get_last_condition(reason: str) -> str:
     """
     Find the last condition in reason. (This is useful because often it's a loop-termination condition.)
@@ -331,6 +334,7 @@ if DEBUG and __name__ == '__main__':
     assert '1c==guess_count' == scheme(scheme('1c==guess_count'))
     assert 'i1>_' == scheme(scheme('i1>4'))
     assert '_<i1' == scheme(scheme('4<i1'))
+    assert "i1%(len(i1)-_)<=0c" == scheme('i1 % (len(i1)-13) <= 0c'), scheme('i1 % (len(i1)-13) <= 0c')
 
 
 def list_conditions(reason: str) -> List[str]:
@@ -349,6 +353,12 @@ def list_conditions(reason: str) -> List[str]:
         start = comma + 1
     result.append(reason[start:].strip())  # Append last condition in 'reason'
     return result
+
+
+if DEBUG and __name__ == '__main__':
+    assert ['i1 % (i1-1) != 0c'] == list_conditions('  i1 % (i1-1) != 0c  ')
+    assert ['i1 % (i1-1) != 0c', '(i1-1)=="hi, joe"'] == list_conditions('  i1 % (i1-1) != 0c  , (i1-1)=="hi, joe"  ')
+    assert [''] == list_conditions('')
 
 
 def insert_line(line_id: int, example_id: int, line: str) -> int:
@@ -408,19 +418,6 @@ def process_examples(example_lines: List) -> None:
                 previous_line_blank = True
             else:  # Example continues.
                 line_id = insert_line(line_id, example_id, line)
-
-
-if DEBUG and __name__ == '__main__':
-    db_cursor = cursor  # Temporarily hijack cursor for testing.
-    cursor = MockCursor()  # So that calls to cursor.execute() append to cursor.actual.
-    example_lines = ["<Albert"]
-    process_examples(example_lines)  # Call under test.
-    expected = [("""INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)""",
-                 (5, 0, '__example__==0', 'truth')),
-                ("""INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)""",
-                 (10, 0, 'Albert', 'in'))]
-    assert expected == cursor.get_actual(), "Expected " + str(expected) + ", but  got " + str(cursor.get_actual())
-    cursor = db_cursor  # Restore cursor.
 
 
 # todo also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
@@ -677,10 +674,30 @@ def find_safe_pretests() -> None:
 
 def reset_db() -> None:
     """
-    Clear out the database. (A database is used for the advantages of SQL, not for multi-session persistence.)
+    With the exception of table history, clear out the database. (A database is used for the advantages of SQL, not for multi-session persistence.)
     :database: CREATEs all tables.
     :return: None
     """
+    cursor.execute("""CREATE TABLE IF NOT EXISTS history (prior_db_test_run INTEGER NOT NULL)""")
+
+    # Determine whether to run the database tests.
+    global DEBUG, DEBUG_DB
+    if DEBUG:
+        hour_in_seconds = 60 * 60  # minutes in an hour * seconds in a minute
+        cursor.execute("""SELECT STRFTIME('%s','now'), prior_db_test_run FROM history""")
+        row = cursor.fetchone()
+        if row:
+            now, prior_db_test_run = row
+            if (int(now) - prior_db_test_run) > hour_in_seconds:
+                print(">hour:", int(now) - prior_db_test_run)
+                DEBUG_DB = True
+                cursor.execute("""UPDATE history SET prior_db_test_run = STRFTIME('%s','now')""")
+        else:
+            DEBUG_DB = True  # (May have been True already.)
+            cursor.execute("""INSERT INTO history (prior_db_test_run) VALUES (STRFTIME('%s','now'))""")
+        if DEBUG_DB:
+            pass  #Run TestExemplarIntegration tests
+
     # cursor.execute("""DROP TABLE IF EXISTS io_log""")
     # cursor.execute("""CREATE TABLE io_log (
     #                     iid ROWID,
@@ -863,6 +880,13 @@ def find_rel_op(condition: str) -> Tuple:
     if not stop:
         return ()
     return start, stop
+
+
+if DEBUG and __name__ == '__main__':
+    assert (18, 20) == find_rel_op("i1 % (len(i1)-13) <= 0c")
+    assert (18, 19) == find_rel_op("i1 % (len(i1)-13) < 0c")
+    assert () == find_rel_op("")
+    assert (12, 14) == find_rel_op("i1 % (i1-1) != 0c")
 
 
 # Unused because predates move to new </>/assertion format. 2/20/19
@@ -1657,7 +1681,7 @@ def get_output(reason_eid: int, step_id: int) -> str:
 
 def dump_table(table: str) -> str:
     """
-    When global variable DEBUG_DB is True this prints, eg,
+    When global variable DEBUG is True this prints, eg,
     [all example_lines:
     (el_id, example_id, step_id, line, loop_likely, line_type)
     (0, 0, 0, Hello! What is your name?, -1, out),
@@ -1762,6 +1786,12 @@ if DEBUG and __name__ == "__main__":
     assert '_Get_ThisValue_' == underscore_to_camelcase('_get__this_value_'), underscore_to_camelcase('_get__this_value')
     assert 'GetThisValue' == underscore_to_camelcase('get_this_value'), underscore_to_camelcase('get_this_value')
     assert 'Get_This_Value' == underscore_to_camelcase('get__this__value'), underscore_to_camelcase('get__this__value')
+    assert "CamelCase" == underscore_to_camelcase("camel_case")
+    assert 'Get_ThisValue' == underscore_to_camelcase('get__this_value')
+    assert '_Get_ThisValue' == underscore_to_camelcase('_get__this_value')
+    assert '_Get_ThisValue_' == underscore_to_camelcase('_get__this_value_')
+    assert 'GetThisValue' == underscore_to_camelcase('get_this_value')
+    assert 'Get_This_Value' == underscore_to_camelcase('get__this__value')
 
 
 def from_file(filename: str) -> List[str]:
@@ -2306,26 +2336,26 @@ def reverse_trace(file: str) -> str:
     #print(dump_table("conditions"))
 
     fill_control_traces()  # control trace clauses, ie, non-assignment assertions, type for/while/if/elif/else.
-    if DEBUG_DB:
+    if DEBUG:
         print(dump_table("control_traces"))
     # fill_loop_patterns_table()
-    # if DEBUG_DB:
+    # if DEBUG:
     #     print(dump_table("loop_patterns"))
 
     mark_loop_likely()  # Set the loop_likely column in the example_lines and condition tables.
-    if DEBUG_DB:
+    if DEBUG:
         print(dump_table("example_lines"))
         print(dump_table("conditions"))
         # Unused, as are the below tables, currently. print(dump_table("termination"))
 
     # For if/elif/else order, determine how every `reason` evaluates on every input.
     # build_reason_evals()
-    # if DEBUG_DB:
+    # if DEBUG:
     #     print(dump_table("reason_evals"))
 
     # Gather more info for determining if/elif/else order.
     # find_safe_pretests()
-    # if DEBUG_DB:
+    # if DEBUG:
     #     print(dump_table("pretests"))
     # Once stabilized, put below into a create_test_class() function. 3/1/19
 
@@ -2342,7 +2372,7 @@ def reverse_trace(file: str) -> str:
     #                                                ***********************
     code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
     print("\n" + code + "\n")  # Show off generated function.
-    if DEBUG_DB:
+    if DEBUG:
         print("After second pass.\n" + dump_table("conditions"))
         print(dump_table("sequential_function"))
 

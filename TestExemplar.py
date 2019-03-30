@@ -2,6 +2,7 @@ import unittest
 import exemplar
 
 
+# This file is out-dated.  3/29/19 I copied the non-obsolesced tests into exemplar and TestExemplarIntegration.py.
 class TestExemplar(unittest.TestCase):
     """
     These unit test the Exemplar methods. (Class TestExemplarIntegration, by contrast, tests whole problem solutions.)
@@ -9,7 +10,7 @@ class TestExemplar(unittest.TestCase):
     @classmethod
     def setUp(cls):
         exemplar.reset_db()  # Unshared, in-memory database.
-        global examples  # For database-dependent tests.
+
         # Replicates the_trace after loading prime_number.exem via readlines():
         examples = [  # commas required!
             '2\n', 'True\n', 'i1 == 2c\n', '\n',

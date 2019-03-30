@@ -93,6 +93,18 @@ function exem_table(examples) { // From iterable to fields to calling table_make
         table_maker(input, truth, '');
     }
 }
+
+  function copyFunction() {
+      // Get the text field
+      var copyText = document.getElementById("code_generated");
+
+      // Select the text field
+      copyText.select();
+
+      // Copy the text inside the text field
+      document.execCommand("copy");       
+  }
+
 // Creating an examples array: 
     var examples = new Array();\n"""
 
@@ -123,12 +135,12 @@ function exem_table(examples) { // From iterable to fields to calling table_make
 
     # print("example:", examples)  # Took a few restarts to appear (in console).
 
-    body_top = """<body onload="exem_table(examples)">
+    body_top = """<body onload="exem_table(examples);">
     <h1>Exemplar</h1> <h2>code generation from examples</h2>
     <p><b>Instructions</b>: 
     <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
     sequences demonstrating desired behavior on the left.</li>\n
-    <li>Assertions may be omitted or comma separated.</li>\n
+    <li>Assertions may be comma separated or omitted.</li>\n
     <li>Separate example runs with a blank line.</li>\n
     <li>Press Tab. Exemplar will attempt to generate conforming Python code on the right.</li>\n  
     </ol>\n"""
@@ -142,7 +154,9 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     <td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><u><font color="blue">input</font></u></th><th><u>truth</u></th>
      <th><u><font color="green">output</font></u></th></tr></table></td>\n""" + \
            '<td valign="top"><textarea id="code_generated" rows="40" cols="60" readonly="readonly">' + \
-           code + '</textarea></td></tr></table>' + demos_html + key + \
+           code + '''</textarea>
+    <button onclick="copyFunction()">Copy</button>
+    </td></tr></table>''' + demos_html + key + \
            '</html>'
 
 
