@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict, Any
 import os
 
 DEBUG = True  # True turns on testing and more feedback.
-DEBUG_DB = True  # True sets database testing (from an hour apart) to always-on, when DEBUG is also True.
+DEBUG_DB = True  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 
 # (For speed, replace the db filename with ':memory:') (No isolation for auto-commit.)
 db = sqlite3.connect('examplar.db', isolation_level=None)
@@ -30,7 +30,6 @@ exem == The user's examples collected in a file of extension .exem.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
-
 
 def assertion_triple(truth_line: str) -> tuple:
     """
@@ -672,16 +671,11 @@ def find_safe_pretests() -> None:
             cursor.execute("""INSERT INTO pretests VALUES (?,?)""", (pre, reason_eid))  # All columns TEXT
 
 
-def reset_db() -> None:
-    """
-    With the exception of table history, clear out the database. (A database is used for the advantages of SQL, not for multi-session persistence.)
-    :database: CREATEs all tables.
-    :return: None
-    """
+def debug_db() -> None:
     cursor.execute("""CREATE TABLE IF NOT EXISTS history (prior_db_test_run INTEGER NOT NULL)""")
 
-    # Determine whether to run the database tests.
-    global DEBUG, DEBUG_DB
+    # Run the integration/database tests if DEBUG_DB or (DEBUG and it's been >1 hour).
+    global DEBUG_DB
     if DEBUG:
         hour_in_seconds = 60 * 60  # minutes in an hour * seconds in a minute
         cursor.execute("""SELECT STRFTIME('%s','now'), prior_db_test_run FROM history""")
@@ -689,15 +683,28 @@ def reset_db() -> None:
         if row:
             now, prior_db_test_run = row
             if (int(now) - prior_db_test_run) > hour_in_seconds:
-                print(">hour:", int(now) - prior_db_test_run)
                 DEBUG_DB = True
                 cursor.execute("""UPDATE history SET prior_db_test_run = STRFTIME('%s','now')""")
         else:
             DEBUG_DB = True  # (May have been True already.)
             cursor.execute("""INSERT INTO history (prior_db_test_run) VALUES (STRFTIME('%s','now'))""")
-        if DEBUG_DB:
-            pass  #Run TestExemplarIntegration tests
+    if DEBUG_DB:
+        # Run TestExemplarIntegration tests.
+        TestClass = importlib.import_module('TestExemplarIntegration')
+        suite = unittest.TestLoader().loadTestsFromModule(TestClass)
+        test_results = unittest.TextTestRunner().run(suite)
+        print("In TestExemplarIntegration there were", len(test_results.errors), "errors and",
+              len(test_results.failures), "failures.")
+        if (len(test_results.errors) + len(test_results.failures)) > 0:
+            cursor.execute("""DELETE FROM history""")
 
+
+def reset_db() -> None:
+    """
+    With the exception of table history, clear out the database. (A database is used for the advantages of SQL, not for multi-session persistence.)
+    :database: CREATEs all tables.
+    :return: None
+    """
     # cursor.execute("""DROP TABLE IF EXISTS io_log""")
     # cursor.execute("""CREATE TABLE io_log (
     #                     iid ROWID,
@@ -1942,25 +1949,28 @@ def fill_conditions_table() -> None:
 
         all_conditions.append((el_id, example_id, condition, scheme(condition), left, operator, right))
 
-    cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, 
-    right_side) VALUES (?,?,?,?,?,?,?)""", all_conditions)
+    cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, right_side) 
+    VALUES (?,?,?,?,?,?,?)""", all_conditions)
 
     # Step 2: Fill in condition.condition_type. (This is a separate step so that the below most_repeats_in_an_example()
     # call can work: it selects from the conditions table.)
-    cursor.execute("SELECT el_id, example_id, condition FROM conditions")
+    cursor.execute("SELECT el_id, example_id, condition, scheme FROM conditions")
     rows = cursor.fetchall()
 
     for row in rows:
-        el_id, example_id, condition = row
+        el_id, example_id, condition, row_scheme = row
         left, operator, right = assertion_triple(condition)  # Format
 
         condition_type = ''  # We now attempt to fill this in.
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
         # **** FOR_SUSPECTS ****
+        if row_scheme == "_==__example__":  # Special case: doesn't repeat intra-example because it delimits them.
+            condition_type = "for"
+
         # ((Below condition is spelled out because it differs from the loop_likely classes'. Except for .isidentifier(),
         # below condition is re-used in generate_code(). 3/4/19))
         # Eg,          3                   == guess_count
-        if left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
+        elif left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
                 right.isidentifier() and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
 
             # A non-input variable rhythmically asserted (alone) equal to an integer implies a ****** FOR loop ******
@@ -1985,6 +1995,7 @@ def fill_conditions_table() -> None:
             control = if_or_while(el_id, condition, second_pass=0)  # ********* IF OR WHILE ********
             condition_type = control.partition(' ')[0]  # 1st word of 'control'
 
+        # Store conclusion.
         cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
 
     return
@@ -2027,19 +2038,18 @@ def exemplar_path():
         return __file__[0:__file__.rfind('/')+1]
 
 
-def run_tests(filename: str) -> str:
+def run_tests(class_name: str) -> str:
     """
     Run the unittest tests of the named file and print and return the results.
     :database: not involved.
     :param filename:
     :return: results of the tests
     """
-    class_name = "Test" + underscore_to_camelcase(filename[0:-5])  # Eg, prime_number.exem -> TestPrimeNumber
-    sys.path.append(exemplar_path())  # imports don't take absolute paths.
     TestClass = importlib.import_module(class_name)
     suite = unittest.TestLoader().loadTestsFromModule(TestClass)
+    print("Running", class_name)
     test_results = unittest.TextTestRunner().run(suite)
-    print("There were", len(test_results.errors), "errors and", len(test_results.failures), "failures.")
+    print(len(test_results.errors), "errors and", len(test_results.failures), "failures")
     return test_results
 
 
@@ -2326,7 +2336,7 @@ def reverse_trace(file: str) -> str:
     # Read input .exem
     print("\nProcessing", file)
     example_lines = from_file(file)
-
+    debug_db()
     reset_db()
     process_examples(example_lines)  # Insert the .exem's lines into the database.
     remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
@@ -2405,7 +2415,7 @@ def reverse_trace(file: str) -> str:
 
     to_file(class_name + ".py", starter)
     print("Testing STF: ", end='')
-    test_results = run_tests(file)  # **** RUN TESTS ****
+    test_results = run_tests(class_name)  # **** RUN TESTS ****
     if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works. Proceed to optimization.
         #print("error and failure count is 0")
 
@@ -2425,12 +2435,13 @@ def reverse_trace(file: str) -> str:
                 to_file(class_name + ".py", test_file)
                 test_file = ''
             print("Running and testing", file + ": ", end='')
-            test_results = run_tests(file)  # **** RUN TESTS ****
+            test_results = run_tests(class_name)  # **** RUN TESTS ****
             optimized = True  # temporary hack
 
     return code
 
 
+sys.path.append(exemplar_path())  # For run_tests(). (imports don't take absolute paths.)
 if __name__ == "__main__":
     if len(sys.argv) == 1 or not sys.argv[1].strip() or sys.argv[1].lower()[-5:] != ".exem":
         sys.exit("Usage: exemplar my_examples.exem")

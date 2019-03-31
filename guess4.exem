@@ -1,5 +1,6 @@
 # From http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
 
+# User wins.
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)

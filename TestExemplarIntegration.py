@@ -1,35 +1,14 @@
-import unittest
-import exemplar
-
-
-class MockCursor:
-    """A class that mocks the database cursor, to hijack and record calls to the database during tests."""
-    actual = []
-
-    def execute(self, query, tuple_of_values):
-        self.actual.append((query, tuple_of_values))
-
-    def get_actual(self):
-        return self.actual
-
-"""
-db_cursor = cursor  # Temporarily hijack cursor for testing.
-cursor = MockCursor()  # So that calls to cursor.execute() append to cursor.actual.
-example_lines = ["<Albert"]
-exemplar.process_examples(example_lines)  # Call under test.
-expected = [("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
-             (5, 0, '__example__==0', 'truth')),
-            ("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
-             (10, 0, 'Albert', 'in'))]
-assert expected == cursor.get_actual(), "Expected " + str(expected) + ", but  got " + str(cursor.get_actual())
-cursor = db_cursor  # Restore cursor.
-# 3/29/2019"""
+import unittest, exemplar, MockCursor
 
 
 class TestExemplarIntegration(unittest.TestCase):
 
     @classmethod
     def setUp(cls):
+        global mock_cursor
+        mock_cursor = MockCursor.MockCursor()   # The advantage of MockCursor is that no is database required.
+
+        """ Under maintenance
         exemplar.reset_db()  # Unshared, in-memory database.
 
         # Replicates the_trace after loading prime_number.exem via readlines():
@@ -46,36 +25,119 @@ class TestExemplarIntegration(unittest.TestCase):
             '1008\n', 'False\n', '\n',
             '1009\n', 'True\n', '\n']
         exemplar.process_examples(examples)  # Inserts into the examples and termination tables.
+    """
 
-    def test_parse_trace1(self):
-        exemplar.reset_db()  # Empty the database.
-        exemplar.process_examples(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
-        exemplar.cursor.execute("SELECT * FROM examples")
-        expected = ('2', 'True', 'i1 == 2', 1, 0)  # The entire contents of the examples table, we expect.
-        self.assertEqual(expected, exemplar.cursor.fetchone())
-        exemplar.cursor.execute("SELECT * FROM termination")
-        expected = ('i1 == 2', 'True', None, None, 0)  # The entire contents of the termination table, we expect.
-        self.assertEqual(expected, exemplar.cursor.fetchone())
+    def test_process_examples1(self):
+        mock_cursor.mocking(1)  # exemplar.cursor is now mocked.
+        example_lines = ["<Albert"]  # Processing this input should cause the following calls for INSERTion.
+        exemplar.process_examples(example_lines)
+        expected = [("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
+                     (5, 0, '__example__==0', 'truth')),
+                    ("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
+                     (10, 0, 'Albert', 'in'))]
+        assert expected == exemplar.cursor.get_actual(), "Got " + str(exemplar.cursor.get_actual())
+        mock_cursor.mocking(0)  # Restore (unmock) cursor.
 
-    def test_parse_trace2(self):
-        exemplar.reset_db()  # Empty the database.
-        exemplar.process_examples(["1008\n", "False\n", "\n"])  # Simulating a 'reason'-less 1-example .exem file.
-        exemplar.cursor.execute("SELECT * FROM examples")
-        expected = ('1008', 'False', None, 0, 0)  # The entire contents of the examples table, we expect.
-        self.assertEqual(expected, exemplar.cursor.fetchone())
-        exemplar.cursor.execute("SELECT * FROM termination")  # Should be empty.
-        self.assertEqual(None, exemplar.cursor.fetchone())
+    def test_fill_conditions_table1(self):
+        # Processing this input should cause the following calls for INSERTion.
+        example_lines = exemplar.from_file("guess3.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        expected = """[all conditions:
+(el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for),
+(20, 0, i1 == name, i1==name, i1, ==, name, None, None, assign),
+(30, 0, i1 == secret, i1==secret, i1, ==, secret, None, None, assign),
+(40, 0, 0 == guess_count, _==guess_count, 0, ==, guess_count, None, None, for),
+(55, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(60, 0, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(70, 0, 1 == guess_count, _==guess_count, 1, ==, guess_count, None, None, for),
+(85, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(90, 0, guess < secret, guess<secret, guess, <, secret, None, None, if),
+(100, 0, 2 == guess_count, _==guess_count, 2, ==, guess_count, None, None, for),
+(115, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(120, 0, secret == guess, guess==secret, secret, ==, guess, None, None, if),
+(125, 0, guess_count+1 == 3, guess_count+_==_, guess_count+1, ==, 3, None, None, assign)]"""
+        # print(exemplar.dump_table("conditions"))
+        self.assertEqual(expected, exemplar.dump_table("conditions"))
 
-    def test_parse_trace3(self):
-        exemplar.cursor.execute("SELECT COUNT(*) FROM examples")
-        expected = 9
-        self.assertEqual(expected, exemplar.cursor.fetchone()[0])
+    def test_fill_conditions_table2(self):
+        # Processing this input should cause the following calls for INSERTion.
+        example_lines = exemplar.from_file("guess4.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        expected = """[all conditions:
+(el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for),
+(20, 0, i1 == name, i1==name, i1, ==, name, None, None, assign),
+(30, 0, i1 == secret, i1==secret, i1, ==, secret, None, None, assign),
+(40, 0, 0 == guess_count, _==guess_count, 0, ==, guess_count, None, None, for),
+(55, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(60, 0, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(70, 0, 1 == guess_count, _==guess_count, 1, ==, guess_count, None, None, for),
+(85, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(90, 0, guess < secret, guess<secret, guess, <, secret, None, None, if),
+(100, 0, 2 == guess_count, _==guess_count, 2, ==, guess_count, None, None, for),
+(115, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(120, 0, secret == guess, guess==secret, secret, ==, guess, None, None, if),
+(125, 0, guess_count+1 == 3, guess_count+_==_, guess_count+1, ==, 3, None, None, assign),
+(135, 1, 1 == __example__, _==__example__, 1, ==, __example__, None, None, for),
+(150, 1, i1 == name, i1==name, i1, ==, name, None, None, assign),
+(160, 1, i1 == secret, i1==secret, i1, ==, secret, None, None, assign),
+(170, 1, 0 == guess_count, _==guess_count, 0, ==, guess_count, None, None, for),
+(185, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(190, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(200, 1, 1 == guess_count, _==guess_count, 1, ==, guess_count, None, None, for),
+(215, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(220, 1, guess < secret, guess<secret, guess, <, secret, None, None, if),
+(230, 1, 2 == guess_count, _==guess_count, 2, ==, guess_count, None, None, for),
+(245, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(250, 1, guess < secret, guess<secret, guess, <, secret, None, None, if),
+(260, 1, 3 == guess_count, _==guess_count, 3, ==, guess_count, None, None, for),
+(275, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(280, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(290, 1, 4 == guess_count, _==guess_count, 4, ==, guess_count, None, None, for),
+(305, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(310, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(320, 1, 5 == guess_count, _==guess_count, 5, ==, guess_count, None, None, for),
+(335, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(340, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(355, 2, 2 == __example__, _==__example__, 2, ==, __example__, None, None, for)]"""
+        # print(exemplar.dump_table("conditions"))
+        self.assertEqual(expected, exemplar.dump_table("conditions"))
 
-    def test_parse_trace4(self):
-        exemplar.cursor.execute("SELECT COUNT(*) FROM termination")
-        expected = 5
-        self.assertEqual(expected, exemplar.cursor.fetchone()[0])
+    def test_fill_conditions_table3(self):
+        # Processing this input should cause the following calls for INSERTion.
+        example_lines = exemplar.from_file("jokes.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        expected = """[all conditions:
+(el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for)]"""
+        # print(exemplar.dump_table("conditions"))
+        self.assertEqual(expected, exemplar.dump_table("conditions"))
 
+    def test_fill_control_traces1(self):
+        example_lines = exemplar.from_file("jokes.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        exemplar.fill_control_traces()
+        expected = """[all conditions:
+        (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+        (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for)]"""
+        print(exemplar.dump_table("control_traces"))
+        # print(exemplar.dump_table("conditions"))
+        #self.assertEqual(expected, exemplar.dump_table("conditions"))
+
+    ''' Under maintenance
     def test_remove_all_c_labels1(self):
         # Reset db, put a few rows in examples table, and probe it before and after a call to remove_all_c_labels().
 
@@ -201,6 +263,6 @@ class TestExemplarIntegration(unittest.TestCase):
     #     code = exemplar.reverse_trace('my_split.exem')
         # redundant  print(code)  # step 1
 
-
+    '''
 # if __name__ == '__main__':
 #     unittest.main()

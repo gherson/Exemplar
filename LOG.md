@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-03-30 Got TestExemplarIntegration.py working.  Added tests for fill_conditions_table(). 5.5h
 * 2019-03-29 Copied unit tests from (obsolete) TestExemplar.py to exemplar.py and TestExemplarIntegration.py and worked on re-enabling the latter. 3.5h
 * 2019-03-28 Repurposed the DB_DEBUG constant to enable database testing (instead of printing). 2.75h
 * 2019-03-27 Improved UI significantly (i.e., main.py, visible at the repl.it url, below). Created class MockCursor. 7.5h
