@@ -7,15 +7,17 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-03-30 Got TestExemplarIntegration.py working.  Added tests for fill_conditions_table(). 5.5h
+* 2019-03-31 Added a handful of working integration tests. Analyzed how guess4.exem should break down, then began migrating
+from a control_traces table to control_block_traces and control tables to capture every loop iteration. 8h
+* 2019-03-30 Got TestExemplarIntegration.py working. Added tests for fill_conditions_table(). 5.5h
 * 2019-03-29 Copied unit tests from (obsolete) TestExemplar.py to exemplar.py and TestExemplarIntegration.py and worked on re-enabling the latter. 3.5h
-* 2019-03-28 Repurposed the DB_DEBUG constant to enable database testing (instead of printing). 2.75h
+* 2019-03-28 Re-purposed the DB_DEBUG constant to enable database testing (instead of printing). 2.75h
 * 2019-03-27 Improved UI significantly (i.e., main.py, visible at the repl.it url, below). Created class MockCursor. 7.5h
 * 2019-03-26 Re-enabled test execution. Removed use of examples table. Altered process_examples() to combine examples. 6.75h
 * 2019-03-25 Researched integration testing options. Enabled my Data Source in PyCharm and its database tool by switching Exemplar's memory database to file. 2.5h
 * 2019-03-24 Working to improve and replace logic in generate_code() with use of new info, e.g., control scope, from the conditions and control_traces tables. 4.25h
 * 2019-03-23 Re-enabled pycallgraph, created call_graph4_cropped.png. 5h
-* 2019-03-22 Completed 1st version of load_ifs(). 2.5h
+* 2019-03-22 Completed 1st version of store_ifs(). 2.5h
 * 2019-03-20 - 2019-03-21 Troubleshot https://repl.it/@gherson/Exemplar website and working with a student assistant. 4h 
 * 2019-03-19 Finished start_of_open_loop(), which forks the python/sqlite process to deal with ambiguity. 3h
 * 2019-03-18 Finished the JavaScript creating an example table from user input ("exem"). 3h
@@ -25,7 +27,7 @@
 * 2019-03-12 Decided I needed to fork() to follow up on the ambiguity inherent in the exem's, so I researched how to do that in Python on Windows. Can't, so researched virtual machine options, then created a 6GB Ubuntu VM and installed PyCharm on it. 5h
 * 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
-* 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), load_for_loops(), load_ifs(). 6.75h
+* 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_for_loops(), store_ifs(). 6.75h
 * 2019-03-08 More for-loop logistics in new functions el_id_peek(), insert_for_loop(). 7.75h
 * 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h

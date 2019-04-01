@@ -38,7 +38,162 @@ class TestExemplarIntegration(unittest.TestCase):
         assert expected == exemplar.cursor.get_actual(), "Got " + str(exemplar.cursor.get_actual())
         mock_cursor.mocking(0)  # Restore (unmock) cursor.
 
-    def test_fill_conditions_table1(self):
+    def test_process_examples_jokes(self):
+        example_lines = exemplar.from_file("jokes.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        expected = """[all example_lines:
+(el_id, example_id, line, loop_likely, line_type)
+(5, 0, __example__==0, -1, truth),
+(10, 0, What do you get when you cross a snowman with a vampire?, -1, out),
+(15, 0, , -1, in),
+(20, 0, Frostbite!, -1, out),
+(25, 0, , -1, out),
+(30, 0, What do dentists call an astronaut's cavity?, -1, out),
+(35, 0, , -1, in),
+(40, 0, A black hole!, -1, out),
+(45, 0, , -1, out),
+(50, 0, Knock knock., -1, out),
+(55, 0, , -1, in),
+(60, 0, Who's there?, -1, out),
+(65, 0, , -1, in),
+(70, 0, Interrupting cow., -1, out),
+(75, 0, , -1, in),
+(80, 0, Interrupting cow wh-MOO!, -1, out)]"""
+        self.assertEqual(expected, exemplar.dump_table("example_lines"))
+
+    def test_process_examples_guess3(self):
+        example_lines = exemplar.from_file("guess3.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        expected = """[all example_lines:
+(el_id, example_id, line, loop_likely, line_type)
+(5, 0, __example__==0, -1, truth),
+(10, 0, Hello! What is your name?, -1, out),
+(15, 0, Albert, -1, in),
+(20, 0, name==i1, -1, truth),
+(25, 0, 4, -1, in),
+(30, 0, secret==i1, -1, truth),
+(35, 0, Well, Albert, I am thinking of a number between 1 and 20., -1, out),
+(40, 0, guess_count==0, -1, truth),
+(45, 0, Take a guess., -1, out),
+(50, 0, 10, -1, in),
+(55, 0, guess==i1, -1, truth),
+(60, 0, guess>secret, -1, truth),
+(65, 0, Your guess is too high., -1, out),
+(70, 0, guess_count == 1, -1, truth),
+(75, 0, Take a guess., -1, out),
+(80, 0, 2, -1, in),
+(85, 0, guess==i1, -1, truth),
+(90, 0, guess<secret, -1, truth),
+(95, 0, Your guess is too low., -1, out),
+(100, 0, guess_count==2, -1, truth),
+(105, 0, Take a guess., -1, out),
+(110, 0, 4, -1, in),
+(115, 0, guess==i1, -1, truth),
+(120, 0, guess==secret, -1, truth),
+(125, 0, guess_count + 1 == 3, -1, truth),
+(130, 0, Good job, Albert! You guessed my number in 3 guesses!, -1, out)]"""
+        # print(exemplar.dump_table("example_lines"))
+        self.assertEqual(expected, exemplar.dump_table("example_lines"))
+
+    def test_process_examples_guess4(self):
+        example_lines = exemplar.from_file("guess4.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        expected = """[all example_lines:
+(el_id, example_id, line, loop_likely, line_type)
+(5, 0, __example__==0, -1, truth),
+(10, 0, Hello! What is your name?, -1, out),
+(15, 0, Albert, -1, in),
+(20, 0, name==i1, -1, truth),
+(25, 0, 4, -1, in),
+(30, 0, secret==i1, -1, truth),
+(35, 0, Well, Albert, I am thinking of a number between 1 and 20., -1, out),
+(40, 0, guess_count==0, -1, truth),
+(45, 0, Take a guess., -1, out),
+(50, 0, 10, -1, in),
+(55, 0, guess==i1, -1, truth),
+(60, 0, guess>secret, -1, truth),
+(65, 0, Your guess is too high., -1, out),
+(70, 0, guess_count == 1, -1, truth),
+(75, 0, Take a guess., -1, out),
+(80, 0, 2, -1, in),
+(85, 0, guess==i1, -1, truth),
+(90, 0, guess<secret, -1, truth),
+(95, 0, Your guess is too low., -1, out),
+(100, 0, guess_count==2, -1, truth),
+(105, 0, Take a guess., -1, out),
+(110, 0, 4, -1, in),
+(115, 0, guess==i1, -1, truth),
+(120, 0, guess==secret, -1, truth),
+(125, 0, guess_count + 1 == 3, -1, truth),
+(130, 0, Good job, Albert! You guessed my number in 3 guesses!, -1, out),
+(135, 1, __example__==1, -1, truth),
+(140, 1, Hello! What is your name?, -1, out),
+(145, 1, John, -1, in),
+(150, 1, name==i1, -1, truth),
+(155, 1, 3, -1, in),
+(160, 1, secret==i1, -1, truth),
+(165, 1, Well, John, I am thinking of a number between 1 and 20., -1, out),
+(170, 1, guess_count==0, -1, truth),
+(175, 1, Take a guess., -1, out),
+(180, 1, 11, -1, in),
+(185, 1, guess==i1, -1, truth),
+(190, 1, guess>secret, -1, truth),
+(195, 1, Your guess is too high., -1, out),
+(200, 1, guess_count == 1, -1, truth),
+(205, 1, Take a guess., -1, out),
+(210, 1, 1, -1, in),
+(215, 1, guess==i1, -1, truth),
+(220, 1, guess<secret, -1, truth),
+(225, 1, Your guess is too low., -1, out),
+(230, 1, guess_count==2, -1, truth),
+(235, 1, Take a guess., -1, out),
+(240, 1, 2, -1, in),
+(245, 1, guess==i1, -1, truth),
+(250, 1, guess<secret, -1, truth),
+(255, 1, Your guess is too low., -1, out),
+(260, 1, guess_count==3, -1, truth),
+(265, 1, Take a guess., -1, out),
+(270, 1, 10, -1, in),
+(275, 1, guess==i1, -1, truth),
+(280, 1, guess>secret, -1, truth),
+(285, 1, Your guess is too high., -1, out),
+(290, 1, guess_count==4, -1, truth),
+(295, 1, Take a guess., -1, out),
+(300, 1, 9, -1, in),
+(305, 1, guess==i1, -1, truth),
+(310, 1, guess>secret, -1, truth),
+(315, 1, Your guess is too high., -1, out),
+(320, 1, guess_count==5, -1, truth),
+(325, 1, Take a guess., -1, out),
+(330, 1, 8, -1, in),
+(335, 1, guess==i1, -1, truth),
+(340, 1, guess>secret, -1, truth),
+(345, 1, Your guess is too high., -1, out),
+(350, 1, Nope. The number I was thinking of was 3., -1, out),
+(355, 2, __example__==2, -1, truth)]"""
+        print(exemplar.dump_table("example_lines"))
+        self.assertEqual(expected, exemplar.dump_table("example_lines"))
+
+    def test_fill_conditions_table_jokes(self):
+        # Processing this input should cause the following calls for INSERTion.
+        example_lines = exemplar.from_file("jokes.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        expected = """[all conditions:
+(el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for)]"""
+        # print("test_fill_conditions_table3", exemplar.dump_table("conditions"))
+        self.assertEqual(expected, exemplar.dump_table("conditions"))
+
+    def test_fill_conditions_table_guess3(self):
         # Processing this input should cause the following calls for INSERTion.
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
@@ -63,7 +218,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # print(exemplar.dump_table("conditions"))
         self.assertEqual(expected, exemplar.dump_table("conditions"))
 
-    def test_fill_conditions_table2(self):
+    def test_fill_conditions_table_guess4(self):
         # Processing this input should cause the following calls for INSERTion.
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
@@ -110,32 +265,103 @@ class TestExemplarIntegration(unittest.TestCase):
         # print(exemplar.dump_table("conditions"))
         self.assertEqual(expected, exemplar.dump_table("conditions"))
 
-    def test_fill_conditions_table3(self):
-        # Processing this input should cause the following calls for INSERTion.
+    def test_load_for_loops_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
         exemplar.process_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        expected = """[all conditions:
+        exemplar.store_for_loops()
+        expected1 = """[all control_block_traces:
+(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 80, None, for0)]"""  # All correct
+        expected2 = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
-(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for)]"""
-        # print(exemplar.dump_table("conditions"))
-        self.assertEqual(expected, exemplar.dump_table("conditions"))
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, for0, for)]"""  # All correct
+        # print("test_load_for_loops1", exemplar.dump_table("conditions"))
+        self.assertEqual(expected1, exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected2, exemplar.dump_table("conditions"))
 
-    def test_fill_control_traces1(self):
+    def test_load_for_loops_guess3(self):
+        example_lines = exemplar.from_file("guess3.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        exemplar.store_for_loops()
+        expected1 = """[all control_block_traces:
+(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 130, None, for0),
+(for1_40, for guess_count in range(0, 3), 1, 40, None, 105, None, None, for1)]"""  # Both lines are correct.
+        expected2 = """[all conditions:
+(el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
+(5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, for0, for),
+(20, 0, i1 == name, i1==name, i1, ==, name, None, None, assign),
+(30, 0, i1 == secret, i1==secret, i1, ==, secret, None, None, assign),
+(40, 0, 0 == guess_count, _==guess_count, 0, ==, guess_count, None, for1, for),
+(55, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(60, 0, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(70, 0, 1 == guess_count, _==guess_count, 1, ==, guess_count, None, for1, for),
+(85, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(90, 0, guess < secret, guess<secret, guess, <, secret, None, None, if),
+(100, 0, 2 == guess_count, _==guess_count, 2, ==, guess_count, None, for1, for),
+(115, 0, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
+(120, 0, secret == guess, guess==secret, secret, ==, guess, None, None, if),
+(125, 0, guess_count+1 == 3, guess_count+_==_, guess_count+1, ==, 3, None, None, assign)]"""  # All looks good.
+        # print("test_load_for_loops2", exemplar.dump_table("control_block_traces"))
+        # print("test_load_for_loops2", exemplar.dump_table("conditions"))
+        self.assertEqual(expected1, exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected2, exemplar.dump_table("conditions"))
+
+    def test_load_for_loops_guess4(self):
+        # Processing this input should cause the following calls for INSERTion.
+        example_lines = exemplar.from_file("guess4.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        exemplar.store_for_loops()
+        expected = """[all control_block_traces:
+(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, for __example__ in range(0, 3), 1, 5, None, None, 355, None, for0),
+(for1_40, for guess_count in range(0, 3), 1, 40, None, None, None, 165, for1),
+(for1_170, for guess_count in range(0, 6), 1, 170, None, 325, None, None, for1)]"""
+        # Record for0_5 correctly covers el_id's 5 - 355. Record for1_40 correctly covers 40 - 165.
+        # print(exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
+
+    def test_fill_control_block_traces_jokes(self):  # One FOR, no IFs, so expected == test_load_for_loops_jokes()'s expected1
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
         exemplar.process_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.fill_control_traces()
-        expected = """[all conditions:
-        (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
-        (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, None, for)]"""
-        print(exemplar.dump_table("control_traces"))
-        # print(exemplar.dump_table("conditions"))
-        #self.assertEqual(expected, exemplar.dump_table("conditions"))
+        exemplar.fill_control_block_traces()
+        expected = """[all control_block_traces:
+(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 80, None, for0)]"""  # All correct.
+        # 5 is the correct first_el_id and 80 is the correct last_el_id
+        # print(exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
+
+    def test_fill_control_block_traces_guess3(self):
+        example_lines = exemplar.from_file("guess3.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        exemplar.fill_control_block_traces()
+        expected = """[all control_block_traces:
+(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 130, None, for0),
+(for1_40, for guess_count in range(0, 3), 1, 40, None, 105, None, None, for1),
+(if0_60, if guess > secret:, 1, 60, None, None, None, None, if0),
+(if1_90, if guess < secret:, 1, 90, None, None, None, None, if1),
+(if2_120, if secret == guess:, 1, 120, None, None, None, None, if2)]"""  #
+        # Re: for0_5, 5 - 130 is correct. Re: for1_40 (guess_count), 40 is the correct first_el_id and 105 is the
+        # correct last_el_id_1st_possible.
+        # print(exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
 
     ''' Under maintenance
     def test_remove_all_c_labels1(self):
