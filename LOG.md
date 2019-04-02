@@ -7,6 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-04-02 store_for_loops()'s relationship to insert_for_loop() reworked and working, a heavy lift. Work continues...
+* 2019-04-01 Got exemplar working for guess3.exem again. Created controls table. 6h
 * 2019-03-31 Added a handful of working integration tests. Analyzed how guess4.exem should break down, then began migrating
 from a control_traces table to control_block_traces and control tables to capture every loop iteration. 8h
 * 2019-03-30 Got TestExemplarIntegration.py working. Added tests for fill_conditions_table(). 5.5h
@@ -28,7 +30,7 @@ from a control_traces table to control_block_traces and control tables to captur
 * 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
 * 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_for_loops(), store_ifs(). 6.75h
-* 2019-03-08 More for-loop logistics in new functions el_id_peek(), insert_for_loop(). 7.75h
+* 2019-03-08 More for-loop logistics in new functions get_el_id(), insert_for_loop(). 7.75h
 * 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h
 * 2019-03-05 get_range() now looking at one example at a time. 3.75h

@@ -136,7 +136,7 @@ def clean(examples: List[str]) -> List[str]:
     for line in examples:
         if len(line.lstrip()) and line.lstrip()[0] == '#':
             continue  # Skip full line comments.
-        line = denude(line)  # denude() defined above.
+        line = denude(line)  # (def denude() is above.)
 
         if previous_line == '':  # Then on first line.
             if line == '':  # Skip initial blank lines.
@@ -168,7 +168,20 @@ def clean(examples: List[str]) -> List[str]:
             if not line:
                 previous_line = 'B'  # On the next line must start an example.
             result.append(line)  # Retain both examples and their delimiters, blank lines.
+    if not line:
+        result.pop(len(result) - 1)  # Remove last, blank line.
     return result
+
+
+if DEBUG and __name__ == '__main__':
+    assert ["code"] == clean(['  code  '])
+    assert ["code"] == clean([" code # This should be removed. # 2nd comment "])
+    assert ["code \# This should NOT be removed."] == clean([" code \# This should NOT be removed. # 1st comment "])
+    assert ["code '# This should NOT be removed.'"] == clean([" code '# This should NOT be removed.' # 1st comment "])
+    assert ["code"] == clean(["  ",'  code  ',''])
+    assert ["code"] == clean([" code # This should be removed. # 2nd comment ","   "])
+    assert ["code \# This should NOT be removed."] == clean([' '," code \# This should NOT be removed. # comment ",""])
+    assert ["code '# This should NOT be removed.'"] == clean([''," code '# This should NOT be removed.' # comment ",""])
 
 
 # c labels aren't being used. 2/20/19
@@ -2054,46 +2067,48 @@ def run_tests(class_name: str) -> str:
     return test_results
 
 
-def insert_for_loop(loop_variable: str, last_iteration: int, for_count: int, first_el_id: int, el_id: int, assertion_scheme: str) -> None:
+def get_last_el_id_of_current_example(el_id: int) -> int:
+    cursor.execute("""SELECT MAX(el_id) FROM example_lines WHERE example_id = 
+    (SELECT example_id FROM example_lines WHERE el_id = ?)""", (el_id,))
+    return cursor.fetchone()[0]
+
+
+def insert_for_loop(loop_variable: str, last_el_id_of_iteration: int, last_iteration: int, control_id: str, el_id: int) -> None:
     """
-    :database: INSERTs control_block_traces and controls, UPDATEs conditions.
-    :param ct_id:
-    :param first_el_id:
-    :param el_id:
-    :param control_id:
-    :param assertion_scheme:
+    Insert record of an iteration into table control_block_traces into two steps, the second of which is to establish
+    what is known of the iteration's endpoint in the example_lines. 4/2/19
+    # todo The newly inserted control_block_traces records still need indents and some need last_el_id_sorta set.
+    :database: INSERTs control_block_traces.
+    :param loop_variable: '__example__' or not
+    :param last_el_id_of_iteration:
+    :param last_iteration: 0==false, 1==local last iteration, 2==overall last iteration.
+    :param control_id: Eg, for1
+    :param el_id: Eg, 40
     :return: None
     """
-    # cursor.execute("""INSERT OR REPLACE INTO controls VALUES (?,?)""", (control_id, python))
-
-    control_id = 'for' + str(for_count)
-    ct_id = str(control_id) + '_' + str(first_el_id)  # Eg, for0_40
-    cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=? AND el_id>=? AND el_id<=?",
-                   (control_id, assertion_scheme, first_el_id, el_id))
-
     cursor.execute("""INSERT INTO control_block_traces (ct_id, first_el_id, control_id) VALUES (?,?,?)""",
-                   (ct_id, first_el_id, control_id))
-    # Store the el_id *one after* the el_id2 with which we exited the above loop as the *1st possible*
-    # last_el_id of the current loop trace:
-    if loop_variable == '__example__':  # Special case
-        cursor.execute("""UPDATE control_block_traces SET last_el_id = (SELECT MAX(el_id) FROM example_lines) 
-        WHERE ROWID = ?""", (cursor.lastrowid,))
-    elif not last_iteration:
-        # Store the el_id in front of el_id2 as the *last possible* last_el_id of the loop just ended
-        # (as there can be lines between the end of an inner loop and the end of an outer loop):
-        cursor.execute("UPDATE control_block_traces SET last_el_id_last_possible = ? WHERE ROWID = ?",
-                       (el_id_peek(el_id, -1), cursor.lastrowid))
-    else:  # last iteration
-        cursor.execute("""UPDATE control_block_traces SET last_el_id_1st_possible = ? WHERE ROWID = ?""",
-                       (el_id_peek(el_id, 1), cursor.lastrowid))  # 1st and 1 vs last and -1 above.
+                   (str(control_id) + '_' + str(el_id), el_id, control_id))
 
-    # todo The newly inserted control_block_traces records still need indents and last_el_id2 set.
+    """Set field last_el_id or similar for the above INSERT. Each iteration's last_el_id is the el_id one prior 
+    to the next iteration's first_el_id, unless the loop has climaxed or ended, in which case the endpoint must be 
+    hypothesized (to possibly be pursued with fork() later). Other increments: error. 4/2/19"""
+    if loop_variable == '__example__':  # For internal use.
+        cursor.execute("""UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?""",
+                       (get_last_el_id_of_current_example(el_id), cursor.lastrowid))
+    elif last_iteration:  # (Global or local) last iteration.
+        # Store the el_id *one after* 'el_id', the top of the (overall) last iteration, as the *1st* possible
+        # last_el_id of the current loop trace, and the last el_id of the current example as the *last* possible.
+        cursor.execute("""UPDATE control_block_traces SET last_el_id_1st_possible = ?, last_el_id_last_possible = ? 
+        WHERE ROWID = ?""", (get_el_id(el_id, 1), get_last_el_id_of_current_example(el_id), cursor.lastrowid))
+    else:  # Common case.
+        cursor.execute("UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?",
+                       (last_el_id_of_iteration, cursor.lastrowid))
 
 
-def el_id_peek(start_el_id: int, distance: int) -> int:
+def get_el_id(start_el_id: int, distance: int) -> int:
     """
-    el_id_peek(15, 1) means return the closest el_id value to 15 that is >15.
-    el_id_peek(15, -2) means return the 2nd closest el_id value to 15 that is <15.
+    get_el_id(15, 1) means return the closest el_id value to 15 that is >15.
+    get_el_id(15, -2) means return the 2nd closest el_id value to 15 that is <15.
     :database: SELECTs example_lines
     :param start_el_id:
     :param distance: the # of el_id values from the given el_id.
@@ -2130,52 +2145,67 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
     # First, pull all the assignments to FOR loop variables (id'ed in fill_conditions_table()).
     cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_type='for' ORDER BY el_id")
     for_conditions = cursor.fetchall()
-    control_count = {'for': 0}
+    control_count = {'for': 0}  # Probably should be changed from a dict to for_count: int.
     for row in for_conditions:
-        # Next, pull all instances of (new) scheme(condition).
+        # Next, pull all instances of new scheme(condition).
         el_id, condition = row
         assertion_scheme = scheme(condition)
         if assertion_scheme not in schemes_seen:  # (We assume loop variables aren't re-used.)
-            # Also confirm that the loop variable always starts with the same integer and increments by the same amount.
+            # (We'll also assert loop variable's consistency re: increment and starting integer.)
             cursor.execute("SELECT el_id, condition FROM conditions WHERE scheme = ? ORDER BY el_id",(assertion_scheme,))
             iterations = cursor.fetchall()
-            loop_variable, loop_increment = None, None
+            loop_variable, loop_increment, next_left, last_value = None, None, None, None
+            control_id = 'for' + str(control_count['for'])
             iteration = 0
-            for row2 in iterations:
+            for row2 in iterations:  # For each iteration of assertion_scheme.
                 el_id2, condition2 = row2
+                last_iteration = 0
+                if iteration == len(iterations) - 1:
+                    last_iteration = 2  # Global last iteration.
+                    last_el_id_of_iteration = None  # (Will also be None (unknown) when loop_variable==first_value)
+                else:  # Not overall last iteration.
+                    # Get the el_id one before the start of the next iteration.
+                    last_el_id_of_iteration = get_el_id(iterations[iteration + 1][0], -1)
+                    # Get the next 'left' (loop variable comparison) value to see if we're at a local last iteration.
+                    next_left = int(assertion_triple(iterations[iteration + 1][1])[0])
                 left, operator, right = assertion_triple(condition2)  # Eg, 5, ==, guess_count
-                left = int(left)
-                if not loop_variable:  # Our first iteration
+                left = int(left)  # Therefore, use int() before comparing with 'left'-derived values.
+
+                if not loop_variable:  # first iteration (global)
                     loop_variable = right
                     first_value = left
-                    last_value = left
-                    first_el_id = el_id2
-                elif not loop_increment:  # 2nd iteration
+                elif not loop_increment:  # second iteration (global)
                     loop_increment = left - first_value
-                    last_value = left
-                elif left != first_value:  # >2nd iteration.
-                    assert loop_increment == left - last_value, str(left - last_value) + \
-                        " found where FOR loop increment " + str(loop_increment) + " was expected, at assertion: " + condition2
-                    last_value = left
-                else:  # The loop variable is back to first_value, meaning that an outer loop has restarted this one.
-                    # Save the loop info.          v-last_iteration
-                    insert_for_loop(loop_variable, False, control_count['for'], first_el_id, el_id2, assertion_scheme)
-                    first_el_id = el_id2
-                    loop_increment = None
+                else:  #left != first_value:  # >2nd iteration. Sanity check the increment.
+                    assert (loop_increment == left - prior_value) or (left == first_value), "FOR loop increment " + \
+                        str(left - prior_value) + " found where " + str(loop_increment) + \
+                        " was expected, at condition: " + condition2
+
+                if next_left == first_value:  # Last iteration before an outer loop restarts this one.
+                    last_value = left  # Capture climatic loop variable value.
+                    last_iteration = 1  # *local* last iteration.
+                    # In this case, last_el_id_of_iteration holds the el_id immediately behind the next start of this
+                    # loop schema, to be used as the *last possible* last_el_id of the loop just ended
+                    # (as there can be lines between the end of an inner loop and the end of an outer loop).
+
                 assert loop_variable == right, right + " found where FOR loop variable " + loop_variable + \
                     " was expected, at assertion: " + condition2
+
+                # *************
+                insert_for_loop(loop_variable, last_el_id_of_iteration, last_iteration, control_id, el_id2)
+                prior_value = left
                 iteration += 1
 
             # scheme(condition) exhausted.
             # todo account for possibility that above loop was broken (via break) right after the above
             # insert_for_loop(), making below insert_for_loop() call redundant. 3/8/19
 
-            # Insert this scheme's last control_block_trace.
-            insert_for_loop(loop_variable, True, control_count['for'], first_el_id, el_id2, assertion_scheme)
             # python is eg, 'for guess_count in range(0, 6)'
+            if last_value is None:  # then scheme had a single iteration.
+                last_value = prior_value
             python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
-            cursor.execute("INSERT INTO controls (control_id, python) VALUES (?, ?)",
-                           ('for' + str(control_count['for']), python))
+            cursor.execute("INSERT INTO controls (control_id, python) VALUES (?, ?)", (control_id, python))
+            cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=?", (control_id, assertion_scheme))
 
             schemes_seen.append(assertion_scheme)
             control_count['for'] += 1
@@ -2235,7 +2265,7 @@ def start_of_open_loop(el_id):
                 last_el_id_sorta = el_id  # Loop's open, and we make it end at 'el_id'.
             else:  # parent
                 print("parent")
-                last_el_id_sorta = el_id_peek(el_id, -1)  # We'll say that loop ends just before 'el_id'.
+                last_el_id_sorta = get_el_id(el_id, -1)  # We'll say that loop ends just before 'el_id'.
             cursor.execute("UPDATE control_block_traces SET last_el_id_sorta=? WHERE ct_id=?", (last_el_id_sorta, ct_id))
             if pid == 0:
                 return first_el_id
@@ -2318,9 +2348,6 @@ def generate_code2():
                 if el_id == first_el_id:
                     code += python
                     indents += 1
-
-
-
 
 def reverse_trace(file: str) -> str:
     """

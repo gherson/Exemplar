@@ -6,7 +6,7 @@ class TestExemplarIntegration(unittest.TestCase):
     @classmethod
     def setUp(cls):
         global mock_cursor
-        mock_cursor = MockCursor.MockCursor()   # The advantage of MockCursor is that no is database required.
+        mock_cursor = MockCursor.MockCursor()  # The advantage of MockCursor is that no is database required.
 
         """ Under maintenance
         exemplar.reset_db()  # Unshared, in-memory database.
@@ -175,9 +175,8 @@ class TestExemplarIntegration(unittest.TestCase):
 (335, 1, guess==i1, -1, truth),
 (340, 1, guess>secret, -1, truth),
 (345, 1, Your guess is too high., -1, out),
-(350, 1, Nope. The number I was thinking of was 3., -1, out),
-(355, 2, __example__==2, -1, truth)]"""
-        print(exemplar.dump_table("example_lines"))
+(350, 1, Nope. The number I was thinking of was 3., -1, out)]"""
+        # print(exemplar.dump_table("example_lines"))
         self.assertEqual(expected, exemplar.dump_table("example_lines"))
 
     def test_fill_conditions_table_jokes(self):
@@ -260,8 +259,7 @@ class TestExemplarIntegration(unittest.TestCase):
 (310, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
 (320, 1, 5 == guess_count, _==guess_count, 5, ==, guess_count, None, None, for),
 (335, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
-(340, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
-(355, 2, 2 == __example__, _==__example__, 2, ==, __example__, None, None, for)]"""
+(340, 1, guess > secret, guess>secret, guess, >, secret, None, None, if)]"""
         # print(exemplar.dump_table("conditions"))
         self.assertEqual(expected, exemplar.dump_table("conditions"))
 
@@ -273,8 +271,8 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected1 = """[all control_block_traces:
-(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
-(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 80, None, for0)]"""  # All correct
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 80, None, for0)]"""  # All correct
         expected2 = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
 (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, for0, for)]"""  # All correct
@@ -290,9 +288,11 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected1 = """[all control_block_traces:
-(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
-(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 130, None, for0),
-(for1_40, for guess_count in range(0, 3), 1, 40, None, 105, None, None, for1)]"""  # Both lines are correct.
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 130, None, for0),
+(for1_40, 40, None, None, 65, None, for1),
+(for1_70, 70, None, None, 95, None, for1),
+(for1_100, 100, None, 105, None, 130, for1)]"""  # All correct 4/2/19.
         expected2 = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
 (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, None, for0, for),
@@ -322,15 +322,24 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected = """[all control_block_traces:
-(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
-(for0_5, for __example__ in range(0, 3), 1, 5, None, None, 355, None, for0),
-(for1_40, for guess_count in range(0, 3), 1, 40, None, None, None, 165, for1),
-(for1_170, for guess_count in range(0, 6), 1, 170, None, 325, None, None, for1)]"""
-        # Record for0_5 correctly covers el_id's 5 - 355. Record for1_40 correctly covers 40 - 165.
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 130, None, for0),
+(for0_135, 135, None, None, 350, None, for0),
+(for1_40, 40, None, None, 65, None, for1),
+(for1_70, 70, None, None, 95, None, for1),
+(for1_100, 100, None, 105, None, 130, for1),
+(for1_170, 170, None, None, 195, None, for1),
+(for1_200, 200, None, None, 225, None, for1),
+(for1_230, 230, None, None, 255, None, for1),
+(for1_260, 260, None, None, 285, None, for1),
+(for1_290, 290, None, None, 315, None, for1),
+(for1_320, 320, None, 325, None, 350, for1)]"""
+        # All correct.
         # print(exemplar.dump_table("control_block_traces"))
         self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
 
-    def test_fill_control_block_traces_jokes(self):  # One FOR, no IFs, so expected == test_load_for_loops_jokes()'s expected1
+    def test_fill_control_block_traces_jokes(
+            self):  # One FOR, no IFs, so expected == test_load_for_loops_jokes()'s expected1
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
         exemplar.process_examples(example_lines)
@@ -338,8 +347,8 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.fill_control_block_traces()
         expected = """[all control_block_traces:
-(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
-(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 80, None, for0)]"""  # All correct.
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 80, None, for0)]"""  # All correct.
         # 5 is the correct first_el_id and 80 is the correct last_el_id
         # print(exemplar.dump_table("control_block_traces"))
         self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
@@ -352,14 +361,48 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.fill_control_block_traces()
         expected = """[all control_block_traces:
-(ct_id, python, indents, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
-(for0_5, for __example__ in range(0, 1), 1, 5, None, None, 130, None, for0),
-(for1_40, for guess_count in range(0, 3), 1, 40, None, 105, None, None, for1),
-(if0_60, if guess > secret:, 1, 60, None, None, None, None, if0),
-(if1_90, if guess < secret:, 1, 90, None, None, None, None, if1),
-(if2_120, if secret == guess:, 1, 120, None, None, None, None, if2)]"""  #
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 130, None, for0),
+(for1_40, 40, None, None, 65, None, for1),
+(for1_70, 70, None, None, 95, None, for1),
+(for1_100, 100, None, 105, None, 130, for1),
+(if0_60, 60, None, None, None, None, if0),
+(if1_90, 90, None, None, None, None, if1),
+(if2_120, 120, None, None, None, None, if2)]"""  #
         # Re: for0_5, 5 - 130 is correct. Re: for1_40 (guess_count), 40 is the correct first_el_id and 105 is the
         # correct last_el_id_1st_possible.
+        # print(exemplar.dump_table("control_block_traces"))
+        self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
+
+    def test_fill_control_block_traces_guess4(self):
+        example_lines = exemplar.from_file("guess4.exem")
+        exemplar.reset_db()
+        exemplar.process_examples(example_lines)
+        exemplar.remove_all_c_labels()
+        exemplar.fill_conditions_table()
+        exemplar.fill_control_block_traces()
+        expected = """[all control_block_traces:
+(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(for0_5, 5, None, None, 130, None, for0),
+(for0_135, 135, None, None, 350, None, for0),
+(for1_40, 40, None, None, 65, None, for1),
+(for1_70, 70, None, None, 95, None, for1),
+(for1_100, 100, None, 105, None, 130, for1),
+(for1_170, 170, None, None, 195, None, for1),
+(for1_200, 200, None, None, 225, None, for1),
+(for1_230, 230, None, None, 255, None, for1),
+(for1_260, 260, None, None, 285, None, for1),
+(for1_290, 290, None, None, 315, None, for1),
+(for1_320, 320, None, 325, None, 350, for1),
+(if0_60, 60, None, None, None, None, if0),
+(if1_90, 90, None, None, None, None, if1),
+(if2_120, 120, None, None, None, None, if2),
+(if3_190, 190, None, None, None, None, if3),
+(if4_220, 220, None, None, None, None, if4),
+(if5_250, 250, None, None, None, None, if5),
+(if6_280, 280, None, None, None, None, if6),
+(if7_310, 310, None, None, None, None, if7),
+(if8_340, 340, None, None, None, None, if8)]"""
         # print(exemplar.dump_table("control_block_traces"))
         self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
 
@@ -472,7 +515,7 @@ class TestExemplarIntegration(unittest.TestCase):
         return True
     elif i1 < 1:
         return "input < 1 is illegal"
-    
+
     accum1 = 1
     accum2 = 1
     while i1 % (i1-accum1) != 0 and (i1-accum2)>2:
@@ -490,5 +533,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # redundant  print(code)  # step 1
 
     '''
+
+
 # if __name__ == '__main__':
 #     unittest.main()
