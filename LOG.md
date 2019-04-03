@@ -7,7 +7,8 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-04-02 store_for_loops()'s relationship to insert_for_loop() reworked and working, a heavy lift. Work continues...
+* 2019-04-02 store_for_loops()'s relationship to insert_for_loop() reworked and working, a heavy lift. Improved store_ifs() and 
+added supporting functions. 10h
 * 2019-04-01 Got exemplar working for guess3.exem again. Created controls table. 6h
 * 2019-03-31 Added a handful of working integration tests. Analyzed how guess4.exem should break down, then began migrating
 from a control_traces table to control_block_traces and control tables to capture every loop iteration. 8h

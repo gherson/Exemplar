@@ -62,5 +62,6 @@ guess_count==5
 <8
 guess==i1, guess>secret
 >Your guess is too high.
+guess_count > 5
 >Nope. The number I was thinking of was 3.
 

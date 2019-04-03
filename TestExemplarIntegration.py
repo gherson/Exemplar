@@ -175,7 +175,8 @@ class TestExemplarIntegration(unittest.TestCase):
 (335, 1, guess==i1, -1, truth),
 (340, 1, guess>secret, -1, truth),
 (345, 1, Your guess is too high., -1, out),
-(350, 1, Nope. The number I was thinking of was 3., -1, out)]"""
+(350, 1, guess_count > 5, -1, truth),
+(355, 1, Nope. The number I was thinking of was 3., -1, out)]"""
         # print(exemplar.dump_table("example_lines"))
         self.assertEqual(expected, exemplar.dump_table("example_lines"))
 
@@ -271,7 +272,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected1 = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 80, None, for0)]"""  # All correct
         expected2 = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, loop_likely, control_id, condition_type)
@@ -288,7 +289,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected1 = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 130, None, for0),
 (for1_40, 40, None, None, 65, None, for1),
 (for1_70, 70, None, None, 95, None, for1),
@@ -347,7 +348,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.fill_control_block_traces()
         expected = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 80, None, for0)]"""  # All correct.
         # 5 is the correct first_el_id and 80 is the correct last_el_id
         # print(exemplar.dump_table("control_block_traces"))
@@ -361,14 +362,14 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.fill_control_block_traces()
         expected = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 130, None, for0),
 (for1_40, 40, None, None, 65, None, for1),
 (for1_70, 70, None, None, 95, None, for1),
 (for1_100, 100, None, 105, None, 130, for1),
-(if0_60, 60, None, None, None, None, if0),
-(if1_90, 90, None, None, None, None, if1),
-(if2_120, 120, None, None, None, None, if2)]"""  #
+(if0_60, 60, None, 65, 65, 65, if0),
+(if1_90, 90, None, 95, 95, 95, if1),
+(if2_120, 120, None, 125, None, 130, if2)]"""  #
         # Re: for0_5, 5 - 130 is correct. Re: for1_40 (guess_count), 40 is the correct first_el_id and 105 is the
         # correct last_el_id_1st_possible.
         # print(exemplar.dump_table("control_block_traces"))
