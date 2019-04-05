@@ -64,6 +64,14 @@ def assertion_triple(truth_line: str) -> tuple:
     return left_operand, relational_operator, right_operand
 
 
+if DEBUG and __name__ == "__main__":
+    assert ('10', '==', 'guess') == assertion_triple("guess==10"), "We instead got " + str(
+        assertion_triple("guess==10"))
+    assert ('10', '>', '4') == assertion_triple("10>4"), "We instead got " + str(assertion_triple("10>4"))
+    assert ('1', '==', 'guess_count') == assertion_triple("guess_count==1"), \
+        "We instead got " + str(assertion_triple("guess_count==1"))
+
+
 def positions_outside_strings(string: str, character: str) -> List[int]:
     """
     Find and return the positions of the given character, unescaped and outside of strings, in the given string.
@@ -775,8 +783,8 @@ def reset_db() -> None:
     #                     selection_id INTEGER NOT NULL)""")  # From E's imagination
     # cursor.execute("""CREATE UNIQUE INDEX sccs ON selections_conditions(condition_id, selection_id)""")
 
-    # 1-to-1 with code controls (if's, for's and while's).
-    cursor.execute("""DROP TABLE IF EXISTS controls""")  
+    # 1-to-1 with *code* controls: if's and for's. (Later, while's as well.)  Assigns each an id, indent, and code.
+    cursor.execute("""DROP TABLE IF EXISTS controls""")
     cursor.execute("""CREATE TABLE controls (
                         control_id TEXT PRIMARY KEY,
                         python TEXT NOT NULL,
@@ -794,6 +802,7 @@ def reset_db() -> None:
     #                     FOREIGN KEY (ct_id) REFERENCES control_block_traces(ct_id))""")
     # cursor.execute("""CREATE UNIQUE INDEX lpci ON loop_patterns(ct_id, iteration)""")
 
+    # Control scope information.
     # 1 row for each control block trace (instance in an exem). We need to know where each iteration or if-
     # type of block starts and stops to deduce possible endpoints of contained blocks. 3/31/19
     # 1-to-many with conditions table, because there are many more conditions than those heading control blocks.
@@ -809,7 +818,7 @@ def reset_db() -> None:
                         control_id TEXT NOT NULL)''')  # if#/for#/while#
     cursor.execute('''CREATE UNIQUE INDEX cbtf ON control_block_traces(first_el_id)''')
 
-    # 1 row for each example_line of line_type 'truth'
+    # 1 row for each example_line of line_type 'truth'. Each row categorizes a condition and assigns it a control_id.
     cursor.execute("""DROP TABLE IF EXISTS conditions""")
     cursor.execute("""CREATE TABLE conditions ( -- 1 row for each comma-delimited condition from the 'truth' lines. 
                         el_id INTEGER PRIMARY KEY,
@@ -821,8 +830,8 @@ def reset_db() -> None:
                         right_side TEXT NOT NULL,
                         loop_likely INTEGER,
                         control_id INTEGER,
-                        condition_type TEXT,
-                        FOREIGN KEY(el_id) REFERENCES example_lines(el_id))""")  # assign/if/for/while
+                        condition_type TEXT, -- assign/if/for/while
+                        FOREIGN KEY(el_id) REFERENCES example_lines(el_id))""")
                         #-- python TEXT)
                         #-- schematized(condition)
                         # --type TEXT NOT NULL, -- 'simple assignment', 'iterative', or 'selective'
@@ -1132,13 +1141,6 @@ def quote_if_str(incoming: str) -> str:
     return "'" + escaped + "'"
 
 
-if DEBUG and __name__ == "__main__":
-    assert ('10', '==', 'guess') == assertion_triple("guess==10"), "We instead got " + str(assertion_triple("guess==10"))
-    assert ('10', '>', '4') == assertion_triple("10>4"), "We instead got " + str(assertion_triple("10>4"))
-    assert ('1', '==', 'guess_count') == assertion_triple("guess_count==1"), \
-        "We instead got " + str(assertion_triple("guess_count==1"))
-
-
 # Unused after switching back to i1-style references.
 def variable_name_of_value(truth_line: str, value: any) -> str:
     """
@@ -1429,34 +1431,36 @@ def generate_code() -> List[str]:
     """
     Use the tables to generate exem-conforming Python code -- a sequential version w/o control structures on 1st call
     then a version with if/elif/else and for/while control.
-    :database: SELECTs sequential_function, example_lines. UPDATEs conditions, sequential_function (indirectly).
+    :database: SELECTs sequential_function, example_lines. UPDATEs sequential_function via likely_data_type()).
     :return: Python code as 'code'
     """
 
-    code, code_stripped = [], []  # 'code' is to be returned
+    code = [] # Return value.
+    code_stripped = []  # Used to avoid duplicating code in 'code'.
     prior_input, preceding_equality, indent, loop_start = {}, {}, "    ", -1
-    # On 1st call, a version of the target function w/o control structures is saved to this table:
+
+    # On 1st call, a sequential-only version of the target function is saved to table sequential_function.
     cursor.execute("SELECT COUNT(*) FROM sequential_function")
-    second_call = cursor.fetchone()[0]  # If this is our 1st call, second_call will be "false"
+    second_call = cursor.fetchone()[0]  # On 1st call, second_call will be "false" (0).
 
     # Loop over every example_line.
     sql = """SELECT el.el_id, el.line, el.line_type, el.loop_likely, c.condition_type, c.control_id 
     FROM example_lines el LEFT JOIN conditions c ON el.el_id = c.el_id ORDER BY el.el_id"""
     cursor.execute(sql)
-    rows = cursor.fetchall()
-    if len(rows) == 0:
+    example_lines = cursor.fetchall()
+    if len(example_lines) == 0:
         print("*Zero* example lines found.")
 
-    # todo Distinguish arguments from variable assignments and input() statements...
+    # todo Distinguish arguments from variable assignments and input() statements.
     for_suspects = []
     i = 0  # example_lines line counter
-    for row in rows:
+    for row in example_lines:
         el_id, line, line_type, loop_likely, condition_type, control_id = row
 
-        # Code an input (datum unspecified except in the tests and comments).
+        # Code an input (for which the example data is unspecified except in the tests and comments).
         if line_type == 'in':
 
-            if line.strip() == '':  # In line, *no* example input was provided.
+            if line.strip() == '':  # Then in 'line', there's *no* example input provided.
                 code.append(indent + "input()")
                 code_stripped.append("input()")
                 continue
@@ -1465,42 +1469,44 @@ def generate_code() -> List[str]:
 
             # Create a default name for the variable, then look for a better one.
             variable_name = "v" + str(el_id)
-            if i+1 < len(rows):
-                next_row = rows[i+1]  # el_id, line, line_type
+            if i+1 < len(example_lines):
+                next_row = example_lines[i+1]  # el_id, line, line_type
                 # If the next row is truth and has an equality "naming" 'line's value, make that name the variable name.
                 if next_row[2] == 'truth' and \
                         variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1')
                     variable_name = variable_name_of_i1(next_row[1], 'i1')  # Eg, 'guess'
 
-            # Non-string inputs need a cast.
+            # int and float inputs need a cast.
             if second_call and likely_data_type(variable_name) != "str":
-                cast = likely_data_type(variable_name)  # Updates sequential_function after looking at its 'Eg's.
+                cast = likely_data_type(variable_name)  # UPDATEs sequential_function after looking at its 'Eg's.
                 assignment = variable_name + " = " + cast + "(input('" + variable_name + ":'))"
                 # cursor.execute("UPDATE sequential_function SET line = ? WHERE el_id = ?", (assignment, el_id))
             else:  # Casting is added later for the first call, via the database.
                 assignment = variable_name + " = input('" + variable_name + ":')"
 
-            # If it's new, add the input() assignment to the code (with the example datum behind "# Eg, ").
+            # If it's new, add the input() assignment to 'code' (with "# Eg, " + line appended.)
             if not second_call or assignment not in code_stripped[loop_start:]:
                 assignment = indent + assignment + "  # Eg, " + line
                 code.append(assignment)
                 code_stripped.append(denude(assignment))
+            # Remember the variable-input associations.
             prior_input[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
 
-        elif line_type == 'out':  # This line models a print()
+        elif line_type == 'out':  # A print() is modelled.
             # todo Distinguish return from print()'s...
             line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (should this simply be done for all lines??)
 
-            # Replace anything in 'line' that matches a prior value with that value's variable.
+            # Replace anything hard-coded in 'line' that should be soft-coded (we know because there's a match on a
+            # prior input value or prior equality assertion).
             prior_values = prior_input  # Combine prior_input and
             prior_values.update(preceding_equality)  # the preceding_equality.
-            line = replace_hard_code(prior_values, line)
+            line = replace_hard_code(prior_values, line)  # todo Remove prior_values and add prior_input and preceding_equality as args here.
 
             print_line = "print('" + line + "')"
-            # Add the print() to the code, if it's new or we're creating the STF.
+            # Add the print() to the code, if it's new or we're on first call.
             if not second_call or print_line not in code_stripped[loop_start:]:
                 code.append(indent + print_line)
-                code_stripped.append(denude(print_line))
+                code_stripped.append(denude(print_line))  # If really need code_stripped, consolidate these 2 lines into 1 call.
 
         else:  # truth/assertions/reasons/conditions
 
@@ -1510,16 +1516,16 @@ def generate_code() -> List[str]:
                 FROM control_block_traces ct, controls c WHERE ct.control_id=c.control_id AND ct.control_id=?""", (control_id,))
                 row = cursor.fetchone()
                 """
-                control_block_traces has the python code and first_el_id of each control. 
-                Use the python code when el_id == first_el_id.
+                control_block_traces has the first_el_id's and ~last_el_id info of each control's clauses/iterations.  
+                Use the 'python' code when el_id == first_el_id (related first_el_id's all point to same).
                 """
                 python, first_el_id, last_el_id, last_el_id_maybe = row
                 print("el_id, python, first_el_id:", el_id, python, first_el_id)
 
             left, operator, right = assertion_triple(line)  # Break up 'line' into its 3 parts.
 
-            # Lines that equate a digit to a (non-input) variable are noted for
-            # substitution in print()s and, if their scheme repeats, as for_suspects.
+            # 'truth' that equates a digit to a non-input variable is noted for substitution in print()s and, if
+            # its scheme repeats, as a for_suspect.
             # ((Below condition is spelled out because it differs from the loop_likely classes'. 2/17/19))
             # Eg,           3                  ==                                                 guess_count
             if left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right):
@@ -1528,28 +1534,37 @@ def generate_code() -> List[str]:
                 # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
                 preceding_equality[right] = left  # preceding_equality['guess_count'] = 3
 
+                # Drill down on the condition, to see if we should create an assignment or FOR loop.
                 if right.isidentifier():  # Rule out un-assignable left hand sides like 'guess_count + 1'
                     # A non-input identifier rhythmically asserted equal to an integer implies a **** FOR loop ****
                     # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
 
-                    if not second_call:  # then force the assertion's truth with an assignment:
+                    if not second_call:  # then turn the assertion into an assignment plus assertion.
                         code.append(indent + str(line).replace('==', '=', 1))  # Eg, guess_count = 2
                         code_stripped.append(denude(str(line).replace('==', '=', 1)))
                         code.append(indent + "assert " + str(line))
                         code_stripped.append(denude("assert " + str(line)))
-                    if scheme(line) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
-                        range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)
+                    if scheme(line) not in for_suspects:  # scheme(line) is new. Turn into FOR. todo Search with indent + line
+                        # cursor.execute("""SELECT min(cbt.first_el_id) FROM control_block_traces cbt, conditions c
+                        # WHERE cbt.control_id=c.control_id""")
+                        # min = cursor.fetchone()
+                        # assert min == el_id, "FOR loop should be detected at its first el_id. (expected, actual = " + \
+                        #     min + ', ' + el_id + ')'
+                        # cursor.execute("""SELECT c.python FROM control_block_traces cbt, conditions c
+                        # WHERE cbt.control_id=c.control_id""")
+                        # min = cursor.fetchone()
+                        range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)  # todo REPLACE !!!!!!!!!
                         if len(loop_pattern) > 1:  # The scheme repeats w/in an example.
                             control = indent + "for " + right + " in range" + str(range_pair) + ':'
                             if second_call:
                                 code.append(control)
                                 code_stripped.append(denude(control))
                                 loop_start = len(code)
-                                indent += '    '  # indent is never augmented on first pass.
+                                indent += '    '  # (indent is never augmented on first pass.)
                             for_suspects.append(scheme(line))  # todo add indent for better discrimination
 
-            # re: below "not", verify it corresponds to an assignment. lp todo
-            # elif not an assignment from input, then assume IF or WHILE.
+            # (re: below "not", verify it corresponds to an assignment. lp todo)
+            # Not an assignment from input, then assume IF or WHILE.
             elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):
                 control = if_or_while(el_id, line, second_call)  # ********* IF OR WHILE ********
                 while_or_if = control.partition(' ')[0]
@@ -1557,7 +1572,7 @@ def generate_code() -> List[str]:
                     if 'if' in while_or_if or 'while' in while_or_if:
                         pass
                     elif 'elif' in while_or_if or 'else:' in while_or_if:
-                        indent = indent[0:-4]  # Out-dent
+                        indent = indent[0:-4]  # Out-dent because, below, "    " is added to 'indent'.
                     else:
                         assert False, "Control statement " + control + " starts with an unexpected word."
                     # Append control to code if it's not in loop.
@@ -1567,13 +1582,15 @@ def generate_code() -> List[str]:
                         code_stripped.append(denude(control))
                     indent += '    '  # indent is augmented only on pass 2.
                     control = ''
-                if control:
+                if control:  # todo It should work to delete above line and simplify this one to  else:
                     code.append(indent + "assert " + str(line) + "  #" + control)  # Tuck control into a comment.
                     code_stripped.append(denude("assert " + str(line)))
 
         i += 1  # example_lines line counter
 
     return code  # Below will be selectively re-activated as more example problems are handled.
+
+
 
     # Next, we gen code from the ************** IF/ELIF/ELSE ************** conditions, in that order.
     # (old: Reasons where loop_likely==0 map to conditions 1:1.)
@@ -2000,7 +2017,7 @@ def fill_conditions_table() -> None:
             # we're going with example scope (with the above most_repeats_in_an_example() call). 3/9/19
             condition_type = "for"
 
-        # A condition like 'i1 == count' or '3 == count + 1' indicates a simple assignment.
+        # 'i1==count' is a simple assignment. '3==count + 1' is too, for swapping out '3' in a following output. 4/4/19
         elif operator == "==" and (re.match(r'i[\d]$', left) or not right.isidentifier()):  # ***** ASSIGN *****
             condition_type = "assign"
 
@@ -2241,10 +2258,12 @@ def start_of_open_loop(el_id: int) -> int:
     """
     # Determine if the latest for-loop start <= 'el_id' is still open at 'el_id'.
     cursor.execute(
-        "SELECT MAX(first_el_id) FROM control_block_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id<=?",
+        "SELECT max(first_el_id) FROM control_block_traces WHERE substr(control_id,0,3)='for' AND first_el_id<=?",
         (el_id,))
     row = cursor.fetchone()
-    if row[0]:  # Then get its details.
+    if not row[0]:
+        return None
+    else:  # Get for-loop's details.
         first_el_id = row[0]
         # Determining if that loop is still open at line 'el_id' requires knowing the loop's last line.
         # We usually don't, in which case 'el_id' divides the possibilities. Follow both possibilities with fork().
@@ -2304,7 +2323,7 @@ def get_last_el_id_of_iteration(el_id: int) -> int:
 
 def get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     """
-    The min and max possible last_el_id of the control being constructed.
+    The minimum and maximum possible last_el_id of the control being constructed.
     :param control_type: Just 'if' as of 4/2/19.
     :param el_id: First el_id of the control being constructed.
     :return:
@@ -2317,14 +2336,15 @@ def get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     # l.p. todo Find more ways to restrict last_el_id possibilities.
     last_el_id_max = min(get_last_el_id_of_current_example(el_id), get_last_el_id_of_iteration(el_id))
 
+    last_el_id_min = last_el_id_min = get_el_id(el_id, 1)  # An IF needs >=1 lines of consequent to make sense.
     cursor.execute("SELECT MIN(el_id) FROM example_lines WHERE el_id>? AND line_type='truth'", (el_id,))
     row = cursor.fetchone()
     if row[0]:
         last_el_id_min = get_el_id(row[0], -1)  # The el_id just before the 1st condition after 'el_id'.
         if last_el_id_min == el_id:  # True if the very 1st el_id after 'el_id' is a condition.
             last_el_id_min = get_el_id(el_id, 1)
-    if last_el_id_min > last_el_id_max:
-        last_el_id_min = last_el_id_max
+        if last_el_id_min > last_el_id_max:
+            last_el_id_min = last_el_id_max
     return last_el_id_min, last_el_id_max
 
 
@@ -2444,7 +2464,7 @@ def reverse_trace(file: str) -> str:
     if DEBUG:
         print(dump_table("example_lines"))
         print(dump_table("conditions"))
-        # Unused, as are the below tables, currently. print(dump_table("termination"))
+        # Unused, as are the below, commented out tables.
 
     # For if/elif/else order, determine how every `reason` evaluates on every input.
     # build_reason_evals()
@@ -2466,15 +2486,15 @@ def reverse_trace(file: str) -> str:
     store_code(sequential_version)  # (Table sequential_function still to be updated by likely_data_type(), called by
     # generate_code() on 2nd pass.)
 
-    # The second call to generate_code() is a first attempt at adding control structure.
+    # The second call to generate_code() is when controls (IFs, FORs, etc) are added.
     #                                                ***********************
     code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
     print("\n" + code + "\n")  # Show off generated function.
     if DEBUG:
-        print("After second pass.\n" + dump_table("conditions"))
+        print("Second pass of code generation complete.")
         print(dump_table("sequential_function"))
 
-    # Create unit tests for the sequential version of the target function.
+    # Create unit tests for the sequential version of the target function, as sanity checks.
     starter = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
     cursor.execute("SELECT line FROM sequential_function ORDER BY line_id")
     rows = cursor.fetchall()

@@ -260,7 +260,8 @@ class TestExemplarIntegration(unittest.TestCase):
 (310, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
 (320, 1, 5 == guess_count, _==guess_count, 5, ==, guess_count, None, None, for),
 (335, 1, i1 == guess, i1==guess, i1, ==, guess, None, None, assign),
-(340, 1, guess > secret, guess>secret, guess, >, secret, None, None, if)]"""
+(340, 1, guess > secret, guess>secret, guess, >, secret, None, None, if),
+(350, 1, guess_count > 5, guess_count>_, guess_count, >, 5, None, None, if)]"""
         # print(exemplar.dump_table("conditions"))
         self.assertEqual(expected, exemplar.dump_table("conditions"))
 
@@ -323,9 +324,9 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.store_for_loops()
         expected = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 130, None, for0),
-(for0_135, 135, None, None, 350, None, for0),
+(for0_135, 135, None, None, 355, None, for0),
 (for1_40, 40, None, None, 65, None, for1),
 (for1_70, 70, None, None, 95, None, for1),
 (for1_100, 100, None, 105, None, 130, for1),
@@ -334,7 +335,7 @@ class TestExemplarIntegration(unittest.TestCase):
 (for1_230, 230, None, None, 255, None, for1),
 (for1_260, 260, None, None, 285, None, for1),
 (for1_290, 290, None, None, 315, None, for1),
-(for1_320, 320, None, 325, None, 350, for1)]"""
+(for1_320, 320, None, 325, None, 355, for1)]"""
         # All correct.
         # print(exemplar.dump_table("control_block_traces"))
         self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
@@ -383,9 +384,9 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.fill_conditions_table()
         exemplar.fill_control_block_traces()
         expected = """[all control_block_traces:
-(ct_id, first_el_id, last_el_id_sorta, last_el_id_1st_possible, last_el_id, last_el_id_last_possible, control_id)
+(ct_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0_5, 5, None, None, 130, None, for0),
-(for0_135, 135, None, None, 350, None, for0),
+(for0_135, 135, None, None, 355, None, for0),
 (for1_40, 40, None, None, 65, None, for1),
 (for1_70, 70, None, None, 95, None, for1),
 (for1_100, 100, None, 105, None, 130, for1),
@@ -394,16 +395,17 @@ class TestExemplarIntegration(unittest.TestCase):
 (for1_230, 230, None, None, 255, None, for1),
 (for1_260, 260, None, None, 285, None, for1),
 (for1_290, 290, None, None, 315, None, for1),
-(for1_320, 320, None, 325, None, 350, for1),
-(if0_60, 60, None, None, None, None, if0),
-(if1_90, 90, None, None, None, None, if1),
-(if2_120, 120, None, None, None, None, if2),
-(if3_190, 190, None, None, None, None, if3),
-(if4_220, 220, None, None, None, None, if4),
-(if5_250, 250, None, None, None, None, if5),
-(if6_280, 280, None, None, None, None, if6),
-(if7_310, 310, None, None, None, None, if7),
-(if8_340, 340, None, None, None, None, if8)]"""
+(for1_320, 320, None, 325, None, 355, for1),
+(if0_60, 60, None, 65, 65, 65, if0),
+(if1_90, 90, None, 95, 95, 95, if1),
+(if2_120, 120, None, 125, None, 130, if2),
+(if3_190, 190, None, 195, 195, 195, if3),
+(if4_220, 220, None, 225, 225, 225, if4),
+(if5_250, 250, None, 255, 255, 255, if5),
+(if6_280, 280, None, 285, 285, 285, if6),
+(if7_310, 310, None, 315, 315, 315, if7),
+(if8_340, 340, None, 345, None, 355, if8),
+(if9_350, 350, None, 355, 355, 355, if9)]"""
         # print(exemplar.dump_table("control_block_traces"))
         self.assertEqual(expected, exemplar.dump_table("control_block_traces"))
 
