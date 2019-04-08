@@ -7,8 +7,9 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-04-07 Adjusted reverse_trace() for plan described in entry 2019-04-05. Added function get_python(el_id). 6.75h
 * 2019-04-06 Code added to reverse_trace() to add known end-points (last_el_id value), along with their ct_id (i.e., control block identifier) into the table cbt_last_el_id (created yesterday) to offer a single point of last_el_id knowledge for SELECTing queries. 2h
-* 2019-04-05 insert_for_loop() is now adding all possible last_el_id_maybe's for each ct_id (i.e., control block) into table control_block_traces. Each possible combination of those possibilities are instantiated as table cbt_last_el_id (columns: ct_id and last_el_id_maybe), one combination at a time, via a cartesian product of control_block_traces tables, in new function get_last_el_id_maybes(). Each combination is considered in turn for its ability to get all unit tests implied by the user examples (exem) to pass, until one is found. 9h 
+* 2019-04-05 insert_for_loop() is now adding all possible last_el_id_maybe's for each ct_id (i.e., control block) into table control_block_traces. Each possible combination of those possibilities are instantiated as table cbt_last_el_id (columns: ct_id and last_el_id_maybe), one combination at a time, via a cartesian product of control_block_traces tables, in new function get_last_el_id_maybes(). Each combination is to be considered in turn for its ability to get all unit tests implied by the user examples (exem) to pass, until one is found. 9h 
 * 2019-04-04 Bushwacked life's encroachments only enough to make remaining integration tests pass, and tentatively begin overhaul of generate_code() to eliminate redundant condition categorization. 2h
 * 2019-04-02 store_for_loops()'s relationship to insert_for_loop() reworked and working, a heavy lift. Improved store_ifs() and 
 added supporting functions. 10h
