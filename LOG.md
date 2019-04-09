@@ -12,7 +12,7 @@
 * 2019-04-06 Code added to reverse_trace() to add known end-points (last_el_id value), along with their ct_id (i.e., control block identifier) into the table cbt_last_el_id (created yesterday) to offer a single point of last_el_id knowledge for SELECTing queries. 2h
 * 2019-04-05 insert_for_loop() is now adding all possible last_el_id_maybe's for each ct_id (i.e., control block) into table control_block_traces. Each possible combination of those possibilities are instantiated as table cbt_last_el_id (columns: ct_id and last_el_id_maybe), one combination at a time, via a cartesian product of control_block_traces tables, in new function get_last_el_id_maybes(). Each combination is to be considered in turn for its ability to get all unit tests implied by the user examples (exem) to pass, until one is found. 9h 
 * 2019-04-04 Bushwacked life's encroachments only enough to make remaining integration tests pass, and tentatively begin overhaul of generate_code() to eliminate redundant condition categorization. 2h
-* 2019-04-02 store_for_loops()'s relationship to insert_for_loop() reworked and working, a heavy lift. Improved store_ifs() and 
+* 2019-04-02 store_for_loops()'s relationship to insert_for_loop_into_cbt() reworked and working, a heavy lift. Improved store_ifs() and 
 added supporting functions. 10h
 * 2019-04-01 Got exemplar working for guess3.exem again. Created controls table. 6h
 * 2019-03-31 Added a handful of working integration tests. Analyzed how guess4.exem should break down, then began migrating
@@ -36,7 +36,7 @@ from a control_traces table to control_block_traces and control tables to captur
 * 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
 * 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_for_loops(), store_ifs(). 6.75h
-* 2019-03-08 More for-loop logistics in new functions get_el_id(), insert_for_loop(). 7.75h
+* 2019-03-08 More for-loop logistics in new functions get_el_id(), insert_for_loop_into_cbt(). 7.75h
 * 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h
 * 2019-03-05 get_range() now looking at one example at a time. 3.75h
