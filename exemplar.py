@@ -7,8 +7,9 @@ import unittest
 from typing import List, Tuple, Dict, Any
 import os
 
-DEBUG = True  # True turns on testing and more feedback.
+DEBUG = False  # while I overhaul code_generation()  True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
+pid = ''  # Tracks parent vs child forks.
 
 # (For speed, replace the db filename with ':memory:') (No isolation for auto-commit.)
 db = sqlite3.connect('examplar.db', isolation_level=None)
@@ -760,11 +761,11 @@ def reset_db() -> None:
     #                     else_line INTEGER,
     #                     last_line INTEGER)""")
     # cursor.execute("""CREATE UNIQUE INDEX spt ON selections(python, target_line)""")
-    # 
-    # cursor.execute("""DROP TABLE IF EXISTS sequential_function""")
-    # cursor.execute("""CREATE TABLE sequential_function (
-    #                     line_id INTEGER NOT NULL,
-    #                     line TEXT NOT NULL)""")
+
+    cursor.execute("""DROP TABLE IF EXISTS sequential_function""")
+    cursor.execute("""CREATE TABLE sequential_function (
+                        line_id INTEGER NOT NULL,
+                        line TEXT NOT NULL)""")
 
     # In addition to tying control structures to the generated code, E has to know how these relate to the
     # example lines. There can be many example lines, even within a single example, pointing to the same
@@ -809,14 +810,14 @@ def reset_db() -> None:
     # many-to-1 with control_block_traces.control_id values, as latter identify the target code block.
     cursor.execute('''DROP TABLE IF EXISTS control_block_traces''')
     cursor.execute('''CREATE TABLE control_block_traces (
-                        ct_id TEXT PRIMARY KEY, -- Eg, for0_40 
+                        ct_id TEXT NOT NULL, -- Eg, for0_40. Not unique since creating many last_el_id_maybe rows. 
                         first_el_id INTEGER NOT NULL,
-                        last_el_id_maybe INTEGER, -- hypothesized last_el_id
+                        last_el_id_maybe INTEGER, -- possible last_el_id
                         last_el_id_min INTEGER, -- 1st possible last line of the control trace. 
-                        last_el_id INTEGER, -- Actual last line of the control trace. (>=1 of these 3 is always set.)
+                        last_el_id INTEGER, -- Actual last line of the control trace. 
                         last_el_id_max INTEGER, -- Last possible last line of the control trace. (Duplicated across IF clauses.)
                         control_id TEXT NOT NULL)''')  # if#/for#/while#
-    cursor.execute('''CREATE UNIQUE INDEX cbtf ON control_block_traces(first_el_id)''')
+    cursor.execute('''CREATE UNIQUE INDEX cbtf ON control_block_traces(first_el_id, last_el_id_maybe)''')
 
     # 1 row for each example_line of line_type 'truth'. Each row categorizes a condition and assigns it a control_id.
     cursor.execute("""DROP TABLE IF EXISTS conditions""")
@@ -1194,8 +1195,9 @@ def store_code(code):
     cursor.executemany("INSERT INTO sequential_function (line_id, line) VALUES (?, ?)", code_lines)
 
 
-def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
+def get_range(first_el_id: int, line: str) -> Tuple[int, int]:
     """
+    old:
     Help gauge whether first_el_id defines the first value of a FOR loop variable by returning that variable's first
     and last value over the rows where it increments. Also return the likely loop's last row id, and the pattern of
     line_type's over the loop.
@@ -1244,13 +1246,9 @@ def get_range(first_el_id: int, line: str) -> Tuple[Tuple[int, int], int]:
         #     if row_int - last_value != increment:
         #         exit("Line " + condition + "'s expected increment " + str(increment) + " was instead " + str(row_int - last_value))
         last_value = row_int
-        last_el_id_top = row_el_id  # '_top' because we are looking only at example_lines matching given scheme.
+        #last_el_id_top = row_el_id  # '_top' because we are looking only at example_lines matching given scheme.
 
-    # Armed with the line id of the last top of the likely loop, determine the loop's pattern and loop bottom.
-    loop_pattern, last_el_id = get_last_el_id_of_loop(first_el_id, last_el_id_top)
-    # todo Use info to end loop block's indent etc in controlled_code.
-
-    return (first_value, last_value + increment), last_el_id, loop_pattern  # Old: Eg, (0, 2 + 1), 115, 'toitto, toittt'
+    return first_value, last_value + increment  # Old: Eg, (0, 2 + 1), 115, 'toitto, toittt'
 
 
 def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
@@ -1277,7 +1275,7 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
         return "if " + condition + ':'
     else:
         """Re: IF processing: 
-        IF clauses (alone) are open to re-ordering, and switching between if/elif/else.  As with for loops, the 
+        IF clauses (alone) are open to re-ordering, and switching between if/elif/else.  As with for-loops, the 
         last_el_id field values are shared (duplicated) across the clauses of a single IF.  3/2/19
         A series of IFs == one IF/ELIF if their conditions are all mutually exclusive. 
         In each example, E can only count on the user providing the true IF clause of an IF/ELIF. On the + side, this  
@@ -1323,6 +1321,7 @@ def if_or_while(el_id: int, condition: str, second_pass: int) -> str:
             return "elif " + condition + ':'
 
 
+# Should be obviated 4/7/19
 def get_last_el_id_of_loop(first_el_id: int, last_el_id_top: int) -> Tuple[str, int]:
     """
     :database: SELECTs example_lines.
@@ -1427,6 +1426,26 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     return line
 
 
+def get_python(el_id: int) -> str:
+    # code = get_python(el_id)
+    cursor.execute("""SELECT c.condition_type, cl.python, cbt.ct_id, cbt.first_el_id, clei.last_el_id
+        FROM conditions c JOIN controls cl USING (control_id)    
+        JOIN control_block_traces cbt USING (control_id) 
+        JOIN cbt_last_el_id clei USING (ct_id) 
+        WHERE c.el_id=? AND cbt.first_el_id<=? AND clei.last_el_id>=?""", (el_id, el_id, el_id))
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+    indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
+    # We return control.python when 'el_id' matches first_el_id.
+    for row in rows:
+        condition_type, python, ct_id, first_el_id, last_el_id = row
+        if condition_type == 'for' and el_id == first_el_id:
+            return indents * "    " + python
+        if condition_type == 'if' and el_id == first_el_id:  # todo fine tune
+            return indents * "    " + python
+
+
 def generate_code() -> List[str]:
     """
     Use the tables to generate exem-conforming Python code -- a sequential version w/o control structures on 1st call
@@ -1435,7 +1454,7 @@ def generate_code() -> List[str]:
     :return: Python code as 'code'
     """
 
-    code = [] # Return value.
+    code = []  # Return value.
     code_stripped = []  # Used to avoid duplicating code in 'code'.
     prior_input, preceding_equality, indent, loop_start = {}, {}, "    ", -1
 
@@ -1510,83 +1529,12 @@ def generate_code() -> List[str]:
 
         else:  # truth/assertions/reasons/conditions
 
-            # Grab control info.
-            if control_id:
-                cursor.execute("""SELECT c.python, ct.first_el_id, ct.last_el_id, ct.last_el_id_maybe 
-                FROM control_block_traces ct, controls c WHERE ct.control_id=c.control_id AND ct.control_id=?""", (control_id,))
-                row = cursor.fetchone()
-                """
-                control_block_traces has the first_el_id's and ~last_el_id info of each control's clauses/iterations.  
-                Use the 'python' code when el_id == first_el_id (related first_el_id's all point to same).
-                """
-                python, first_el_id, last_el_id, last_el_id_maybe = row
-                print("el_id, python, first_el_id:", el_id, python, first_el_id)
+            python = get_python(el_id)  # If el_id is a first_el_id.
+            if python and (second_call or python.partition(' ')[0] == 'if'):
+                code.append(python)
+                code_stripped.append(denude(python))
 
-            left, operator, right = assertion_triple(line)  # Break up 'line' into its 3 parts.
-
-            # 'truth' that equates a digit to a non-input variable is noted for substitution in print()s and, if
-            # its scheme repeats, as a for_suspect.
-            # ((Below condition is spelled out because it differs from the loop_likely classes'. 2/17/19))
-            # Eg,           3                  ==                                                 guess_count
-            if left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right):
-
-                # Storing, eg, preceding_equality['guess_count'] = 3 allows swapping guess_count for 3 in a later print.
-                # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
-                preceding_equality[right] = left  # preceding_equality['guess_count'] = 3
-
-                # Drill down on the condition, to see if we should create an assignment or FOR loop.
-                if right.isidentifier():  # Rule out un-assignable left hand sides like 'guess_count + 1'
-                    # A non-input identifier rhythmically asserted equal to an integer implies a **** FOR loop ****
-                    # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
-
-                    if not second_call:  # then turn the assertion into an assignment plus assertion.
-                        code.append(indent + str(line).replace('==', '=', 1))  # Eg, guess_count = 2
-                        code_stripped.append(denude(str(line).replace('==', '=', 1)))
-                        code.append(indent + "assert " + str(line))
-                        code_stripped.append(denude("assert " + str(line)))
-                    if scheme(line) not in for_suspects:  # scheme(line) is new. Turn into FOR. todo Search with indent + line
-                        # cursor.execute("""SELECT min(cbt.first_el_id) FROM control_block_traces cbt, conditions c
-                        # WHERE cbt.control_id=c.control_id""")
-                        # min = cursor.fetchone()
-                        # assert min == el_id, "FOR loop should be detected at its first el_id. (expected, actual = " + \
-                        #     min + ', ' + el_id + ')'
-                        # cursor.execute("""SELECT c.python FROM control_block_traces cbt, conditions c
-                        # WHERE cbt.control_id=c.control_id""")
-                        # min = cursor.fetchone()
-                        range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, line)  # todo REPLACE !!!!!!!!!
-                        if len(loop_pattern) > 1:  # The scheme repeats w/in an example.
-                            control = indent + "for " + right + " in range" + str(range_pair) + ':'
-                            if second_call:
-                                code.append(control)
-                                code_stripped.append(denude(control))
-                                loop_start = len(code)
-                                indent += '    '  # (indent is never augmented on first pass.)
-                            for_suspects.append(scheme(line))  # todo add indent for better discrimination
-
-            # (re: below "not", verify it corresponds to an assignment. lp todo)
-            # Not an assignment from input, then assume IF or WHILE.
-            elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):
-                control = if_or_while(el_id, line, second_call)  # ********* IF OR WHILE ********
-                while_or_if = control.partition(' ')[0]
-                if second_call:
-                    if 'if' in while_or_if or 'while' in while_or_if:
-                        pass
-                    elif 'elif' in while_or_if or 'else:' in while_or_if:
-                        indent = indent[0:-4]  # Out-dent because, below, "    " is added to 'indent'.
-                    else:
-                        assert False, "Control statement " + control + " starts with an unexpected word."
-                    # Append control to code if it's not in loop.
-                    if control not in code_stripped[loop_start:] and \
-                            (indent + control[2:]) not in code_stripped[loop_start:]:  # ignoring possible "el" start.
-                        code.append(indent + control)
-                        code_stripped.append(denude(control))
-                    indent += '    '  # indent is augmented only on pass 2.
-                    control = ''
-                if control:  # todo It should work to delete above line and simplify this one to  else:
-                    code.append(indent + "assert " + str(line) + "  #" + control)  # Tuck control into a comment.
-                    code_stripped.append(denude("assert " + str(line)))
-
-        i += 1  # example_lines line counter
+    i += 1  # example_lines line counter
 
     return code  # Below will be selectively re-activated as more example problems are handled.
 
@@ -1999,8 +1947,6 @@ def fill_conditions_table() -> None:
         if row_scheme == "_==__example__":  # Special case: doesn't repeat intra-example because it delimits them.
             condition_type = "for"
 
-        # ((Below condition is spelled out because it differs from the loop_likely classes'. Except for .isidentifier(),
-        # below condition is re-used in generate_code(). 3/4/19))
         # Eg,          3                   == guess_count
         elif left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
                 right.isidentifier() and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
@@ -2024,8 +1970,8 @@ def fill_conditions_table() -> None:
         # elif 'condition', in addition to all the other things it's not, is also not an assignment from input,
         # then assume it's an IF or WHILE.
         elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):  # Eg, not 'i1 == a'
-            control = if_or_while(el_id, condition, second_pass=0)  # ********* IF OR WHILE ********
-            condition_type = control.partition(' ')[0]  # 1st word of 'control'
+            # control = if_or_while(el_id, condition, second_pass=0)  # ********* IF OR WHILE ********
+            condition_type = 'if'  # Just IFs for now....  control.partition(' ')[0]  # 1st word of 'control'
 
         # Store conclusion.
         cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
@@ -2098,7 +2044,7 @@ def get_next_first_el_id(el_id):
     return get_last_el_id_of_current_example(el_id)  # todo Find ways that can find a smaller el_id that is still > 'el_id'
 
 
-def insert_for_loop(loop_variable: str, last_el_id_of_iteration: int, last_iteration: int, control_id: str, el_id: int) -> None:
+def insert_for_loop_into_cbt(loop_variable: str, last_el_id_of_iteration: int, last_iteration: int, control_id: str, el_id: int) -> None:
     """
     Insert record of an iteration into table control_block_traces into two steps, the second of which is to establish
     what is known of the iteration's endpoint in the example_lines. 4/2/19
@@ -2111,23 +2057,35 @@ def insert_for_loop(loop_variable: str, last_el_id_of_iteration: int, last_itera
     :param el_id: Eg, 40
     :return: None
     """
+    ct_id = str(control_id) + '_' + str(el_id)
     cursor.execute("""INSERT INTO control_block_traces (ct_id, first_el_id, control_id) VALUES (?,?,?)""",
-                   (str(control_id) + '_' + str(el_id), el_id, control_id))
+                       (ct_id, el_id, control_id))
 
-    """Set field last_el_id or similar for the above INSERT. Each iteration's last_el_id is the el_id one prior 
-    to the next iteration's first_el_id, unless the loop has climaxed or ended, in which case the endpoint must be 
-    hypothesized (to possibly be pursued with fork() later). Other increments: error. 4/2/19"""
+    """Now update last_el_id* for the row just inserted. Each iteration's last_el_id is the el_id one prior 
+    to the next iteration's first_el_id unless the loop has climaxed or ended, in which case the endpoint is 
+    hypothesized at "call me maybe". 4/8/19"""
     if loop_variable == '__example__':  # For internal use.
         cursor.execute("""UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?""",
                        (get_last_el_id_of_current_example(el_id), cursor.lastrowid))
-    elif last_iteration:  # (Global or local) last iteration.
-        # Store the el_id *one after* 'el_id', the top of the (overall) last iteration, as the *1st* possible
-        # last_el_id of the current loop trace, and the last el_id of the current example as the *last* possible.
-        cursor.execute("""UPDATE control_block_traces SET last_el_id_min = ?, last_el_id_max = ? 
-        WHERE ROWID = ?""", (get_el_id(el_id, 1), get_last_el_id_of_current_example(el_id), cursor.lastrowid))
-    else:  # Common case.
+    elif not last_iteration:  # Common case.
         cursor.execute("UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?",
                        (last_el_id_of_iteration, cursor.lastrowid))
+    else:  # (Global or local) last iteration
+        last_el_id_min = get_el_id(el_id, 1)
+        last_el_id_max = get_last_el_id_of_current_example(el_id)
+        # Store the el_id *one after* 'el_id', the top of the (overall) last iteration, as the *1st* possible
+        # last_el_id of the current loop trace, and the last el_id of the current example as the *last* possible.
+        cursor.execute("""UPDATE control_block_traces SET last_el_id_min=?, last_el_id_maybe=?, last_el_id_max=? 
+        WHERE ROWID=?""", (last_el_id_min, last_el_id_min, last_el_id_max, cursor.lastrowid))
+
+        # "call me maybe": Create a cbt row for every possible control endpoint.
+        cursor.execute("SELECT el_id FROM example_lines WHERE el_id>? AND el_id<=?", (last_el_id_min, last_el_id_max))
+        maybes = cursor.fetchall()
+        for row in maybes:
+            last_el_id_maybe = row[0]
+            ct_id = str(control_id) + '_' + str(el_id)
+            cursor.execute("""INSERT INTO control_block_traces (ct_id, first_el_id, last_el_id_maybe, control_id) 
+            VALUES (?,?,?,?)""", (ct_id, el_id, last_el_id_maybe, control_id))
 
 
 def get_el_id(start_el_id: int, distance: int) -> int:
@@ -2156,20 +2114,22 @@ def get_el_id(start_el_id: int, distance: int) -> int:
 
 def store_for_loops() -> None:  # into control_block_traces, noting scopes.
     """
-    We store the loop variable's first and last values, the starting Python line, and a unique id per control structure.
-    todo last_el_id2 and indents via another loop.
+    Create a cbt record for each instance of a for-loop scheme, a control record for each for-loop scheme as a whole,
+    and put its control_id (control structure id) into its row in tables controls and conditions.
+    The cbt row will scope the block by recording the loop variable's first and last values (known or possible). 4/8/19
+    todo last_el_id2 and indents via another loop. old?
     todo deal with for-loop false positives (non-loops). Perhaps by updating that condition_type to 'assign' in
-    conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19
+    conditions and removing the related control record as soon as last_el_id2's are determined. 3/4/19  old?
     :database: SELECTs conditions. INSERTs control_block_traces (indirectly), controls. UPDATEs conditions.control_id.
     :return:
     """
     schemes_seen = []  # To avoid redundant analyses.
 
-    # Scope the FOR loops by creating 1 record for each loop iteration.
+    # Scope the FOR loops by creating 1 record in cbt for each traced loop iteration.
     # First, pull all the assignments to FOR loop variables (id'ed in fill_conditions_table()).
     cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_type='for' ORDER BY el_id")
     for_conditions = cursor.fetchall()
-    control_count = {'for': 0}  # Probably should be changed from a dict to for_count: int.
+    control_count = {'for': 0}  # (Probably should be changed from a dict to for_count: int.)
     for row in for_conditions:
         # Next, pull all instances of new scheme(condition).
         el_id, condition = row
@@ -2186,28 +2146,29 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
                 last_iteration = 0
                 if iteration == len(iterations) - 1:
                     last_iteration = 2  # Global last iteration.
-                    last_el_id_of_iteration = None  # (Will also be None (unknown) when loop_variable==first_value)
+                    last_el_id_of_iteration = None  # Meaning unknown. (Will also be unknown when loop_variable==first_value.)
                 else:  # Not overall last iteration.
-                    # Get the el_id one before the start of the next iteration.
+                    # Get the el_id that is one before the start of the next iteration.
                     last_el_id_of_iteration = get_el_id(iterations[iteration + 1][0], -1)
-                    # Get the next 'left' (loop variable comparison) value to see if we're at a local last iteration.
+                    # Get the next loop variable comparison value to see if it equals first_value, in which
+                    # case we're at a local last iteration.
                     next_left = int(assertion_triple(iterations[iteration + 1][1])[0])
                 left, operator, right = assertion_triple(condition2)  # Eg, 5, ==, guess_count
-                left = int(left)  # Therefore, use int() before comparing with 'left'-derived values.
+                left = int(left)  # Needed for comparison with other 'left'-derived values.
 
-                if not loop_variable:  # first iteration (global)
+                if not loop_variable:  # First iteration (global).
                     loop_variable = right
                     first_value = left
-                elif not loop_increment:  # second iteration (global)
+                elif not loop_increment:  # Second iteration (global).
                     loop_increment = left - first_value
-                else:  #left != first_value:  # >2nd iteration. Sanity check the increment.
+                else:  # >2nd iteration. Sanity check the increment.
                     assert (loop_increment == left - prior_value) or (left == first_value), "FOR loop increment " + \
                         str(left - prior_value) + " found where " + str(loop_increment) + \
                         " was expected, at condition: " + condition2
 
                 if next_left == first_value:  # Last iteration before an outer loop restarts this one.
                     last_value = left  # Capture climatic loop variable value.
-                    last_iteration = 1  # *local* last iteration.
+                    last_iteration = 1  # Denotes a *local* last iteration.
                     # In this case, last_el_id_of_iteration holds the el_id immediately behind the next start of this
                     # loop schema, to be used as the *last possible* last_el_id of the loop just ended
                     # (as there can be lines between the end of an inner loop and the end of an outer loop).
@@ -2215,19 +2176,20 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
                 assert loop_variable == right, right + " found where FOR loop variable " + loop_variable + \
                     " was expected, at assertion: " + condition2
 
-                # *************
-                insert_for_loop(loop_variable, last_el_id_of_iteration, last_iteration, control_id, el_id2)
+                # *********************
+                insert_for_loop_into_cbt(loop_variable, last_el_id_of_iteration, last_iteration, control_id, el_id2)
                 prior_value = left
                 iteration += 1
 
             # scheme(condition) exhausted.
             # todo account for possibility that above loop was broken (via break) right after the above
-            # insert_for_loop(), making below insert_for_loop() call redundant. 3/8/19
+            # insert_for_loop_into_cbt(), making below insert_for_loop_into_cbt() call redundant. 3/8/19
 
-            # python is eg, 'for guess_count in range(0, 6)'
-            if last_value is None:  # then scheme had a single iteration.
+            if last_value is None:  # scheme had a single iteration.
                 last_value = prior_value
-            python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + ')'
+            # Eg, 'for guess_count in range(0, 6)'  The "+ 1 below" is due to Python's exclusive range-ing.
+            python = 'for ' + loop_variable + ' in range(' + str(first_value) + ', ' + str(last_value + 1) + '):'
+            # Also note the control_id in these 2 tables.
             cursor.execute("INSERT INTO controls (control_id, python) VALUES (?, ?)", (control_id, python))
             cursor.execute("UPDATE conditions SET control_id=? WHERE scheme=?", (control_id, assertion_scheme))
 
@@ -2235,6 +2197,7 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
             control_count['for'] += 1
 
 
+# UNUSED because store_for_loops() is called /before/ the last_el_id_maybes loop, and store_ifs(), /inside/ it. 4/8/19
 def fill_control_block_traces() -> None:  # Note scopes.
     """
     We store each block trace's first and last el_id, the starting Python line, and a unique id per control structure.
@@ -2248,7 +2211,6 @@ def fill_control_block_traces() -> None:  # Note scopes.
     store_ifs()
 
 
-# todo Pick a last_el_id_maybe... 3/17/19
 def start_of_open_loop(el_id: int) -> int:
     """
     If the latest for-loop start <= 'el_id' is of a for-loop still open at 'el_id', return that starting el_id.
@@ -2257,18 +2219,18 @@ def start_of_open_loop(el_id: int) -> int:
     :return: first_el_id or None
     """
     # Determine if the latest for-loop start <= 'el_id' is still open at 'el_id'.
-    cursor.execute(
-        "SELECT max(first_el_id) FROM control_block_traces WHERE substr(control_id,0,3)='for' AND first_el_id<=?",
+    cursor.execute(  # substr() is 1-based.
+        "SELECT max(first_el_id) FROM control_block_traces WHERE substr(control_id,1,3)='for' AND first_el_id<=?",
         (el_id,))
     row = cursor.fetchone()
     if not row[0]:
         return None
     else:  # Get for-loop's details.
-        first_el_id = row[0]
+        first_el_id = row[0]  # Eg, 40 for guess4
         # Determining if that loop is still open at line 'el_id' requires knowing the loop's last line.
         # We usually don't, in which case 'el_id' divides the possibilities. Follow both possibilities with fork().
         cursor.execute("""SELECT last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, 
-        ct_id FROM control_block_traces WHERE SUBSTR(control_id,0,3)='for' AND first_el_id = ?""", (first_el_id,))
+        ct_id FROM control_block_traces WHERE substr(control_id,1,3)='for' AND first_el_id = ?""", (first_el_id,))
         last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, ct_id = cursor.fetchone()
         if last_el_id:  # Certain loop stop line.
             if last_el_id >= el_id:
@@ -2285,15 +2247,15 @@ def start_of_open_loop(el_id: int) -> int:
         elif last_el_id_max and last_el_id_max < el_id:
             return None
         else:  # We decide on two last_el_id_maybe values, one per fork.
-            pid = os.fork()
-            if pid == 0:  # child
-                print("child")
+            pid_local = os.fork()
+            if pid_local == 0:  # child
+                print("child in sool")
                 last_el_id_maybe = el_id  # Loop's open, and we make it end at 'el_id'.
             else:  # parent
-                print("parent")
+                print("parent in sool")
                 last_el_id_maybe = get_el_id(el_id, -1)  # We'll say that loop ends just before 'el_id'.
             cursor.execute("UPDATE control_block_traces SET last_el_id_maybe=? WHERE ct_id=?", (last_el_id_maybe, ct_id))
-            if pid == 0:
+            if pid_local == 0:
                 return first_el_id
             else:
                 return None  # Closest prior loop considered closed.
@@ -2305,7 +2267,7 @@ def get_last_el_id_of_iteration(el_id: int) -> int:
     :param el_id:
     :return: el_id of the last_el_id of most nested iteration at 'el_id'.
     """
-    cursor.execute("""SELECT MIN(last_el_id), MIN(last_el_id_maybe) FROM control_block_traces 
+    cursor.execute("""SELECT min(last_el_id), min(last_el_id_maybe) FROM control_block_traces 
     WHERE first_el_id<=? AND last_el_id>=?""", (el_id, el_id))
     last_el_id, last_el_id_maybe = None, None
     row = cursor.fetchone()
@@ -2324,7 +2286,7 @@ def get_last_el_id_of_iteration(el_id: int) -> int:
 def get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     """
     The minimum and maximum possible last_el_id of the control being constructed.
-    :param control_type: Just 'if' as of 4/2/19.
+    :param control_type: Just 'if' as of 4/8/19.
     :param el_id: First el_id of the control being constructed.
     :return:
     """
@@ -2336,7 +2298,7 @@ def get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     # l.p. todo Find more ways to restrict last_el_id possibilities.
     last_el_id_max = min(get_last_el_id_of_current_example(el_id), get_last_el_id_of_iteration(el_id))
 
-    last_el_id_min = last_el_id_min = get_el_id(el_id, 1)  # An IF needs >=1 lines of consequent to make sense.
+    last_el_id_min = get_el_id(el_id, 1)  # An IF needs >=1 lines of consequent to make sense.
     cursor.execute("SELECT MIN(el_id) FROM example_lines WHERE el_id>? AND line_type='truth'", (el_id,))
     row = cursor.fetchone()
     if row[0]:
@@ -2365,18 +2327,18 @@ def store_ifs() -> None:  # into control_block_traces table (to track their scop
     for row in ifs:
         el_id, condition = row
         # Because there's a "first time for everything", including IF statements, we want to add the current IF to the
-        # target code as long as that IF does not duplicate one already in the most recent current loop,
+        # target code as long as that IF does not duplicate one already in the most recent current loop, (dubious)
         loop_el_id_start = start_of_open_loop(el_id)  # MAX(first_el_id) <= 'el_id'. Or None if that loop's closed.
         
         if loop_el_id_start:  # See if there's a match on 'condition' anywhere between loop_el_id_start and 'el_id'.
             cursor.execute("SELECT control_id FROM conditions WHERE condition=? AND el_id>=? AND el_id<?",
                            (condition, loop_el_id_start, el_id))
             row = cursor.fetchone()
-            if row[0]:  # Current IF 'condition' is already set to be coded, so instead of INSERTs, update 'conditions' 
+            if row:  # Current IF 'condition' is already set to be coded, so instead of INSERTs, update 'conditions'
                 # at row 'el_id' with the found control_id.
                 cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (row[0], el_id))
                 
-        if not loop_el_id_start or row[0] is None:  # If no loop, or conditions found, there's nothing to match.            
+        if not loop_el_id_start or not row:  # If no loop, or conditions found, there's nothing to match.
             # INSERT the current IF condition, give it a control_id, and UPDATE conditions at 'el_id' with it.
             control_id = 'if' + str(control_count['if'])
             ct_id = control_id + '_' + str(el_id)  # Eg, 'if3_45'
@@ -2393,41 +2355,54 @@ def store_ifs() -> None:  # into control_block_traces table (to track their scop
             control_count['if'] += 1
 
 
-"""def fill_loop_patterns_table():
+def get_last_el_id_maybes() -> Tuple[List[str], List[int]]:
+    """
+    Return an exhaustive list of last_el_id_maybes.
+    :return: list of ct_id values, list of last_el_id_maybe values
+    """
+    # 1st determine which ct_id blocks have an unknown endpoint to their scope.
+    cursor.execute("SELECT DISTINCT ct_id FROM control_block_traces WHERE last_el_id IS NULL")  # Eg, for1_100 and for1_320 for guess4.
+    ct_ids = cursor.fetchall()
 
-    # Now fill the loop_patterns table using the known example_lines of first to penultimate iterations.
-    Should that be 'in', out line, scheme(condition)? or simply the raw example_lines?
-    ***Actually, I'm not convinced this is cost effective***  First scope the starts to all control structures. 3/8/19 
-    cursor.execute("INSERT INTO loop_patterns VALUES (?,?,?,?)", (control_id, ct_id, iteration, pattern))"""
+    """
+    After determining which ct_id blocks have an unknown endpoint to their scope, create and run a query whose every 
+    row has a last_el_id_maybe value for all of those ct_id's. I.e., build a query such as
+    * 'SELECT t0.last_el_id_maybe FROM control_block_traces t0 WHERE t0.ct_id=\'for1_100\' ORDER BY t0.last_el_id_maybe'
+    when only one ct_id block is missing an endpoint
+    OR
+    * 'SELECT t0.last_el_id_maybe, t1.last_el_id_maybe FROM control_block_traces t0, control_block_traces t1 
+    WHERE t0.ct_id=\'for1_100\' AND t1.ct_id=\'for1_320\' ORDER BY t0.last_el_id_maybe, t1.last_el_id_maybe'
+    when there are exactly 2 ct_id blocks missing an exact endpoint (4/7/19)
+    OR
+    * 'SELECT t0.last_el_id_maybe, t1.last_el_id_maybe, t3.last_el_id_maybe -- a join for each ct_id with unknown end.
+    FROM control_block_traces t0, control_block_traces t1, control_block_traces t2
+    WHERE t0.ct_id=\'for3_110\' AND t1.ct_id=\'for5_780\' AND t2.ct_id=\'for6_885\' -- a cartesian product. 
+    ORDER BY t0.last_el_id_maybe, t1.last_el_id_maybe, t2.last_el_id_maybe
+    when there are exactly 3 ct_id blocks missing an exact endpoint.  
+    N.B. These SELECTs require that the cbt table has a record of all last_el_id_maybe possibilities (many-to-1 ct_id).    
+    """
+    if not ct_ids:
+        return None
+    else:
+        select = "SELECT t"
+        from_sql = " FROM "
+        where = " WHERE t"
+        order_by = " ORDER BY t"
+        i = 0
+        for ct_id in ct_ids:
+            ct_id = ct_id[0]
+            select += str(i) + ".last_el_id_maybe, t"
+            from_sql += "control_block_traces t" + str(i) + ", "
+            # if i > 0:
+            where += str(i) + ".ct_id='" + ct_id + "' AND t"
+            order_by += str(i) + ".last_el_id_maybe, t"
+            i += 1
+        query = select[0:-3] + from_sql[0:-2] + where[0:-6] + order_by[0:-3]
+        if DEBUG:
+            print(query)
+        cursor.execute(query)
+        return ct_ids, cursor.fetchall()
 
-
-# todo Doc
-def generate_code2():
-    code = ''
-    indents = 0
-    cursor.execute("""SELECT el.el_id, el.example_id, el.step_id, el.line, el.loop_likely, el.line_type, c.control_id 
-    FROM example_lines el LEFT JOIN conditions c ON el.el_id = c.el_id ORDER BY el_id""")
-    rows = cursor.fetchall()
-    for row in rows:
-        el_id, example_id, step_id, line, loop_likely, line_type, control_id = row
-
-        if line_type == 'truth':
-            # Grab control info if it exists.
-            if control_id:
-                cursor.execute("""SELECT ct.python, ct.first_el_id, ct.last_el_id, ct.last_el_id_maybe FROM conditions c 
-                LEFT JOIN control_block_traces ct ON c.control_id = ct.control_id WHERE c.el_id=?""", (el_id,))
-                row = cursor.fetchone()
-                """
-                control_block_traces has the python code and scope of each control. 
-                Use the python code when el_id == first_el_id.
-                """
-                python, first_el_id, last_el_id, last_el_id_maybe = row
-                # below needs further qualification, as control_block_traces are per iteration, not per control....
-                if el_id == last_el_id or el_id == last_el_id_maybe:
-                    indents -= 1
-                if el_id == first_el_id:
-                    code += python
-                    indents += 1
 
 def reverse_trace(file: str) -> str:
     """
@@ -2438,8 +2413,7 @@ def reverse_trace(file: str) -> str:
     :param file: An .exem file of examples
     :return code: A \n delimited string
     """
-    #global f  # Just for use
-    #f = file  # in debugging.
+    global pid
 
     # Read input .exem
     print("\nProcessing", file)
@@ -2451,102 +2425,134 @@ def reverse_trace(file: str) -> str:
     print(dump_table("example_lines"))
 
     fill_conditions_table()  # The table of true conditions aka assertions.
-    #print(dump_table("conditions"))
-
-    fill_control_block_traces()  # control trace clauses, ie, non-assignment assertions, type for/while/if/elif/else.
     if DEBUG:
-        print(dump_table("control_block_traces"))
+        print(dump_table("conditions"))
+
+    # fill_control_block_traces()  # control trace clauses, ie, non-assignment assertions, type for/while/if/elif/else.
+
+    store_for_loops()  # Put for-loop info into controls and cbt tables, including all last_el_id_maybe possibilities.
+    # if DEBUG:
+    #     print(dump_table("control_block_traces"))
     # fill_loop_patterns_table()
     # if DEBUG:
     #     print(dump_table("loop_patterns"))
 
-    mark_loop_likely()  # Set the loop_likely column in the example_lines and condition tables.
-    if DEBUG:
-        print(dump_table("example_lines"))
-        print(dump_table("conditions"))
-        # Unused, as are the below, commented out tables.
+    # With the pre-determinable databased, iterate through the last_el_id possibilities. Each iteration,
+    # create a table with the block scope endings to be considered.
+    ct_ids, maybes = get_last_el_id_maybes()  # ************ get_last_el_id_maybes *************
+    for maybes_row in maybes:
+        if pid == 0:  # We're in the child, so the database is corrupted from the last iteration.
+            exit()
+        # fork() to create a child that can "mess up" the database.
+        pid = os.fork()  # The parent forks off (another) identical child process.
+        print("post-fork")
+        if pid != 0:
+            continue  # Only children get to play.
 
-    # For if/elif/else order, determine how every `reason` evaluates on every input.
-    # build_reason_evals()
-    # if DEBUG:
-    #     print(dump_table("reason_evals"))
+        # See what endpoint values (eg, 105 and 325 (to 130 and 355) for guess4) allow all tests to pass.
+        cursor.execute("""DROP TABLE IF EXISTS cbt_last_el_id""")  # Each trial run gets its own table.
+        cursor.execute("""CREATE TABLE cbt_last_el_id (
+                            ct_id TEXT PRIMARY KEY, 
+                            last_el_id INTEGER NOT NULL)""")
+        # We start with known endings:
+        cursor.execute("""INSERT INTO cbt_last_el_id 
+            -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc.
+            SELECT ct_id, last_el_id FROM control_block_traces WHERE last_el_id IS NOT NULL""")
+        # (for ct_id's where last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
+        # should be null).)
+        # Next, instantiate a possible endpoint universe one ct_id at a time.
+        for i in range(len(ct_ids)):
+            # Eg, rows (for1_100, 105) and (for1_320, 325) are inserted for guess4. 4/7/19
+            print("ct_id, last_el_id:", ct_ids[i][0], maybes_row[i])
+            cursor.execute("INSERT INTO cbt_last_el_id (ct_id, last_el_id) VALUES (?,?)", (ct_ids[i][0], maybes_row[i]))
+        # Table cbt_last_el_id is now set up. Generate code and sees if it passes the unit tests made from the examples.
 
-    # Gather more info for determining if/elif/else order.
-    # find_safe_pretests()
-    # if DEBUG:
-    #     print(dump_table("pretests"))
-    # Once stabilized, put below into a create_test_class() function. 3/1/19
+        store_ifs()  # Put IF info into controls and cbt tables,
+        if DEBUG:
+            print(dump_table("control_block_traces"))
 
-    #                                 **********************
-    # Use the info in the database to **** GENERATE STF ****
-    # First build the 1D, sequential target function (STF).
-    function_name = file[0:-5]  # Remove ".exem" extension.
-    signature = "def " + function_name + '(' + formal_params() + "):\n"
-    sequential_version = signature + '\n'.join(generate_code())
-    store_code(sequential_version)  # (Table sequential_function still to be updated by likely_data_type(), called by
-    # generate_code() on 2nd pass.)
+        # m ark_loop_likely()  # Set the loop_likely column in the example_lines and condition tables.
+        # if DEBUG:
+        #     print(dump_table("example_lines"))
+        #     print(dump_table("conditions"))
+        #     # Unused, as are the below, commented out tables.
 
-    # The second call to generate_code() is when controls (IFs, FORs, etc) are added.
-    #                                                ***********************
-    code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
-    print("\n" + code + "\n")  # Show off generated function.
-    if DEBUG:
-        print("Second pass of code generation complete.")
-        print(dump_table("sequential_function"))
+        # For if/elif/else order, determine how every `reason` evaluates on every input.
+        # build_reason_evals()
+        # if DEBUG:
+        #     print(dump_table("reason_evals"))
 
-    # Create unit tests for the sequential version of the target function, as sanity checks.
-    starter = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
-    cursor.execute("SELECT line FROM sequential_function ORDER BY line_id")
-    rows = cursor.fetchall()
-    sequential_version = ''
-    for row in rows:
-        sequential_version += row[0] + '\n'
-    starter = starter.replace('<stf>', sequential_version, 1)
+        # Gather more info for determining if/elif/else order.
+        # find_safe_pretests()
+        # if DEBUG:
+        #     print(dump_table("pretests"))
+        # Once stabilized, put below into a create_test_class() function. 3/1/19
 
-    class_name = "Test" + underscore_to_camelcase(function_name)
-    class_signature = "class " + class_name + "(unittest.TestCase):"
-    starter = starter.replace('<class signature>', class_signature, 1)
 
-    # *** GENERATE TESTS ***
-    # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
-    #     starter += "    " + line  # Indent each line, as each test is part of a class.
-    for line in generate_tests(function_name).splitlines(True):
-        starter += "    " + line
+        #                                 **********************
+        # Use the info in the database to **** GENERATE STF ****
+        # First build the 1D, sequential target function (STF).
+        function_name = file[0:-5]  # Remove ".exem" extension.
+        signature = "def " + function_name + '(' + formal_params() + "):\n"
+        sequential_version = signature + '\n'.join(generate_code())
+        store_code(sequential_version)  # (Table sequential_function still to be updated by likely_data_type(), called by
+        # generate_code() on 2nd pass.)
 
-    starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
-    # starter += "\n\n''' The source .exem, for reference:\n"
-    # for line in examples:
-    #     starter += line
-    # starter += "'''\n"
-    # to_file(class_name + ".py", starter)
-    # print("\n" + starter + "\n")
 
-    to_file(class_name + ".py", starter)
-    print("Testing STF: ", end='')
-    test_results = run_tests(class_name)  # **** RUN TESTS ****
-    if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works. Proceed to optimization.
-        #print("error and failure count is 0")
+        # The second call to generate_code() is when controls (IFs, FORs, etc) are added.
+        #                                                ***********************
+        code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
+        print("\n" + code + "\n")  # Show off generated function.
+        if DEBUG:
+            print("Second pass of code generation complete.")
+            print(dump_table("sequential_function"))
 
-        # Prep file ahead of next run_tests() call.
-        test_file = starter.replace('#<function under test>', code, 1)  # CODE
-        to_file(class_name + ".py", test_file)
+        # Create unit tests for the sequential version of the target function, as sanity checks.
+        starter = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
+        cursor.execute("SELECT line FROM sequential_function ORDER BY line_id")
+        rows = cursor.fetchall()
+        sequential_version = ''
+        for row in rows:
+            sequential_version += row[0] + '\n'
+        starter = starter.replace('<stf>', sequential_version, 1)
 
-        optimized = False  # Determine if code is optimized somehow...
-        # (Optimized===controls added to function make all assertions matter (altered the function beyond a comment,
-        # assertion, or pointless assignment) and all tests pass.)
-        while len(test_results.errors) or len(test_results.errors) or not optimized:  # todo Make last a function call
-            if not test_file:  # test_file is "true" only on first execution of this line.
-                # Find better code.
-                code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
-                print("\n" + code + "\n")  # Show off generated function.
-                test_file = starter.replace('#<function under test>', code, 1)  # CODE
-                to_file(class_name + ".py", test_file)
-                test_file = ''
+        class_name = "Test" + underscore_to_camelcase(function_name)
+        class_signature = "class " + class_name + "(unittest.TestCase):"
+        starter = starter.replace('<class signature>', class_signature, 1)
+
+        # *** GENERATE TESTS ***
+        # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
+        #     starter += "    " + line  # Indent each line, as each test is part of a class.
+        for line in generate_tests(function_name).splitlines(True):
+            starter += "    " + line
+
+        starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
+        # starter += "\n\n''' The source .exem, for reference:\n"
+        # for line in examples:
+        #     starter += line
+        # starter += "'''\n"
+        # to_file(class_name + ".py", starter)
+        # print("\n" + starter + "\n")
+
+        to_file(class_name + ".py", starter)
+        print("Testing STF: ", end='')
+        test_results = run_tests(class_name)  # **** RUN TESTS ****
+        if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
+            print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
+
+            # Write a class file ahead of run_tests() call.
+            test_file = starter.replace('#<function under test>', code, 1)  # CODE
+            to_file(class_name + ".py", test_file)
+            code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
+            print("\n" + code + "\n")  # Show off generated function.
+            test_file = starter.replace('#<function under test>', code, 1)  # CODE
+            to_file(class_name + ".py", test_file)
             print("Running and testing", file + ": ", end='')
             test_results = run_tests(class_name)  # **** RUN TESTS ****
-            optimized = True  # temporary hack
+            if len(test_results.errors) == 0 and len(test_results.errors) == 0:
+                print("No errors or warnings!")
 
-    return code
+    return  # code  # Not presently used. 4/7/19
 
 
 sys.path.append(exemplar_path())  # For run_tests(). (imports don't take absolute paths.)
