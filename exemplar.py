@@ -7,7 +7,7 @@ import unittest
 from typing import List, Tuple, Dict, Any
 import os
 
-DEBUG = False  # while I overhaul code_generation()  True  # True turns on testing and more feedback.
+DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
 
@@ -2214,51 +2214,25 @@ def fill_control_block_traces() -> None:  # Note scopes.
 def start_of_open_loop(el_id: int) -> int:
     """
     If the latest for-loop start <= 'el_id' is of a for-loop still open at 'el_id', return that starting el_id.
-    This function uses fork() when it is necessary to follow two possibilities.
+    Else, return None.
     :param el_id: The given el_id
-    :return: first_el_id or None
+    :return: first_el_id or None if closest prior loop is closed.
+
     """
     # Determine if the latest for-loop start <= 'el_id' is still open at 'el_id'.
-    cursor.execute(  # substr() is 1-based.
+    cursor.execute(  # SQL's substr() is 1-based.
         "SELECT max(first_el_id) FROM control_block_traces WHERE substr(control_id,1,3)='for' AND first_el_id<=?",
         (el_id,))
     row = cursor.fetchone()
-    if not row[0]:
+    if not row:
         return None
     else:  # Get for-loop's details.
         first_el_id = row[0]  # Eg, 40 for guess4
-        # Determining if that loop is still open at line 'el_id' requires knowing the loop's last line.
-        # We usually don't, in which case 'el_id' divides the possibilities. Follow both possibilities with fork().
-        cursor.execute("""SELECT last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, 
-        ct_id FROM control_block_traces WHERE substr(control_id,1,3)='for' AND first_el_id = ?""", (first_el_id,))
-        last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, ct_id = cursor.fetchone()
-        if last_el_id:  # Certain loop stop line.
-            if last_el_id >= el_id:
-                return first_el_id
-            else:
-                return None
-        elif last_el_id_maybe:  # Loop stop location already chosen.
-            if last_el_id_maybe >= el_id:
-                return first_el_id
-            else:
-                return None
-        elif last_el_id_min and last_el_id_min >= el_id:
-            return first_el_id
-        elif last_el_id_max and last_el_id_max < el_id:
-            return None
-        else:  # We decide on two last_el_id_maybe values, one per fork.
-            pid_local = os.fork()
-            if pid_local == 0:  # child
-                print("child in sool")
-                last_el_id_maybe = el_id  # Loop's open, and we make it end at 'el_id'.
-            else:  # parent
-                print("parent in sool")
-                last_el_id_maybe = get_el_id(el_id, -1)  # We'll say that loop ends just before 'el_id'.
-            cursor.execute("UPDATE control_block_traces SET last_el_id_maybe=? WHERE ct_id=?", (last_el_id_maybe, ct_id))
-            if pid_local == 0:
-                return first_el_id
-            else:
-                return None  # Closest prior loop considered closed.
+        # Determine if that loop is still open at line 'el_id'.
+        cursor.execute("""SELECT clei.last_el_id FROM control_block_traces cbt
+        JOIN cbt_last_el_id clei USING (ct_id) WHERE substr(control_id,1,3)='for' AND first_el_id = ?""", (first_el_id,))
+        last_el_id = cursor.fetchone()[0]
+        return first_el_id if last_el_id >= el_id else None
 
 
 def get_last_el_id_of_iteration(el_id: int) -> int:
@@ -2441,12 +2415,12 @@ def reverse_trace(file: str) -> str:
     # create a table with the block scope endings to be considered.
     ct_ids, maybes = get_last_el_id_maybes()  # ************ get_last_el_id_maybes *************
     for maybes_row in maybes:
-        if pid == 0:  # We're in the child, so the database is corrupted from the last iteration.
+        if pid == 0:  # We're in the child, meaning the database was changed in the last iteration and needs disposal.
             exit()
-        # fork() to create a child that can "mess up" the database.
+        # fork() to create a parent and child that each have their own copy of the database.
         pid = os.fork()  # The parent forks off (another) identical child process.
-        print("post-fork")
         if pid != 0:
+            print("post-fork in parent before circling back")
             continue  # Only children get to play.
 
         # See what endpoint values (eg, 105 and 325 (to 130 and 355) for guess4) allow all tests to pass.
