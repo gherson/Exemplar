@@ -7,6 +7,7 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-04-09 Because store_ifs() and store_code() modify the database, fork()ing added to reverse_trace() ahead of those. 2.75h
 * 2019-04-08 Commenting store_for_loops() then reworking store_ifs() in its image. 3h
 * 2019-04-07 Adjusted reverse_trace() for plan described in entry 2019-04-05. Added function get_python(el_id). 6.75h
 * 2019-04-06 Code added to reverse_trace() to add known end-points (last_el_id value), along with their ct_id (i.e., control block identifier) into the table cbt_last_el_id (created yesterday) to offer a single point of last_el_id knowledge for SELECTing queries. 2h
