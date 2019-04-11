@@ -27,7 +27,7 @@ def get_expected(exem: str) -> str:
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The (working) sequential target function.
+# The sequential target function.
 def guess4():
     print('Hello! What is your name?')
     v15 = input('v15:')  # Eg, Albert
@@ -68,7 +68,54 @@ def guess4():
 
 
 # The (generated) function under test.
-#<function under test>
+def guess4():
+    for __example__ in range(0, 2):
+    print('Hello! What is your name?')
+    v15 = input('v15:')  # Eg, Albert
+    v25 = int(input('v25:'))  # Eg, 4
+    print('Well, ' + str(v15) + ', I am thinking of a number between 1 and 20.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v50 = int(input('v50:'))  # Eg, 10
+    print('Your guess is too high.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v80 = int(input('v80:'))  # Eg, 2
+    print('Your guess is too low.')
+                        for guess_count in range(0, 3):
+    print('Take a guess.')
+    v110 = int(input('v110:'))  # Eg, 4
+    print('Good job, ' + str(v15) + '! You guessed my number in 3 guesses!')
+    for __example__ in range(0, 2):
+    print('Hello! What is your name?')
+    v145 = input('v145:')  # Eg, John
+    v155 = int(input('v155:'))  # Eg, 3
+    print('Well, ' + str(v145) + ', I am thinking of a number between 1 and 20.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v180 = int(input('v180:'))  # Eg, 11
+    print('Your guess is too high.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v210 = int(input('v210:'))  # Eg, 1
+    print('Your guess is too low.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v240 = int(input('v240:'))  # Eg, 2
+    print('Your guess is too low.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v270 = int(input('v270:'))  # Eg, 10
+    print('Your guess is too high.')
+    for guess_count in range(0, 3):
+    print('Take a guess.')
+    v300 = int(input('v300:'))  # Eg, 9
+    print('Your guess is too high.')
+                            for guess_count in range(0, 3):
+    print('Take a guess.')
+    v330 = int(input('v330:'))  # Eg, 8
+    print('Your guess is too high.')
+    print('Nope. The number I was thinking of was ' + str(v155) + '.')
 
 
 class TestGuess4(unittest.TestCase):

@@ -27,7 +27,7 @@ def get_expected(exem: str) -> str:
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The (working) sequential target function.
+# The sequential target function.
 <stf>
 
 # The (generated) function under test.

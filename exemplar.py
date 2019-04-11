@@ -11,7 +11,7 @@ DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
 
-# (For speed, replace the db filename with ':memory:') (No isolation for auto-commit.)
+# (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
 db = sqlite3.connect('examplar.db', isolation_level=None)
 cursor = db.cursor()
 
@@ -2231,7 +2231,10 @@ def start_of_open_loop(el_id: int) -> int:
         # Determine if that loop is still open at line 'el_id'.
         cursor.execute("""SELECT clei.last_el_id FROM control_block_traces cbt
         JOIN cbt_last_el_id clei USING (ct_id) WHERE substr(control_id,1,3)='for' AND first_el_id = ?""", (first_el_id,))
-        last_el_id = cursor.fetchone()[0]
+        row = cursor.fetchone()
+        if not row:
+            return None
+        last_el_id = row[0]  # E.g., 65 for guess4
         return first_el_id if last_el_id >= el_id else None
 
 
@@ -2380,14 +2383,14 @@ def get_last_el_id_maybes() -> Tuple[List[str], List[int]]:
 
 def reverse_trace(file: str) -> str:
     """
-    Reverse engineer a function from given 'file':
-    Pull i/o/truth examples from the .exem, work up their implications in database, then generate_code() and
-    generate_tests() until tests pass?
+    Exemplar's top level function attempts to reverse engineer a function from a "trace".
+    Pull input/output/assertion lines from the .exem, work up their implications in database, then generate_code() and
+    generate_tests() until all tests pass.
     :database: SELECTs sequential_function. Indirectly, all tables are involved.
-    :param file: An .exem file of examples
-    :return code: A \n delimited string
+    :param file: An .exem file of trace examples
+    :return code: A \n-delimited string
     """
-    global pid
+    # global pid, db, cursor
 
     # Read input .exem
     print("\nProcessing", file)
@@ -2411,18 +2414,21 @@ def reverse_trace(file: str) -> str:
     # if DEBUG:
     #     print(dump_table("loop_patterns"))
 
-    # With the pre-determinable databased, iterate through the last_el_id possibilities. Each iteration,
-    # create a table with the block scope endings to be considered.
+    # With the pre-determinable databased, iterate through the last_el_id (block scope ending) possibilities. Each
+    # iteration will create a "cbt_last_el_id" table with the endings to be considered.
     ct_ids, maybes = get_last_el_id_maybes()  # ************ get_last_el_id_maybes *************
     for maybes_row in maybes:
-        if pid == 0:  # We're in the child, meaning the database was changed in the last iteration and needs disposal.
-            exit()
-        # fork() to create a parent and child that each have their own copy of the database.
-        pid = os.fork()  # The parent forks off (another) identical child process.
-        if pid != 0:
-            print("post-fork in parent before circling back")
-            continue  # Only children get to play.
+        # The problem with forking is that PyCharm will only show the original process while the database is sullied
+        # with trial-specific data. A simple loop with database ROLLBACK seems a better option.  4/10/19
+        # if pid == 0:  # We're in the child, meaning the database was changed in the last iteration and needs disposal.
+        #     exit()
+        # # fork() to create a parent and child that each have their own copy of the database.
+        # pid = os.fork()  # The parent forks off (another) identical child process.
+        # if pid != 0:
+        #     print("post-fork in parent before circling back")
+        #     continue  # Only children get to play.
 
+        cursor.execute("BEGIN")  # Turn off autocommit mode, so these changes can be discarded if any test fails.
         # See what endpoint values (eg, 105 and 325 (to 130 and 355) for guess4) allow all tests to pass.
         cursor.execute("""DROP TABLE IF EXISTS cbt_last_el_id""")  # Each trial run gets its own table.
         cursor.execute("""CREATE TABLE cbt_last_el_id (
@@ -2462,16 +2468,14 @@ def reverse_trace(file: str) -> str:
         #     print(dump_table("pretests"))
         # Once stabilized, put below into a create_test_class() function. 3/1/19
 
-
         #                                 **********************
         # Use the info in the database to **** GENERATE STF ****
         # First build the 1D, sequential target function (STF).
         function_name = file[0:-5]  # Remove ".exem" extension.
         signature = "def " + function_name + '(' + formal_params() + "):\n"
         sequential_version = signature + '\n'.join(generate_code())
-        store_code(sequential_version)  # (Table sequential_function still to be updated by likely_data_type(), called by
-        # generate_code() on 2nd pass.)
-
+        store_code(sequential_version)  # (Table sequential_function still to be updated by likely_data_type(), called
+        # by generate_code() on 2nd pass.)
 
         # The second call to generate_code() is when controls (IFs, FORs, etc) are added.
         #                                                ***********************
@@ -2501,18 +2505,12 @@ def reverse_trace(file: str) -> str:
             starter += "    " + line
 
         starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
-        # starter += "\n\n''' The source .exem, for reference:\n"
-        # for line in examples:
-        #     starter += line
-        # starter += "'''\n"
-        # to_file(class_name + ".py", starter)
-        # print("\n" + starter + "\n")
 
-        to_file(class_name + ".py", starter)
-        print("Testing STF: ", end='')
-        test_results = run_tests(class_name)  # **** RUN TESTS ****
-        if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
-            print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
+        # to_file(class_name + ".py", starter)
+        # print("Testing STF: ", end='')
+        # test_results = run_tests(class_name)  # **** RUN TESTS ****
+        if True:  # len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
+            # print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
 
             # Write a class file ahead of run_tests() call.
             test_file = starter.replace('#<function under test>', code, 1)  # CODE
@@ -2524,8 +2522,10 @@ def reverse_trace(file: str) -> str:
             print("Running and testing", file + ": ", end='')
             test_results = run_tests(class_name)  # **** RUN TESTS ****
             if len(test_results.errors) == 0 and len(test_results.errors) == 0:
-                print("No errors or warnings!")
-
+                cursor.execute("COMMIT")
+                print("winning maybes_row:", str(maybes_row))
+                exit("No errors or warnings! Database changes committed.")
+        cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental changes.
     return  # code  # Not presently used. 4/7/19
 
 
