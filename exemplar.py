@@ -32,7 +32,8 @@ loop top == An example line that represents the re/starting of a loop. The first
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 """
 
-def assertion_triple(truth_line: str) -> tuple:
+
+def assertion_triple(truth_line: str) -> Tuple:
     """
     List the relations in truth_line in a standard form.
     Ie, each relation should be (left_operand, relational_operator, right_operand).
@@ -1426,8 +1427,13 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     return line
 
 
-def get_python(el_id: int) -> str:
-    # code = get_python(el_id)
+def get_python(el_id: int) -> Tuple[int, str]:
+    """
+    Return the last_el_id and python code corresponding to 'el_id'.
+    :param el_id:
+    :return: last_el_id, python
+    """
+    # Select the 'el_id' condition.
     cursor.execute("""SELECT c.condition_type, cl.python, cbt.ct_id, cbt.first_el_id, clei.last_el_id
         FROM conditions c JOIN controls cl USING (control_id)    
         JOIN control_block_traces cbt USING (control_id) 
@@ -1436,14 +1442,14 @@ def get_python(el_id: int) -> str:
     rows = cursor.fetchall()
     if not rows:
         return None
-    indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
+    #indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
     # We return control.python when 'el_id' matches first_el_id.
     for row in rows:
         condition_type, python, ct_id, first_el_id, last_el_id = row
         if condition_type == 'for' and el_id == first_el_id:
-            return indents * "    " + python
+            return last_el_id, python  # indents * "    " +
         if condition_type == 'if' and el_id == first_el_id:  # todo fine tune
-            return indents * "    " + python
+            return last_el_id, python
 
 
 def generate_code() -> List[str]:
@@ -1456,7 +1462,7 @@ def generate_code() -> List[str]:
 
     code = []  # Return value.
     code_stripped = []  # Used to avoid duplicating code in 'code'.
-    prior_input, preceding_equality, indent, loop_start = {}, {}, "    ", -1
+    prior_input, preceding_equality, indents, loop_start = {}, {}, 1, -1
 
     # On 1st call, a sequential-only version of the target function is saved to table sequential_function.
     cursor.execute("SELECT COUNT(*) FROM sequential_function")
@@ -1471,7 +1477,7 @@ def generate_code() -> List[str]:
         print("*Zero* example lines found.")
 
     # todo Distinguish arguments from variable assignments and input() statements.
-    for_suspects = []
+    for_suspects, last_el_ids = [], []
     i = 0  # example_lines line counter
     for row in example_lines:
         el_id, line, line_type, loop_likely, condition_type, control_id = row
@@ -1480,7 +1486,7 @@ def generate_code() -> List[str]:
         if line_type == 'in':
 
             if line.strip() == '':  # Then in 'line', there's *no* example input provided.
-                code.append(indent + "input()")
+                code.append(indents * "    " + "input()")
                 code_stripped.append("input()")
                 continue
 
@@ -1505,9 +1511,9 @@ def generate_code() -> List[str]:
 
             # If it's new, add the input() assignment to 'code' (with "# Eg, " + line appended.)
             if not second_call or assignment not in code_stripped[loop_start:]:
-                assignment = indent + assignment + "  # Eg, " + line
+                assignment = indents * "    " + assignment + "  # Eg, " + line
                 code.append(assignment)
-                code_stripped.append(denude(assignment))
+                code_stripped.append(assignment)
             # Remember the variable-input associations.
             prior_input[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
 
@@ -1524,15 +1530,21 @@ def generate_code() -> List[str]:
             print_line = "print('" + line + "')"
             # Add the print() to the code, if it's new or we're on first call.
             if not second_call or print_line not in code_stripped[loop_start:]:
-                code.append(indent + print_line)
-                code_stripped.append(denude(print_line))  # If really need code_stripped, consolidate these 2 lines into 1 call.
+                code.append(indents * "    " + print_line)
+                code_stripped.append(print_line)  # If really need code_stripped, consolidate these 2 lines into 1 call.
 
         else:  # truth/assertions/reasons/conditions
 
-            python = get_python(el_id)  # If el_id is a first_el_id.
+            last_el_id, python = get_python(el_id)  # If el_id is a first_el_id.
+            last_el_ids.append(last_el_id)  # insert last_el_id to front of list last_el_ids
             if python and (second_call or python.partition(' ')[0] == 'if'):
-                code.append(python)
-                code_stripped.append(denude(python))
+                code.append(indents * "    " + python)
+                code_stripped.append(python)
+            indents += 1  # Note the new block.
+
+        if el_id == last_el_ids[-1]:  # A block has ended.
+            indents -= 1
+            last_el_ids.pop()
 
     i += 1  # example_lines line counter
 
@@ -2234,8 +2246,8 @@ def start_of_open_loop(el_id: int) -> int:
         row = cursor.fetchone()
         if not row:
             return None
-        last_el_id = row[0]  # E.g., 65 for guess4
-        return first_el_id if last_el_id >= el_id else None
+        last_el_id = row[0]  # Eg, 65 for guess4
+        return first_el_id if last_el_id >= el_id else None  # Eg, 40
 
 
 def get_last_el_id_of_iteration(el_id: int) -> int:
@@ -2267,23 +2279,25 @@ def get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     :param el_id: First el_id of the control being constructed.
     :return:
     """
-    # For IFs,
-    # last_el_id_min: An IF block cannot possibly end until a condition (or last el_id) is reached.
+    # todo Another ways to restrict last_el_id possibilities: if an example line only appears when one IF condition
+    # is true, assume it is part of that IF's consequent and no others.
+
     # last_el_id_max: An IF block cannot possibly extend into another example, or any other control that doesn't
     # entirely nest within that IF.
-
-    # l.p. todo Find more ways to restrict last_el_id possibilities.
     last_el_id_max = min(get_last_el_id_of_current_example(el_id), get_last_el_id_of_iteration(el_id))
 
+    # last_el_id_min: An IF block cannot possibly end until a condition (or last el_id) is reached.
     last_el_id_min = get_el_id(el_id, 1)  # An IF needs >=1 lines of consequent to make sense.
-    cursor.execute("SELECT MIN(el_id) FROM example_lines WHERE el_id>? AND line_type='truth'", (el_id,))
+    cursor.execute("SELECT min(el_id) FROM example_lines WHERE el_id>? AND line_type='truth'", (el_id,))
     row = cursor.fetchone()
-    if row[0]:
+    if row[0]:  # When nothing is selected, row == (None,), a True value.
         last_el_id_min = get_el_id(row[0], -1)  # The el_id just before the 1st condition after 'el_id'.
+        # Deal with some rare but possible situations.
         if last_el_id_min == el_id:  # True if the very 1st el_id after 'el_id' is a condition.
             last_el_id_min = get_el_id(el_id, 1)
         if last_el_id_min > last_el_id_max:
             last_el_id_min = last_el_id_max
+
     return last_el_id_min, last_el_id_max
 
 
@@ -2321,7 +2335,7 @@ def store_ifs() -> None:  # into control_block_traces table (to track their scop
             ct_id = control_id + '_' + str(el_id)  # Eg, 'if3_45'
             python = "if " + condition + ':'
 
-            min, max = get_last_el_ids('if', el_id)
+            min, max = get_last_el_ids('if', el_id)  # Eg, 125, 130 for el_id 120 in guess4.
             last_el_id = min if min == max else None  # Set last_el_id iff min and max agree.
             cursor.execute("""INSERT INTO control_block_traces (ct_id, first_el_id, last_el_id_min, last_el_id, 
             last_el_id_max, control_id) VALUES (?,?,?,?,?,?)""", (ct_id, el_id, min, last_el_id, max, control_id))

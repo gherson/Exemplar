@@ -7,7 +7,10 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-04-09 Forgoing os.fork()'ing trials in favor of ROLLBACK. 6h
+* 2019-04-13 
+* 2019-04-12 Continuing manual testing. Changing indent (block creation) regime. Confirmed that db transactions can nest. 4.5h
+* 2019-04-11 Stepping through guess4 to confirm operation. 1h
+* 2019-04-10 Forgoing os.fork()'ing trials in favor of ROLLBACK. 6h
 * 2019-04-09 Because store_ifs() and store_code() modify the database while trialing last_el_id values, fork()ing added 
 to reverse_trace() ahead of those. Read Sumit Gulwani's "Program Synthesis" to page "25". 5h
 * 2019-04-08 Commenting store_for_loops() then reworking store_ifs() in its image. 3h
