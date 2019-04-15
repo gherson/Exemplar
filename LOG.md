@@ -7,7 +7,10 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
-* 2019-04-13 
+* 2019-04-14 To simplify generate_code() and to call it once not twice, the sequential target function (STF) was obviated
+by, e.g., replacing function likely_data_type() with function cast_inputs().  Added function condition_type() to fine-tune
+last_el_id calculation, i.e., reject 'assign' conditions as last_el_id's. 6.75h
+* 2019-04-13 Nesting transactions so E can most efficiently explore a 2nd tier of possibilities: IF block endpoints. 6.5h
 * 2019-04-12 Continuing manual testing. Changing indent (block creation) regime. Confirmed that db transactions can nest. 4.5h
 * 2019-04-11 Stepping through guess4 to confirm operation. 1h
 * 2019-04-10 Forgoing os.fork()'ing trials in favor of ROLLBACK. 6h
