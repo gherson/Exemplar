@@ -7,6 +7,10 @@
 * Utilizing Armando Solar-Lezama's Sketch as an Exemplar backend, to help Exemplar fill in more difficult code unknowns ("holes").
 
 # Log of work
+* 2019-04-17 Exemplar quickly generates a function that passes the unit test implied by guess4.exem's longest example. 
+Controls are now example-dependent instead of problem-wide. Many bug fixes. 9:30 - 10:50 + 12:15 - :40 + 13:45 - 17:40 + 18:50 - 
+* 2019-04-16 To simplify code generation, I've focused Exemplar on one example (the longest) of the given exem. 5.25h
+* 2019-04-15 Created get_loop_preamble(). 8.5h
 * 2019-04-14 To simplify generate_code() and to call it once not twice, the sequential target function (STF) was obviated
 by, e.g., replacing function likely_data_type() with function cast_inputs().  Added function condition_type() to fine-tune
 last_el_id calculation, i.e., reject 'assign' conditions as last_el_id's. 6.75h

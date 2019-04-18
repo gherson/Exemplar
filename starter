@@ -19,18 +19,21 @@ def input(line: str = "") -> str:
 
 
 # Return the i/o statements of the named .exem file for comparison with io_trace.
-def get_expected(exem: str) -> str:
+def get_expected(exem: str, example_id: int) -> str:
     out_exem_lines = []
+    example_reached = 0
     for line in exemplar.clean(exemplar.from_file(exem)):
-        if line.startswith('<') or line.startswith('>'):
+        if not line.strip():
+            example_reached += 1
+        if (line.startswith('<') or line.startswith('>')) and example_id == example_reached:
             out_exem_lines.append(line)
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The sequential target function.
+# The sequential target function went here.
 <stf>
 
-# The (generated) function under test.
+# The generated function under test.
 #<function under test>
 
 
