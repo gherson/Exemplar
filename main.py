@@ -5,13 +5,17 @@ import importlib, unittest, random
 from flask import Flask, request  # Flask is a micro web framework.
 from typing import List
 
+"""See method html() after these Flask handlers for the HTML and JavaScript that gets returned."""
+
 app = Flask(__name__)
 
 
-def colorize(lines: List[str]) -> str:
+def python_colorize(lines: List[str]) -> str:
     colorized = ''
     for line in lines:
-        if line[0] == '<':
+        if not line.strip():
+          colorized += '\n'
+        elif line[0] == '<':
             colorized += "<font color='blue'>" + h.escape(line) + "</font>"
         elif line[0] == '>':
             colorized += "<font color='green'>" + h.escape(line) + "</font>"
@@ -22,7 +26,7 @@ def colorize(lines: List[str]) -> str:
 
 @app.route('/')
 def begin():
-    return demo("guess3")  # Start off with a demonstration.
+    return demo("guess4")  # Start off with a demonstration.
 
 
 @app.route('/demo/<string:demo>', methods=['POST'])
@@ -33,13 +37,17 @@ def demo(demo):
 @app.route('/generate', methods=['POST'])
 def generate(file=""):
     if file:
-        user_examples = e.from_file(file)
+        user_examples_list = e.from_file(file)
     else:
         # Write the user's examples from the request object into a file.
-        user_examples = request.form['examples_edit']
+        # request.form   window.form['examples_f'].div['examples_edit']
+        user_examples = request.form['examples_i']
+        #return "<!DOCTYPE html><html lang='en'><body>" + str(user_examples) + "</body></html>"
         file = 'e' + str(random.randrange(10)) + ".exem"  # Pick a name at random.
         e.to_file(file, user_examples)  # Write to it.
+        user_examples_list = user_examples.split('\n')
     code = e.reverse_trace(file)  # Capture code for display.
+    #return "<!DOCTYPE html><html lang='en'><body>" + str(len(code)) + "</body></html>"
 
     # Run the target function tests just created.
     class_name = "Test" + e.underscore_to_camelcase(file[0:-5])  # prime_number.exem -> TestPrimeNumber
@@ -47,16 +55,36 @@ def generate(file=""):
     suite = unittest.TestLoader().loadTestsFromModule(TestClass)
     unittest.TextTestRunner().run(suite)
 
-    return html(user_examples, code)
+    return html(user_examples_list, code)
 
-
-def html(examples, code):
+# Return html to the browser with embedded JavaScript.
+def html(examples_list, code):
+    #return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(examples_list) + "</body></html>"
     head_html = """<!DOCTYPE html><html lang="en">
-    <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+    <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><meta charset="UTF-8">
     <title>Exemplar</title>
 
+<script src="http://www.google.com/jsapi"></script>
+<script>google.load('prototype', '1.6.0.2');</script>
 <script>
+
+// Workaround for Flask not putting div elements' content into the Request object.
+function copyDivToInput(f) { // examples_edit to examples_i
+    var examples = document.getElementById("examples_edit");
+    f.examples_i.value = examples.innerText;  
+    f.submit();
+}
+
+function encodeAndWrap(str, tag) {
+     return str.replace(/[\u00A0-\u99999<>\&]/g, function(i) {
+         return (tag ? '<'+tag+'>' :'')+'&#'+i.charCodeAt(0)+';'+(tag ? '</'+tag+'>' : '');
+    });
+}; // HTML entity encoder, from http://jsfiddle.net/E3EqX/4/ 4/18/19
+
 function table_maker(input, truth, output) { // Line by line.
+    input = encodeAndWrap(input, '')
+    truth = encodeAndWrap(truth, '')
+    output = encodeAndWrap(output, '')
     var examples = document.getElementById("examples_t");
     examples_t.innerHTML += "<tr><td>" + input + "</td><td>" + truth + "</td><td>" + \
     output + "</td></tr>\\n";
@@ -65,6 +93,8 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     input = ''; truth = ''; 
     for (var i=0; i<examples.length; i++) {
         line = examples[i];
+        if (line == '') table_maker(' ',' ',' ')
+
         // Input
         if (line.substring(0,1) == '<') { 
             if (input != '' || truth != '') {  
@@ -94,24 +124,25 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     }
 }
 
-  function copyFunction() {
-      // Get the text field
-      var copyText = document.getElementById("code_generated");
+function copyFunction() {
+    // Get the text field
+    var copyText = document.getElementById("code_generated");
 
-      // Select the text field
-      copyText.select();
+    // Select the text field
+    copyText.select();
 
-      // Copy the text inside the text field
-      document.execCommand("copy");       
-  }
+    // Copy the text inside the text field
+    document.execCommand("copy");       
+}
 
 // Creating an examples array: 
-    var examples = new Array();\n"""
+var examples = new Array();\n"""
 
     # Back to python to...
-    clean_examples = e.clean(examples)  # Snip comments and header.
+    clean_examples_list = e.clean(examples_list)  # Snip comments and header.
+    #return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(clean_examples_list) + "</body></html>"
     i = 0
-    for example in clean_examples:  # Create a large JS array.
+    for example in clean_examples_list:  # Create a large JS array.
         head_html += "\texamples[" + str(i) + '] = "' + example.rstrip() + '";\n'
         i += 1
     """ What the JS array looks like:
@@ -123,7 +154,7 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     head_html += "</script></head>\n"
 
     demos_html = """<br/><i>Sorry, demos are Under Construction</i><br/>Or, click a button for another demonstration. 
-    (There may be a <5sec pause while tests are run in the console.)\n
+    (There may be a &lt;5sec pause while tests are run in the console.)\n
     <table><tr>"""
     demos = ['prime_number', 'leap_year', 'guess2', 'fizz_buzz']
     for demo in demos:
@@ -136,28 +167,37 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     # print("example:", examples)  # Took a few restarts to appear (in console).
 
     body_top = """<body onload="exem_table(examples);">
-    <h1>Exemplar</h1> <h2>code generation from examples</h2>
+    <h1>Exemplar</h1> <h2>code generation from examples</h2>\n
+    <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, calculation, variable naming and substitution, can be demonstrated by a user without abstraction or structure and still be understood and matched by a code generator. 
+    <br/>gherson 2019-04-18 </i>\n
     <p><b>Instructions</b>: 
-    <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
+    <ul><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
     sequences demonstrating desired behavior on the left.</li>\n
-    <li>Assertions may be comma separated or omitted.</li>\n
-    <li>Separate example runs with a blank line.</li>\n
-    <li>Press Tab. Exemplar will attempt to generate conforming Python code on the right.</li>\n  
-    </ol>\n"""
+    <li>Assertions ("truth") may be line or comma separated.</li>\n
+    <li>To name your input, immediately follow it with assertion <code><i>yourname</i>==i1</code></li>\n
+    <li>Separate your example traces with a blank line.</li>\n
+    <li>Then press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
+    </ul>\n"""
 
     # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
-    return head_html + body_top + """<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated</th></tr>\n
-    <tr><td valign="top"><form id="examples_f" method="POST" action="/generate">\n
-        <div id="examples_edit" contenteditable="true" style="border: thin solid black" onchange="submit();"><pre>""" + colorize(
-        examples) + \
-           """</pre></div></form></td>\n
-    <td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><u><font color="blue">input</font></u></th><th><u>truth</u></th>
-     <th><u><font color="green">output</font></u></th></tr></table></td>\n""" + \
-           '<td valign="top"><textarea id="code_generated" rows="40" cols="60" readonly="readonly">' + \
-           code + '''</textarea>
-    <button onclick="copyFunction()">Copy</button>
-    </td></tr></table>''' + demos_html + key + \
-           '</html>'
+    # The HTML structure is a table: the 1st row is headings and the second row cells are form, table, and textarea, respectively. 4/18/19
+    #return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
+    return head_html + body_top + '''<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n<tr><td valign="top">
+    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n<!--textarea name="problem_name">YourProblemNameGoesHere (optional)</textarea--><input type="hidden" name="examples_i"/>
+        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="button" value="Submit" onclick="copyDivToInput(this.form)"/></form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
+    <th><font color="green">output</font></th></tr></table></td>\n
+    <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n<button onclick="copyFunction()">Copy</button></td></tr></table>''' + demos_html + key + """<script>
+    function resizeIt() { // Uses Prototype. From https://stackoverflow.com/a/7523/575012
+      var str = $('code_generated').value;
+      var cols = $('code_generated').cols;
+      var linecount = 0;
+      $A(str.split("\\n")).each( function(l) {
+          linecount += Math.ceil( l.length / cols ); // Take into account long lines
+      })
+      $('code_generated').rows = linecount + 1;
+    };
+    resizeIt(); // Initial on load
+</script></html>"""
 
 
 if __name__ == '__main__':

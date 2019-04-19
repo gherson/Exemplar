@@ -5,14 +5,14 @@ from inspect import currentframe, getframeinfo  # For line #
 import importlib  # To import and run the test file we create.
 import unittest
 from typing import List, Tuple, Dict, Any
-import os
+#import os
 
 DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
 
 # (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
-db = sqlite3.connect('examplar.db', isolation_level=None)
+db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=False)  # 3rd arg is for repl.it
 cursor = db.cursor()
 
 """
@@ -2672,9 +2672,10 @@ def reverse_trace(file: str) -> str:
                 if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                     cursor.execute("COMMIT")
                     print("winning maybes_row:", str(maybes_row))
-                    exit("No errors or failures! Database changes committed.")
+                    print("No errors or failures! Database changes committed.")
                     print("\n" + code + "\n")
-                    exit("passed all tests")
+                    print("passed all tests")
+                    return code
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
             print("Before if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
             cursor.execute("ROLLBACK TO if_endings_trial")
@@ -2685,7 +2686,7 @@ def reverse_trace(file: str) -> str:
         cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental for-loop endings.
         cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
         print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
-    return  # code  # Not presently used. 4/7/19
+    return code  # Used by repl.it 4/17/19
 
 
 sys.path.append(exemplar_path())  # For run_tests(). (imports don't take absolute paths.)
