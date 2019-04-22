@@ -1,11 +1,11 @@
 # main.py is repl.it's starting point for projects of type 'Python'.
 import exemplar as e
 import html as h  # To avoid weird "AttributeError: 'function' object has no attribute 'escape'" error.
-import importlib, unittest, random
+import random
 from flask import Flask, request  # Flask is a micro web framework.
 from typing import List
 
-"""See method html() after these Flask handlers for the HTML and JavaScript that gets returned."""
+"""begin()->demo()->generate()->html(). See method html() after these Flask handlers for the HTML and JavaScript that gets returned."""
 
 app = Flask(__name__)
 
@@ -42,24 +42,22 @@ def generate(file=""):
         # Write the user's examples from the request object into a file.
         # request.form   window.form['examples_f'].div['examples_edit']
         user_examples = request.form['examples_i']
-        #return "<!DOCTYPE html><html lang='en'><body>" + str(user_examples) + "</body></html>"
-        file = 'e' + str(random.randrange(10)) + ".exem"  # Pick a name at random.
+        # return "<!DOCTYPE html><html lang='en'><body>" + str(user_examples) + "</body></html>"
+        name = request.form['function_name']
+        if name and name != 'NameYourFunctionHere':
+            file = name + ".exem"  # User-specified function name
+        else:
+            file = 'e' + str(random.randrange(10)) + ".exem"  # Pick a name at random.
         e.to_file(file, user_examples)  # Write to it.
         user_examples_list = user_examples.split('\n')
-    code = e.reverse_trace(file)  # Capture code for display.
-    #return "<!DOCTYPE html><html lang='en'><body>" + str(len(code)) + "</body></html>"
+    code, test_file_contents = e.reverse_trace(file)  # Capture code for display.
+    # return "<!DOCTYPE html><html lang='en'><body>" + str(len(code)) + "</body></html>"
 
-    # Run the target function tests just created.
-    class_name = "Test" + e.underscore_to_camelcase(file[0:-5])  # prime_number.exem -> TestPrimeNumber
-    TestClass = importlib.import_module(class_name)
-    suite = unittest.TestLoader().loadTestsFromModule(TestClass)
-    unittest.TextTestRunner().run(suite)
-
-    return html(user_examples_list, code)
+    return html(user_examples_list, code, test_file_contents)
 
 # Return html to the browser with embedded JavaScript.
-def html(examples_list, code):
-    #return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(examples_list) + "</body></html>"
+def html(examples_list, code, test_file_contents):
+    # return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(examples_list) + "</body></html>"
     head_html = """<!DOCTYPE html><html lang="en">
     <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><meta charset="UTF-8">
     <title>Exemplar</title>
@@ -124,9 +122,9 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     }
 }
 
-function copyFunction() {
+function copyFunction(textarea_name) {
     // Get the text field
-    var copyText = document.getElementById("code_generated");
+    var copyText = document.getElementById(textarea_name);
 
     // Select the text field
     copyText.select();
@@ -140,7 +138,7 @@ var examples = new Array();\n"""
 
     # Back to python to...
     clean_examples_list = e.clean(examples_list)  # Snip comments and header.
-    #return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(clean_examples_list) + "</body></html>"
+    # return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(clean_examples_list) + "</body></html>"
     i = 0
     for example in clean_examples_list:  # Create a large JS array.
         head_html += "\texamples[" + str(i) + '] = "' + example.rstrip() + '";\n'
@@ -168,35 +166,38 @@ var examples = new Array();\n"""
 
     body_top = """<body onload="exem_table(examples);">
     <h1>Exemplar</h1> <h2>code generation from examples</h2>\n
-    <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, calculation, variable naming and substitution, can be demonstrated by a user without abstraction or structure and still be understood and matched by a code generator. 
+    <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
+    calculation, variable naming and substitution, can be demonstrated by a user with no structure save sequencing and 
+    still be understood and matched by a code generator. 
     <br/>gherson 2019-04-18 </i>\n
     <p><b>Instructions</b>: 
     <ul><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
     sequences demonstrating desired behavior on the left.</li>\n
     <li>Assertions ("truth") may be line or comma separated.</li>\n
     <li>To name your input, immediately follow it with assertion <code><i>yourname</i>==i1</code></li>\n
-    <li>Separate your example traces with a blank line.</li>\n
+    <li>Separate your example traces with a blank line. (Currently only longest example is used.)</li>\n
     <li>Then press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
     </ul>\n"""
 
     # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
     # The HTML structure is a table: the 1st row is headings and the second row cells are form, table, and textarea, respectively. 4/18/19
-    #return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
+    # return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
     return head_html + body_top + '''<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n<tr><td valign="top">
-    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n<!--textarea name="problem_name">YourProblemNameGoesHere (optional)</textarea--><input type="hidden" name="examples_i"/>
+    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n<input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
         <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="button" value="Submit" onclick="copyDivToInput(this.form)"/></form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
     <th><font color="green">output</font></th></tr></table></td>\n
-    <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n<button onclick="copyFunction()">Copy</button></td></tr></table>''' + demos_html + key + """<script>
-    function resizeIt() { // Uses Prototype. From https://stackoverflow.com/a/7523/575012
-      var str = $('code_generated').value;
-      var cols = $('code_generated').cols;
-      var linecount = 0;
+    <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n<button onclick="copyFunction('code_generated')">Copy</button><br/><br/>\n<button onclick="copyFunction('test_file_contents')">Copy</button><b><center>Code generated with unit test</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
+    function resizeIt(textarea_name) { // Uses Prototype. From https://stackoverflow.com/a/7523/575012
+      var str = $(textarea_name).value;
+      var cols = $(textarea_name).cols;
+      var lineCount = 0;
       $A(str.split("\\n")).each( function(l) {
-          linecount += Math.ceil( l.length / cols ); // Take into account long lines
+          lineCount += Math.ceil( l.length / cols ); // Take into account long lines
       })
-      $('code_generated').rows = linecount + 1;
+      $(textarea_name).rows = lineCount + 1;
     };
-    resizeIt(); // Initial on load
+    resizeIt('code_generated'); // Initial on load
+    resizeIt('test_file_contents'); // Initial on load
 </script></html>"""
 
 

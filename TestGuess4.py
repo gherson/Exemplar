@@ -30,9 +30,6 @@ def get_expected(exem: str, example_id: int) -> str:
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The sequential target function went here.
-
-
 # The generated function under test.
 def guess4():
     print('Hello! What is your name?')

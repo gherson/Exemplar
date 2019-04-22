@@ -2634,7 +2634,7 @@ def reverse_trace(file: str) -> str:
             #     print("Second pass of code generation complete.")
             #     print(dump_table("sequential_function"))
 
-            # Create unit tests for the sequential version of the target function, as sanity checks.
+            # Create unit tests for the sequential version of the target function, as sanity checks. DISABLED
             starter = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
             cursor.execute("SELECT line FROM sequential_function ORDER BY line_id")
             rows = cursor.fetchall()
@@ -2658,24 +2658,23 @@ def reverse_trace(file: str) -> str:
             # to_file(class_name + ".py", starter)
             # print("Testing STF: ", end='')
             # test_results = run_tests(class_name)  # **** RUN TESTS ****
-            if True:  # len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
+            # if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
                 # print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
 
-                # Write a class file ahead of run_tests() call.
-                test_file = starter.replace('#<function under test>', code, 1)  # CODE
-                to_file(class_name + ".py", test_file)
-                code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
-                test_file = starter.replace('#<function under test>', code, 1)  # CODE
-                to_file(class_name + ".py", test_file)
-                print("Running and testing", file + ": ", end='')
-                test_results = run_tests(class_name)  # **** RUN TESTS ****
-                if len(test_results.errors) == 0 and len(test_results.failures) == 0:
-                    cursor.execute("COMMIT")
-                    print("winning maybes_row:", str(maybes_row))
-                    print("No errors or failures! Database changes committed.")
-                    print("\n" + code + "\n")
-                    print("passed all tests")
-                    return code
+            # Write a class file ahead of run_tests() call.
+            code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
+            test_file_contents = starter.replace('#<function under test>', code, 1)  # CODE
+            to_file(class_name + ".py", test_file_contents)
+            print("Running and testing", file + ": ", end='')
+            test_results = run_tests(class_name)  # **** RUN TESTS ****
+            if len(test_results.errors) == 0 and len(test_results.failures) == 0:
+                cursor.execute("COMMIT")
+                print("winning maybes_row:", str(maybes_row))
+                print("No errors or failures! Database changes committed.")
+                print("\n" + code + "\n")
+                print("passed all tests")
+                # ************ RETURN ************
+                return code, test_file_contents
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
             print("Before if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
             cursor.execute("ROLLBACK TO if_endings_trial")
@@ -2686,7 +2685,7 @@ def reverse_trace(file: str) -> str:
         cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental for-loop endings.
         cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
         print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
-    return code  # Used by repl.it 4/17/19
+    return code, test_file_contents  # Used by repl.it (N.B. return above as well)
 
 
 sys.path.append(exemplar_path())  # For run_tests(). (imports don't take absolute paths.)

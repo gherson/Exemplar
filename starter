@@ -29,10 +29,7 @@ def get_expected(exem: str, example_id: int) -> str:
             out_exem_lines.append(line)
     return '\n'.join(out_exem_lines) + '\n'
 
-
-# The sequential target function went here.
 <stf>
-
 # The generated function under test.
 #<function under test>
 

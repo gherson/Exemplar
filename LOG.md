@@ -16,6 +16,8 @@ That function may help order IFs w/o testing. 2019-04-19
 
 # Log of work
 * 2019-04-2 . h
+* 2019-04-21 Added field to UI for user to name their function. 7:30 - 8:15 + 20:35 - 
+* 2019-04-20 Studied Leslie Lamport's TLA+ (few applicable ideas). Added display of generated unit test to main.py UI. 6.25h
 * 2019-04-19 Planning multi-example solving, researching sympy.isAlways(). 5h
 * 2019-04-18 Many improvements to the JavaScript in main.py (repl.it's UI), e.g., re-enabling user entry of exem code traces. 10h
 * 2019-04-17 Exemplar quickly generates a function that passes the unit test implied by guess4.exem's longest example. 
