@@ -442,7 +442,8 @@ def process_examples(example_lines: List) -> None:
                 line_id = insert_line(line_id, example_id, line)
 
 
-# todo also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
+# Unused
+# also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
 # can be repeated due to a loop in an enclosing scope.
 # This whole thing may be redundant with the fill_*_table() functions... 3/9/19
 def mark_loop_likely() -> None:
@@ -2566,7 +2567,7 @@ def reverse_trace(file: str) -> str:
                            (ct_ids[i][0], ct_ids[i][1], ct_ids[i][2], maybes_row[i]))
             #               cbt.control_id, cbt.ct_id,  cbt.example_id
 
-        # *** IFs ****
+        # ******************************** IFs **************************
         store_ifs()  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
 
         # Add the known IF endings to the cbt_last_el_ids (clei) table.

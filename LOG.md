@@ -7,8 +7,11 @@ time between any two given date-time objects; a problem requiring input of at le
 alphabetizing an input list's elements; examples that include a literal “i1” in the output and ‘reason’
 
 # Questions
-* Would like to understand [SymPy's simplify()](http://docs.sympy.org/latest/modules/simplify/simplify.html?highlight=simplify#sympy.simplify.simplify.simplify) for its use in Octave's [isAlways()](https://sourceforge.net/p/octave/symbolic/ci/master/tree/inst/@sym/isAlways.m#l12) function. 
-That function may help order IFs w/o testing. 2019-04-19
+1. Would like to understand how [SymPy's simplify()](http://docs.sympy.org/latest/modules/simplify/simplify.html?highlight=simplify#sympy.simplify.simplify.simplify) 
+allows Octave's [isAlways()](https://sourceforge.net/p/octave/symbolic/ci/master/tree/inst/@sym/isAlways.m#l12) to 
+function, as it (or similar) offers a way to order IF statements w/o generate-and-testing. 2019-04-19
+2. How difficult is it to implement machine learning to find predictive correlations of database state to a dependent variable, 
+such as Python block endpoint? That also could lessen the need for generate-and-testing. 2019-04-23
 
 # Done
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
@@ -16,8 +19,11 @@ That function may help order IFs w/o testing. 2019-04-19
 
 # Log of work
 * 2019-04-2 . h
-* 2019-04-21 Added field to UI for user to name their function. 7:30 - 8:15 + 20:35 - 
-* 2019-04-20 Studied Leslie Lamport's TLA+ (few applicable ideas). Added display of generated unit test to main.py UI. 6.25h
+* 2019-04-23 Thought about how ML may aid Exemplar. Finished organizing my development notes. 10:40 - 13 + 15:50 - 16:20 + 18:35 - 19:15 + 20:20 - 21 + 21:30 - 
+* 2019-04-22 Discussed recent changes to Exemplar with student TG and directed his automatic function naming efforts. 
+Finished reading AlphaGo paper. 3.5h
+* 2019-04-21 Added a input field for user to name their function. Studied Science 2018 AlphaGo paper. 2.25h
+* 2019-04-20 Studied Leslie Lamport's TLA+. Added display of generated unit test to main.py UI. 6.25h
 * 2019-04-19 Planning multi-example solving, researching sympy.isAlways(). 5h
 * 2019-04-18 Many improvements to the JavaScript in main.py (repl.it's UI), e.g., re-enabling user entry of exem code traces. 10h
 * 2019-04-17 Exemplar quickly generates a function that passes the unit test implied by guess4.exem's longest example. 
