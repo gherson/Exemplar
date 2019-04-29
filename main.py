@@ -5,7 +5,8 @@ import random
 from flask import Flask, request  # Flask is a micro web framework.
 from typing import List
 
-"""begin()->demo()->generate()->html(). See method html() after these Flask handlers for the HTML and JavaScript that gets returned."""
+# begin()->demo()->generate() (calls reverse_trace then) ->html(). See method html() after these Flask handlers
+# for the HTML and JavaScript that gets returned.
 
 app = Flask(__name__)
 
@@ -65,6 +66,15 @@ def html(examples_list, code, test_file_contents):
 <script src="http://www.google.com/jsapi"></script>
 <script>google.load('prototype', '1.6.0.2');</script>
 <script>
+function resizeIt(textarea_name) { // Uses Prototype. From https://stackoverflow.com/a/7523/575012
+    var str = $(textarea_name).value;
+    var cols = $(textarea_name).cols;
+    var lineCount = 0;
+    $A(str.split("\\n")).each( function(l) {
+        lineCount += Math.ceil( l.length / cols ); // Take into account long lines
+    })
+    $(textarea_name).rows = lineCount + 1;
+};
 
 // Workaround for Flask not putting div elements' content into the Request object.
 function copyDivToInput(f) { // examples_edit to examples_i
@@ -131,6 +141,11 @@ function copyFunction(textarea_name) {
 
     // Copy the text inside the text field
     document.execCommand("copy");       
+} // by TG
+
+function generate_name() { // Provide default function name
+    exem = document.getElementById('examples_edit').innerText; // div
+    document.getElementById('function_name').value = exem.substring(0,15).trim().replace(/[^a-zA-Z0-9]/g, '');
 }
 
 // Creating an examples array: 
@@ -167,8 +182,8 @@ var examples = new Array();\n"""
     body_top = """<body onload="exem_table(examples);">
     <h1>Exemplar</h1> <h2>code generation from examples</h2>\n
     <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
-    calculation, variable naming and substitution, can be demonstrated by a user with no structure save sequencing and 
-    still be understood and matched by a code generator. 
+    calculation, variable naming and substitution, can be demonstrated with little abstraction or structure 
+    and still be understood and matched by a code generator. 
     <br/>gherson 2019-04-18 </i>\n
     <p><b>Instructions</b>: 
     <ul><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
@@ -182,22 +197,17 @@ var examples = new Array();\n"""
     # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
     # The HTML structure is a table: the 1st row is headings and the second row cells are form, table, and textarea, respectively. 4/18/19
     # return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
-    return head_html + body_top + '''<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n<tr><td valign="top">
-    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n<input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
-        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/></form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
+    return head_html + body_top + '''<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n
+    <tr><td valign="top">
+    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n
+    Editable function name<br/>\n
+    <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
+        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
     <th><font color="green">output</font></th></tr></table></td>\n
     <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n<button onclick="copyFunction('code_generated')">Copy</button><br/><br/>\n<button onclick="copyFunction('test_file_contents')">Copy</button><b><center>Code generated with unit test</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
-    function resizeIt(textarea_name) { // Uses Prototype. From https://stackoverflow.com/a/7523/575012
-      var str = $(textarea_name).value;
-      var cols = $(textarea_name).cols;
-      var lineCount = 0;
-      $A(str.split("\\n")).each( function(l) {
-          lineCount += Math.ceil( l.length / cols ); // Take into account long lines
-      })
-      $(textarea_name).rows = lineCount + 1;
-    };
     resizeIt('code_generated'); // Initial on load
     resizeIt('test_file_contents'); // Initial on load
+    generate_name(); // Provide default function name
 </script></html>"""
 
 
