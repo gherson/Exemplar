@@ -61,8 +61,8 @@ def html(examples_list, code, test_file_contents):
     # return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(examples_list) + "</body></html>"
     head_html = """<!DOCTYPE html><html lang="en">
     <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="https://cultivatedbigcustomization--gherson.repl.co/truth.png">
     <title>Exemplar</title>
-
 <script src="http://www.google.com/jsapi"></script>
 <script>google.load('prototype', '1.6.0.2');</script>
 <script>
@@ -132,7 +132,7 @@ function exem_table(examples) { // From iterable to fields to calling table_make
     }
 }
 
-function copyFunction(textarea_name) {
+function copyFunction(textarea_name, button_id) {
     // Get the text field
     var copyText = document.getElementById(textarea_name);
 
@@ -140,8 +140,13 @@ function copyFunction(textarea_name) {
     copyText.select();
 
     // Copy the text inside the text field
-    document.execCommand("copy");       
+    document.execCommand("copy"); 
+    document.getElementById(button_id).innerHTML = "Copied!";       
 } // by TG
+
+function mouseUp(button_id) {
+    document.getElementById(button_id).innerHTML = "Copy";
+}
 
 function generate_name() { // Provide default function name
     exem = document.getElementById('examples_edit').innerText; // div
@@ -204,7 +209,9 @@ var examples = new Array();\n"""
     <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
         <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
     <th><font color="green">output</font></th></tr></table></td>\n
-    <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n<button onclick="copyFunction('code_generated')">Copy</button><br/><br/>\n<button onclick="copyFunction('test_file_contents')">Copy</button><b><center>Code generated with unit test</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
+    <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n
+    <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
+    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit test</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
     resizeIt('code_generated'); // Initial on load
     resizeIt('test_file_contents'); // Initial on load
     generate_name(); // Provide default function name

@@ -18,8 +18,18 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Exemplar generates solutions to single-example traces, 2019-04-17
 
 # Log of work
-* 2019-04-2 . h
-* 2019-04-23 Thought about how ML may aid Exemplar. Finished organizing my development notes. 10:40 - 13 + 15:50 - 16:20 + 18:35 - 19:15 + 20:20 - 21 + 21:30 - 
+* 2019-05-01 Enabled the favicon. TG and I improved the Copy button. 10 - 11:30 + 20:40 - 21:40 + 22 - 
+* 2019-04-30 Organized log, notes. Re: the web UI, TG and I created a favicon. 1.5h
+* 2019-04-29 Possibly coinciding with a PyCharm upgrade, Linux VM became slow, so I moved development back to Windows. 
+(VirtualBox also prevented laptop from sleeping and frequently crashed it when lid was closed.) Still struggling with 
+getting Exemplar to consider all valid control block endings for guess4.exem's User Loses example. 7.75h
+* 2019-04-28 Lots more work on deducing the possible control block endpoints implied by the exem traces. Got unittest to 
+forget old target code and check only the up to date target code. 9.75h
+* 2019-04-27 Fixed store_ifs() so IFs not added to CBT when there's a duplicate IF in the open loop started most recently. 6.25h
+* 2019-04-26 Same as on 4/25, eg, JavaScript function generate_name(). 6h
+* 2019-04-25 Worked on UI with TG, eg, resizeIt(). Then I worked to enable guess4's User Loses example. 3.5h
+* 2019-04-24 Worked on UI with TG. Documented plan to allow arbitrary function calls. 2h
+* 2019-04-23 Thought about how ML may aid Exemplar. Finished organizing my development notes. 4.5h 
 * 2019-04-22 Discussed recent changes to Exemplar with student TG and directed his automatic function naming efforts. 
 Finished reading AlphaGo paper. 3.5h
 * 2019-04-21 Added a input field for user to name their function. Studied Science 2018 AlphaGo paper. 2.25h

@@ -1427,6 +1427,36 @@ def get_example(el_id: int) -> int:
     return cursor.fetchone()[0]
 
 
+def get_python_old(el_id: int) -> Tuple[int, str]:
+    """
+    Return the last_el_id and python code corresponding to the control at 'el_id'.
+    Every condition that isn't of condition_type "assign" should have representation in all the below SELECTed tables.
+    :param el_id:
+    :return: last_el_id, python (or (None, None) if no code found)
+    """
+    # Select the 'el_id' condition.                                                  was max()-v
+    cursor.execute("""SELECT c.condition_type, cs.python, min(cbt.first_el_id), cbt.ct_id, max(clei.last_el_id)
+        FROM conditions c 
+        JOIN controls cs USING (control_id)    
+        JOIN control_block_traces cbt USING (control_id) 
+        JOIN cbt_last_el_ids clei USING (control_id) 
+        WHERE cbt.example_id=? AND c.el_id=? AND cbt.first_el_id<=? AND clei.last_el_id>=?""",
+                   (get_example(el_id), el_id, el_id, el_id))
+    rows = cursor.fetchall()
+    # if not rows:
+    #     return None, None
+    assert rows, "el_id " + str(el_id) + " is not represented in one or more of these tables."
+    #indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
+    # We return control.python only if and when 'el_id' finds a match among the first_el_id's.
+    for row in rows:
+        condition_type, python, first_el_id, ct_id, last_el_id = row
+        if condition_type == 'for' and el_id == first_el_id:
+            return last_el_id, python  # indents * "    " +
+        if condition_type == 'if' and el_id == first_el_id:  # todo fine tune
+            return last_el_id, python
+    return None, None
+
+
 def get_python(el_id: int) -> Tuple[int, str]:
     """
     Return the last_el_id (used to dedent) and python code corresponding to the control at 'el_id'.
@@ -1446,20 +1476,6 @@ def get_python(el_id: int) -> Tuple[int, str]:
         return last_el_id, python
     else:
         return None, None
-
-    # Delete:
-    # if not rows:
-    #     return None, None
-    assert rows[0][0], "el_id " + str(el_id) + " is not represented in one or more of these tables."
-    #indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
-    # We return control.python only if and when 'el_id' finds a match among the first_el_id's.
-    for row in rows:
-        condition_type, python, first_el_id, ct_id, last_el_id = row
-        if condition_type == 'for' and el_id == first_el_id:
-            return last_el_id, python  # indents * "    " +
-        if condition_type == 'if' and el_id == first_el_id:  # todo fine tune
-            return last_el_id, python
-    return None, None
 
 
 def cast_inputs(code: List[str], variable_types: Dict[str, str]) -> List[str]:
@@ -1617,7 +1633,7 @@ def generate_code(example_id: int) -> List[str]:
                         loop_start = len(code)
 
         if last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
-            indents -= 1
+            indents -= 1  # dedent
             last_el_ids.pop()
 
         i += 1  # example_lines line counter
@@ -2134,6 +2150,15 @@ def get_first_el_id_of_example_at(el_id: int) -> int:
     return cursor.fetchone()[0]
 
 
+def get_condition_type(el_id: int) -> str:
+    cursor.execute("SELECT condition_type FROM conditions WHERE el_id=?", (el_id,))
+    row = cursor.fetchone()
+    if row:
+        return row[0]
+    else:
+        return None
+
+
 def get_unconditional_post_control(first_el_id: int) -> List[str]:
     """
     first_el_id may point to an IF or FOR loop start.  If former, this function is useful for comparing IF lines.
@@ -2151,6 +2176,8 @@ def get_unconditional_post_control(first_el_id: int) -> List[str]:
     rows = cursor.fetchall()
     assert len(rows), \
         "get_unconditional_post_control()'s argument must point to a FOR or IF, which must have a line following."
+    if get_condition_type(first_el_id) == 'if':
+        return rows[0][2]  # line_type   todo lengthen if possible
     pattern = []
     for line, line_type, c_type in rows:
         if line_type == 'truth' and c_type == 'if':
@@ -2178,13 +2205,17 @@ def insert_for_loop_into_cbt(loop_variable: str, last_el_id_of_iteration: int, l
     example_id = get_example(el_id)
     cursor.execute("INSERT INTO control_block_traces (ct_id, example_id, first_el_id, control_id) VALUES (?,?,?,?)",
                        (ct_id, example_id, el_id, control_id))
+    lastrowid = cursor.lastrowid  # Safer, as function calls can impact cursor.
 
     """Now update last_el_id* fields for the row just inserted. Each iteration's last_el_id is the el_id one prior 
     to the next iteration's first_el_id unless the loop has reached a (local or global) end, in which case endpoints 
     are handled by create_maybe_rows(). 4/8/19"""
     if loop_variable == '__example__':  # For internal use.
         cursor.execute("""UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?""",
-                       (get_last_el_id_of_example_at(el_id), cursor.lastrowid))
+                       (get_last_el_id_of_example_at(el_id), lastrowid))
+        # cursor.execute("SELECT last_el_id FROM control_block_traces WHERE ROWID=?", (lastrowid,))
+        # print("debugging  last_el_id:", cursor.fetchone())
+
     elif not last_iteration:  # Common case.
         cursor.execute("UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?",
                        (last_el_id_of_iteration, cursor.lastrowid))
@@ -2283,7 +2314,7 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
                     left = int(left)  # Needed for comparison with other 'left'-derived values.
 
                     if not loop_variable:  # Our 1st iteration (global) of assertion_scheme.
-                        loop_variable = right
+                        loop_variable = right  # This stays constant for the loop.
                         first_value = left
                         first_el_id = el_id2
                         loop_preamble = get_unconditional_post_control(first_el_id)  # Should be equal each iteration
@@ -2354,7 +2385,7 @@ def get_local_el_id_of_open_loop(first_or_last: str, el_id: int) -> int:
     if first_or_last == 'first':
         selection = "SELECT cbt.first_el_id"
     else:
-        selection = "SELECT cbt.last_el_id"
+        selection = "SELECT clei.last_el_id"
     cursor.execute(selection + """ FROM control_block_traces cbt JOIN cbt_last_el_ids clei USING (ct_id) 
         WHERE cbt.example_id=? AND substr(cbt.control_id,1,3)='for' AND first_el_id<? AND clei.last_el_id>? 
         ORDER BY cbt.first_el_id DESC LIMIT 1""", (get_example(el_id), el_id, el_id))  # (SQL's substr() is 1-based.)
@@ -2422,6 +2453,9 @@ def create_maybe_rows(first: int, last: int, data: Tuple) -> None:
     :param data: Data to insert alongside last_el_id_maybe
     :return:
     """
+    assert len(data) == 4, "data elements [0] - [3]:" + str(data[0]) + ', ' + str(data[1]) + ', ' + str(data[2]) + \
+                           ', ' + str(data[3])
+
     # cursor.execute("""SELECT el_id FROM example_lines el LEFT JOIN conditions c USING (el_id)
     # WHERE el.el_id>=? AND el.el_id<=? AND (c.condition_type!='assign' OR c.condition_type IS NULL)""", (first, last))
     cursor.execute("""SELECT el_id FROM example_lines el WHERE el.el_id>=? AND el.el_id<=? AND el.line_type!='truth'""",
@@ -2492,7 +2526,7 @@ def store_ifs(example_id: int) -> None:  # into control_block_traces table to tr
             VALUES (?,?,?,?,?)""", (ct_id, example_id, el_id, last_el_id, control_id))
         else:
             data = (ct_id, example_id, el_id, control_id)
-            create_maybe_rows(min, max, row)
+            create_maybe_rows(min, max, data)
 
 
 def get_last_el_id_maybes(example_id: int) -> Tuple[List[str], List[int]]:
@@ -2552,6 +2586,8 @@ def get_function(file: str, example_id: int):
     # With the pre-determinable databased, iterate through the last_el_id (block scope ending) possibilities. Each
     # iteration will create a "cbt_last_el_ids" table with the endings to be considered.
     ct_ids, maybes = get_last_el_id_maybes(example_id)  # ************ get_last_el_id_maybes *************
+    assert len(maybes)
+
     for maybes_row in maybes:
         # The problem with forking is that PyCharm will only show the original process while the database is sullied
         # with trial-specific data. A simple loop with database ROLLBACK seems a better option.  4/10/19
@@ -2661,11 +2697,11 @@ def get_function(file: str, example_id: int):
             print("Running and testing", file + ": ", end='')
             test_results = run_tests(class_name)  # **** RUN TESTS ****
             if len(test_results.errors) == 0 and len(test_results.failures) == 0:
-                cursor.execute("COMMIT")
+                db.commit()
                 print("winning maybes_row:", str(maybes_row))
                 print("No errors or failures! Database changes committed.")
-                print("\n" + code + "\n")
-                print("passed all tests")
+                # print("\n" + code + "\n")
+                print("passed all tests\n")
                 # ************ RETURN ************
                 return code  # Successful code ##, test_file_contents
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
@@ -2719,10 +2755,10 @@ def reverse_trace(file: str) -> str:
     # should be null).)
 
     functions = []
-    # cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
-    # for example_id in range(cursor.fetchone()[0]):  # For each example, starting with 0.
-    #     functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
-    functions.append(get_function(file,1))
+    cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
+    for example_id in range(cursor.fetchone()[0]):  # For each example, starting with 0.
+        functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
+    #functions.append(get_function(file, 1))
     print("Functions found:", len(functions))
 
 
@@ -2734,5 +2770,5 @@ if __name__ == "__main__":
     try:
         reverse_trace(file=sys.argv[1])  # Treat argument as the name of an .exem file.
     except:
-        cursor.execute("COMMIT")  # Preserve database for possible post mortem analysis.
+        db.commit()  # Preserve database for possible post mortem analysis.
         raise
