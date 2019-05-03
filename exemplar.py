@@ -10,6 +10,7 @@ from typing import List, Tuple, Dict, Any
 DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
+SUCCESS = True
 
 # (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
 db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=False)  # 3rd arg is for repl.it
@@ -816,11 +817,10 @@ def reset_db() -> None:
     #                     FOREIGN KEY (ct_id) REFERENCES control_block_traces(ct_id))""")
     # cursor.execute("""CREATE UNIQUE INDEX lpci ON loop_patterns(ct_id, iteration)""")
 
-    # Control scope information.
-    # 1 row for each control block trace (instance in an exem). We need to know where each iteration or if-
-    # type of block starts and stops to deduce possible endpoints of contained blocks. 3/31/19
-    # 1-to-many with conditions table, because there are non-control conditions (currently, just 'assign' type).
-    # many-to-1 with control_block_traces.control_id values, as latter identify the target code block.
+    # Control block extent information.
+    # 1 row for each block in the exem corresponding to a control (FOR or IF), to deduce all possible control endpoints.
+    # 1-to-1 with conditions table (though there are non-control conditions -- the 'assign's).
+    # many-to-1 with controls.control_id, as that represents target code, not a trace.
     cursor.execute('''DROP TABLE IF EXISTS control_block_traces''')
     cursor.execute('''CREATE TABLE control_block_traces (
                         ct_id TEXT NOT NULL, -- Eg, for0_40. Not unique since creating many last_el_id_maybe rows. 
@@ -1457,18 +1457,17 @@ def get_python_old(el_id: int) -> Tuple[int, str]:
     return None, None
 
 
-def get_python(el_id: int) -> Tuple[int, str]:
+def get_python(current_el_id: int) -> Tuple[int, str]:
     """
-    Return the last_el_id (used to dedent) and python code corresponding to the control at 'el_id'.
-    :param el_id:
+    Return the last_el_id (used to dedent) and python code corresponding to the control at current_el_id.
+    :param current_el_id:
     :return: last_el_id, python
     """
     cursor.execute("""SELECT cs.python, max(clei.last_el_id)
         FROM conditions c 
         JOIN controls cs USING (control_id) 
         JOIN cbt_last_el_ids clei USING (control_id) 
-        WHERE c.el_id=? AND cs.first_el_id=?""",
-                   (el_id, el_id))  # start_el_id
+        WHERE c.el_id=? AND cs.first_el_id=?""", (current_el_id, current_el_id))  # start_el_id
     rows = cursor.fetchall()
     # assert len(rows) == 1, str(rows)  cast(substr(clei.ct_id, instr(clei.ct_id, '_') + 1) as int)=?
     if rows:
@@ -2535,18 +2534,20 @@ def get_last_el_id_maybes(example_id: int) -> Tuple[List[str], List[int]]:
     whose every row has a last_el_id_maybe value for all of them.
     :return: list of ct_id values, list of last_el_id_maybe values
     """
-    # 1st determine which ct_id blocks, of the longest example and not already in the clei, have an unknown endpoint.
+    # 1st determine which ct_id blocks, of the given example_id and not already in the clei, have an unknown endpoint.
+    # (The selected ct_id blocks will either be of for-loops or IFs, exclusively.)
     cursor.execute("""SELECT DISTINCT cbt.control_id, cbt.ct_id, cbt.example_id FROM control_block_traces cbt 
     WHERE cbt.example_id=? AND cbt.last_el_id IS NULL AND cbt.ct_id NOT IN 
     (SELECT clei.ct_id FROM cbt_last_el_ids clei)""", (example_id,)) #(get_longest_example(),))
     # Eg, for1_100 and for1_320 for guess4.
-    ct_ids = cursor.fetchall()
+    ct_ids = cursor.fetchall()  # An empty list or a list of (control_id, ct_id, example_id) tuples.
 
     """
-    Next, create and run a query such as
+    Next, create a list of tuples with a last_el_id_maybe value for all of the ct_id's with unknown endpoint, via a 
+    query such as
     * 'SELECT t0.last_el_id_maybe FROM control_block_traces t0 WHERE t0.ct_id=\'for1_320\' 
     AND t0.last_el_id_maybe IS NOT NULL ORDER BY t0.last_el_id_maybe'
-    when only one ct_id block is missing an endpoint. (Below queries omit mention of IS NOT NULL.)
+    when only one ct_id block is missing an endpoint. (Below example queries omit mention of IS NOT NULL.)
     * 'SELECT t0.last_el_id_maybe, t1.last_el_id_maybe FROM control_block_traces t0, control_block_traces t1 
     WHERE t0.ct_id=\'for1_100\' AND t1.ct_id=\'for1_320\' ORDER BY t0.last_el_id_maybe, t1.last_el_id_maybe'
     when there are exactly 2 ct_id blocks missing an exact endpoint (4/7/19)
@@ -2579,13 +2580,19 @@ def get_last_el_id_maybes(example_id: int) -> Tuple[List[str], List[int]]:
         return ct_ids, cursor.fetchall()  # control_id, ct_id, and example_id are all used in caller
 
 
-def get_function(file: str, example_id: int):
+def get_function(file: str, example_id: int) -> int:
+    """
+    Attempt to find an example-satisfying function and report success or failure.
+    :param file:
+    :param example_id:
+    :return: SUCCESS or not SUCCESS
+    """
     ###example_id = 1  # TESTING
 
     print("Starting work specific to example", example_id)
     # With the pre-determinable databased, iterate through the last_el_id (block scope ending) possibilities. Each
     # iteration will create a "cbt_last_el_ids" table with the endings to be considered.
-    ct_ids, maybes = get_last_el_id_maybes(example_id)  # ************ get_last_el_id_maybes *************
+    ct_ids, maybes = get_last_el_id_maybes(example_id)  # ************ get_last_el_id_maybes of for-loops ********
     assert len(maybes)
 
     for maybes_row in maybes:
@@ -2612,14 +2619,16 @@ def get_function(file: str, example_id: int):
             #               cbt.control_id, cbt.ct_id,  cbt.example_id
 
         # ******************************** IFs **************************
+        # Having (theorized) endpoints for the for-loops helps greatly in constraining the possible IF endpoints.
         store_ifs(example_id)  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
 
-        # Add the known IF endings to the cbt_last_el_ids (clei) table.
+        # First, add the known IF endings to the cbt_last_el_ids (clei) table.
         cursor.execute("""INSERT INTO cbt_last_el_ids -- ct_id, example_id, control_id, last_el_id
                             -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc.
                             SELECT ct_id, example_id, control_id, last_el_id FROM control_block_traces 
                             WHERE last_el_id IS NOT NULL AND substr(control_id,1,2)='if' AND example_id=?""", (example_id,))
 
+        # Then, a round of theorized IF endpoints.
         if_ct_ids, if_maybes = get_last_el_id_maybes(example_id)  # ************ IF get_last_el_id_maybes *************
         for if_maybes_row in if_maybes:
             cursor.execute("SAVEPOINT if_endings_trial")
@@ -2703,18 +2712,24 @@ def get_function(file: str, example_id: int):
                 # print("\n" + code + "\n")
                 print("passed all tests\n")
                 # ************ RETURN ************
-                return code  # Successful code ##, test_file_contents
+                return SUCCESS  # Successful code ##, test_file_contents
+            # Unless it's the very last trial, ROLLBACK TO if_endings_trial
+            if (if_maybes_row != if_maybes[len(if_maybes) - 1]) or maybes_row != maybes[len(maybes) - 1]:
+                cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
+                print("Before if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
+                cursor.execute("ROLLBACK TO if_endings_trial")
+                cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
+                print("After if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
+        # Unless it's the very last trial, ROLLBACK
+        if maybes_row == maybes[len(maybes) - 1]:  # Last trial
+            db.commit()
+        else:
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
-            print("Before if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
-            cursor.execute("ROLLBACK TO if_endings_trial")
+            print("Before for loop rollback: clei count(*)", cursor.fetchone()[0])
+            cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental for-loop endings.
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
-            print("After if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
-        cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
-        print("Before for loop rollback: clei count(*)", cursor.fetchone()[0])
-        cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental for-loop endings.
-        cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
-        print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
-    return code  # Failing code ###########, test_file_contents  # Used by repl.it (N.B. return above as well)
+            print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
+    return not SUCCESS  ##, test_file_contents  # Used by repl.it (N.B. return above as well)
 
 
 def reverse_trace(file: str) -> str:
@@ -2758,7 +2773,7 @@ def reverse_trace(file: str) -> str:
     cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
     for example_id in range(cursor.fetchone()[0]):  # For each example, starting with 0.
         functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
-    #functions.append(get_function(file, 1))
+    # functions.append(get_function(file, 1))                 # **********************************************
     print("Functions found:", len(functions))
 
 
@@ -2770,5 +2785,5 @@ if __name__ == "__main__":
     try:
         reverse_trace(file=sys.argv[1])  # Treat argument as the name of an .exem file.
     except:
-        db.commit()  # Preserve database for possible post mortem analysis.
+        db.commit()  # Preserve database for post-mortem analysis.
         raise

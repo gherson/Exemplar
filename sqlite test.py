@@ -1,6 +1,12 @@
 import sqlite3
 
-# Last test added 2019-04-27
+""" Last test added 2019-04-27
+In sum, 
+* fetchone() always returns a tuple unless 0 rows (in which case None is returned).
+* fetchall() always returns a list, empty if 0 rows and no aggregate function in the select clause, and of 
+tuple/s otherwise.
+"""
+
 
 db = sqlite3.connect(':memory:', isolation_level=None)
 cursor = db.cursor()

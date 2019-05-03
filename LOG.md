@@ -18,7 +18,48 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Exemplar generates solutions to single-example traces, 2019-04-17
 
 # Log of work
-* 2019-05-01 Enabled the favicon. TG and I improved the Copy button. 10 - 11:30 + 20:40 - 21:40 + 22 - 
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05- . h
+* 2019-05-03 . 7:45 - h
+* 2019-05-02 Stopping rollback on last trial. Analyzing final database state versus ideal. 6h
+* 2019-05-01 Enabled the favicon. TG and I improved the Copy button. 3h
 * 2019-04-30 Organized log, notes. Re: the web UI, TG and I created a favicon. 1.5h
 * 2019-04-29 Possibly coinciding with a PyCharm upgrade, Linux VM became slow, so I moved development back to Windows. 
 (VirtualBox also prevented laptop from sleeping and frequently crashed it when lid was closed.) Still struggling with 

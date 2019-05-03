@@ -141,11 +141,13 @@ function copyFunction(textarea_name, button_id) {
 
     // Copy the text inside the text field
     document.execCommand("copy"); 
+    document.getElementById(button_id).style.background='#D3D3D3';
     document.getElementById(button_id).innerHTML = "Copied!";       
 } // by TG
 
 function mouseUp(button_id) {
     document.getElementById(button_id).innerHTML = "Copy";
+    document.getElementById(button_id).style.background='#FFFFFF';
 }
 
 function generate_name() { // Provide default function name
@@ -202,12 +204,12 @@ var examples = new Array();\n"""
     # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
     # The HTML structure is a table: the 1st row is headings and the second row cells are form, table, and textarea, respectively. 4/18/19
     # return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
-    return head_html + body_top + '''<table cellpadding="7"><tr><th  width="33%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n
+    return head_html + body_top + '''<table cellpadding="7"><tr><th width="25%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n
     <tr><td valign="top">
     <form name="examples_f" id="examples_f" method="POST" action="/generate">\n
     Editable function name<br/>\n
     <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
-        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
+        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black; width: 400px; overflow: auto"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
     <th><font color="green">output</font></th></tr></table></td>\n
     <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n
     <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
