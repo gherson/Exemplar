@@ -57,7 +57,9 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * 2019-05- . h
 * 2019-05- . h
 * 2019-05- . h
-* 2019-05-03 . 7:45 - h
+* 2019-05-03 Morning demonstration via Google Hangout. Finally guess4's User Loses example is working, by differentiating 
+IF from FOR endpoints (min() and max() clei.el_last_id used respectively). 
+7:45 - 8:40 + 9:50 - 12 + 15:50 - 16:10 + 17 - 18:20 + 18:55 - 19:35 + 19:50 - h
 * 2019-05-02 Stopping rollback on last trial. Analyzing final database state versus ideal. 6h
 * 2019-05-01 Enabled the favicon. TG and I improved the Copy button. 3h
 * 2019-04-30 Organized log, notes. Re: the web UI, TG and I created a favicon. 1.5h

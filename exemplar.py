@@ -1427,54 +1427,28 @@ def get_example(el_id: int) -> int:
     return cursor.fetchone()[0]
 
 
-def get_python_old(el_id: int) -> Tuple[int, str]:
-    """
-    Return the last_el_id and python code corresponding to the control at 'el_id'.
-    Every condition that isn't of condition_type "assign" should have representation in all the below SELECTed tables.
-    :param el_id:
-    :return: last_el_id, python (or (None, None) if no code found)
-    """
-    # Select the 'el_id' condition.                                                  was max()-v
-    cursor.execute("""SELECT c.condition_type, cs.python, min(cbt.first_el_id), cbt.ct_id, max(clei.last_el_id)
-        FROM conditions c 
-        JOIN controls cs USING (control_id)    
-        JOIN control_block_traces cbt USING (control_id) 
-        JOIN cbt_last_el_ids clei USING (control_id) 
-        WHERE cbt.example_id=? AND c.el_id=? AND cbt.first_el_id<=? AND clei.last_el_id>=?""",
-                   (get_example(el_id), el_id, el_id, el_id))
-    rows = cursor.fetchall()
-    # if not rows:
-    #     return None, None
-    assert rows, "el_id " + str(el_id) + " is not represented in one or more of these tables."
-    #indents = len(rows)  # 'el_id' is in len(rows) # of control structures.
-    # We return control.python only if and when 'el_id' finds a match among the first_el_id's.
-    for row in rows:
-        condition_type, python, first_el_id, ct_id, last_el_id = row
-        if condition_type == 'for' and el_id == first_el_id:
-            return last_el_id, python  # indents * "    " +
-        if condition_type == 'if' and el_id == first_el_id:  # todo fine tune
-            return last_el_id, python
-    return None, None
-
-
 def get_python(current_el_id: int) -> Tuple[int, str]:
     """
     Return the last_el_id (used to dedent) and python code corresponding to the control at current_el_id.
     :param current_el_id:
-    :return: last_el_id, python
+    :return: a FOR or IF last_el_id, python line tuple (or (None, None) if no code found)
     """
-    cursor.execute("""SELECT cs.python, max(clei.last_el_id)
+    # Minimal extent in lines is used for IFs while maximal extent is used for FORs.
+    cursor.execute("""SELECT cs.python, min(clei.last_el_id) as if_end, max(clei.last_el_id) as for_end
         FROM conditions c 
         JOIN controls cs USING (control_id) 
         JOIN cbt_last_el_ids clei USING (control_id) 
         WHERE c.el_id=? AND cs.first_el_id=?""", (current_el_id, current_el_id))  # start_el_id
     rows = cursor.fetchall()
     # assert len(rows) == 1, str(rows)  cast(substr(clei.ct_id, instr(clei.ct_id, '_') + 1) as int)=?
-    if rows:
-        python, last_el_id = rows[0]
-        return last_el_id, python
-    else:
+    if rows[0] == (None, None, None):
         return None, None
+    else:
+        python, if_end, for_end = rows[0]
+        if python[0:2] ==  'if':
+            return if_end, python
+        elif python[0:3] == 'for':
+            return for_end, python
 
 
 def cast_inputs(code: List[str], variable_types: Dict[str, str]) -> List[str]:
@@ -1631,7 +1605,7 @@ def generate_code(example_id: int) -> List[str]:
                     if condition_type == 'for':
                         loop_start = len(code)
 
-        if last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
+        while last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
             indents -= 1  # dedent
             last_el_ids.pop()
 
