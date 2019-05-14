@@ -19,59 +19,36 @@ def input(line: str = "") -> str:
 
 
 # Return the i/o statements of the named .exem file for comparison with io_trace.
-def get_expected(exem: str) -> str:
+def get_expected(exem: str, example_id: int) -> str:
     out_exem_lines = []
+    example_reached = 0
     for line in exemplar.clean(exemplar.from_file(exem)):
-        if line.startswith('<') or line.startswith('>'):
+        if not line.strip():
+            example_reached += 1
+        if (line.startswith('<') or line.startswith('>')) and example_id == example_reached:
             out_exem_lines.append(line)
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The (working) sequential target function.
-def guess3():
-    __example__=0
-    assert __example__==0
-    print('Hello! What is your name?')
-    name = input('name:')  # Eg, Albert
-    secret = int(input('secret:'))  # Eg, 4
-    print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-    guess_count=0
-    assert guess_count==0
-    print('Take a guess.')
-    guess = int(input('guess:'))  # Eg, 10
-    assert guess>secret  #if guess>secret:
-    print('Your guess is too high.')
-    guess_count = 1
-    assert guess_count == 1
-    print('Take a guess.')
-    guess = int(input('guess:'))  # Eg, 2
-    assert guess<secret  #if guess<secret:
-    print('Your guess is too low.')
-    guess_count=2
-    assert guess_count==2
-    print('Take a guess.')
-    guess = int(input('guess:'))  # Eg, 4
-    assert guess==secret  #if guess==secret:
-    assert guess_count + 1 == 3  #if guess_count + 1 == 3:
-    print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
-
-
-# The (generated) function under test.
+# The generated function under test.
 def guess3():
     print('Hello! What is your name?')
-    name = input('name:')  # Eg, Albert
-    secret = int(input('secret:'))  # Eg, 4
+    name = input("name:")  # Eg, Albert
+    secret = int(input("secret:"))  # Eg, 4
     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
     for guess_count in range(0, 3):
         print('Take a guess.')
-        guess = int(input('guess:'))  # Eg, 10
-        elif guess>secret:
-            print('Your guess is too high.')
-            elif guess<secret:
-                print('Your guess is too low.')
-                elif guess==secret:
-                    elif guess_count + 1 == 3:
-                        print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
+        guess = int(input("guess:"))  # Eg, 10
+        print('Your guess is too high.')
+    for guess_count in range(0, 3):
+        print('Take a guess.')
+        guess = int(input("guess:"))  # Eg, 2
+        print('Your guess is too low.')
+    for guess_count in range(0, 3):
+        print('Take a guess.')
+        guess = int(input("guess:"))  # Eg, 4
+        if secret == guess:
+            print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
 
 
 class TestGuess3(unittest.TestCase):
@@ -84,7 +61,7 @@ class TestGuess3(unittest.TestCase):
         global example_input
         example_input = ['Albert', '4', '10', '2', '4']  # From an example of the .exem
         guess3()  # The function under test is used to write to io_trace.
-        self.assertEqual(get_expected('guess3.exem'), io_trace)
+        self.assertEqual(get_expected('guess3.exem', 0), io_trace)
 
 
 if __name__ == '__main__':

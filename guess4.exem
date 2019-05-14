@@ -4,7 +4,7 @@
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)
-<4
+<4               # A random #
 secret==i1       # SA
 >Well, Albert, I am thinking of a number between 1 and 20.
 guess_count==0   # iteration

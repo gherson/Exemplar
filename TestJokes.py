@@ -19,36 +19,18 @@ def input(line: str = "") -> str:
 
 
 # Return the i/o statements of the named .exem file for comparison with io_trace.
-def get_expected(exem: str) -> str:
+def get_expected(exem: str, example_id: int) -> str:
     out_exem_lines = []
+    example_reached = 0
     for line in exemplar.clean(exemplar.from_file(exem)):
-        if line.startswith('<') or line.startswith('>'):
+        if not line.strip():
+            example_reached += 1
+        if (line.startswith('<') or line.startswith('>')) and example_id == example_reached:
             out_exem_lines.append(line)
     return '\n'.join(out_exem_lines) + '\n'
 
 
-# The (working) sequential target function.
-def jokes():
-    __example__=0
-    assert __example__==0
-    print('What do you get when you cross a snowman with a vampire?')
-    input()
-    print('Frostbite!')
-    print('')
-    print('What do dentists call an astronaut\'s cavity?')
-    input()
-    print('A black hole!')
-    print('')
-    print('Knock knock.')
-    input()
-    print('Who\'s there?')
-    input()
-    print('Interrupting cow.')
-    input()
-    print('Interrupting cow wh-MOO!')
-
-
-# The (generated) function under test.
+# The generated function under test.
 def jokes():
     print('What do you get when you cross a snowman with a vampire?')
     input()
@@ -77,7 +59,7 @@ class TestJokes(unittest.TestCase):
         global example_input
         example_input = ['', '', '', '', '']  # From an example of the .exem
         jokes()  # The function under test is used to write to io_trace.
-        self.assertEqual(get_expected('jokes.exem'), io_trace)
+        self.assertEqual(get_expected('jokes.exem', 0), io_trace)
 
 
 if __name__ == '__main__':
