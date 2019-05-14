@@ -5,7 +5,9 @@ then find the union of their FOR ranges and combine IFs. 2019-04-19
 
 
     >getDate()   # Needs a space after '>' to be interpreted as print()'s argument rather than as a call out.
-    <2019-04-25  # Since previous line is a function call, this line is interpreted as its return value. 
+    <2019-04-25  # Since previous line is a function call, this line is interpreted as its return value.
+    
+     
 * Enable JSON representation of objects throughout the examples 
 * Reproduce Python’s split function; a Turing Machine; an algorithm requiring inner loops; finding the difference in 
 time between any two given date-time objects; a problem requiring input of at least three arguments (i1, i2, and i3); 
