@@ -1,6 +1,11 @@
 # Roadmap
 * Enable multi-example solving by pairwise merging of working functions. First match their sequential code sections 
 then find the union of their FOR ranges and combine IFs. 2019-04-19
+* Enable modeling of arbitrary function calls:
+
+
+    >getDate()   # Needs a space after '>' to be interpreted as print()'s argument rather than as a call out.
+    <2019-04-25  # Since previous line is a function call, this line is interpreted as its return value. 
 * Enable JSON representation of objects throughout the examples 
 * Reproduce Python’s split function; a Turing Machine; an algorithm requiring inner loops; finding the difference in 
 time between any two given date-time objects; a problem requiring input of at least three arguments (i1, i2, and i3); 
@@ -49,16 +54,15 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * 2019-05- . h
 * 2019-05- . h
 * 2019-05- . h
-* 2019-05-11 Worked on how to present Exemplar. Created control_conflict(). 3h + 20:20 - 22:45. h
-* 2019-05-10 Created for_loops table and fill_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 
-13 - 14:15 + 15:20 - 16:20 + 19:15 - :55 + 21:30 - 23:30. h
-* 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 1h + 12:45 - 1:30 + 19 - 23:15 h
-* 2019-05-08 Improving store_ifs() and create_maybe_rows() 7:50 - 9 + 10 - 11:10 + 30 + 35. h
-* 2019-05-07 Re-enabling integration tests.  15 + 18:10 - 19 + 20 - 21:40 h
-* 2019-05-06 Debugging add_control_info_to_example_lines(). 1.5h + 22:30 - :45 + 23 - 25:25 h
-* 2019-05-05 Planning addition of columns control_id and controller to table example_lines. 11 - 11:35 + 19 - 20:45 h
+* 2019-05-11 Worked on how to present Exemplar. Created control_conflict(). 5.5h
+* 2019-05-10 Created for_loops table and fill_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 5h
+* 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 6h
+* 2019-05-08 Improving store_ifs() and create_maybe_rows(). 3.5h
+* 2019-05-07 Re-enabling integration tests. 2.5h
+* 2019-05-06 Debugging add_control_info_to_example_lines(). 4.25h
+* 2019-05-05 Planning addition of columns control_id and controller to table example_lines. 2.25h
 * 2019-05-04 To generate code that solves all examples of a problem, guess5.exem combines both examples of guess4 in a 
-simulated loop. 1:40 - 2:30 + 11:35 - 11:55 + 12:45 - 13 + 14 - 14:25 + 16 - 17 + 19 - 23:10 + 23:25 - :50 h
+simulated loop. 7.25h
 * 2019-05-03 Morning demonstration via Google Hangout. Finally guess4's User Loses example is working, by differentiating 
 IF from FOR endpoints and applying min() and max() to their clei.el_last_id's, respectively. 5.5h
 * 2019-05-02 Stopping rollback on last trial. Analyzing final database state versus ideal. 6h
