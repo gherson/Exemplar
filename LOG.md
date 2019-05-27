@@ -34,28 +34,9 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * 2019-05- . h
 * 2019-05- . h
 * 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
+* 2019-05-19 *CS7646 ML4T's usurpation of my time begins in earnest.* 
+* 2019-05-18 Finished studying DRAKON and conclude that it improves on flowcharting but is not a *r*evolution. 2h
+* 2019-05-17 Studying DRAKON algorithmic visual programming and modeling language for its ideas. 3h
 * 2019-05-11 Worked on how to present Exemplar. Created control_conflict(). 5.5h
 * 2019-05-10 Created for_loops table and fill_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 5h
 * 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 6h
