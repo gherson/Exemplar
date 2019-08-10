@@ -25,14 +25,14 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Exemplar generates solutions to single-example traces, 2019-04-17
 
 # Log of work
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
-* 2019-05- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08- . h
+* 2019-08-09 Study of Daikon system for dynamic detection of likely invariants. 2h
 * 2019-08-06 Initially recalled only goal of project. Seeing it anew I am energized for the battle rejoined. 2.5h
 * 2019-05-19 *CS7646 ML4T's usurpation of my time begins in earnest.* 
 * 2019-05-18 Finished studying DRAKON and conclude that it improves on flowcharting but is not a *r*evolution. 2h
