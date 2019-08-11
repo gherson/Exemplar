@@ -31,7 +31,8 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * 2019-08- . h
 * 2019-08- . h
 * 2019-08- . h
-* 2019-08- . h
+* 2019-08-10 All integration tests pass except get test_fill_cbt_guess4() so investigating that and the ins and out of
+exemplar.for_loop_conflict(). 2h
 * 2019-08-09 Study of Daikon system for dynamic detection of likely invariants. 2h
 * 2019-08-06 Initially recalled only goal of project. Seeing it anew I am energized for the battle rejoined. 2.5h
 * 2019-05-19 *CS7646 ML4T's usurpation of my time begins in earnest.* 
