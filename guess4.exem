@@ -8,7 +8,7 @@ name==i1         # simple assignment (SA)
 secret==i1       # SA
 >Well, Albert, I am thinking of a number between 1 and 20.
 guess_count==0   # iteration
-#Testing a full line comment.
+# Full line comment.
 >Take a guess.
 <10
 guess==i1, guess>secret  # SA, selection

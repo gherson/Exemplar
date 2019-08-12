@@ -56,6 +56,7 @@ def generate(file=""):
 
     return html(user_examples_list, code, test_file_contents)
 
+
 # Return html to the browser with embedded JavaScript.
 def html(examples_list, code, test_file_contents):
     # return "<!DOCTYPE html><html lang='en'><body>" + "\n".join(examples_list) + "</body></html>"
@@ -173,7 +174,7 @@ var examples = new Array();\n"""
 
     head_html += "</script></head>\n"
 
-    demos_html = """<br/><i>Sorry, demos are Under Construction</i><br/>Or, click a button for another demonstration. 
+    demos_html = """<br/><a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png">Reference Guide</a><p/><i>Sorry, demos are Under Construction</i><br/>Or, click a button for another demonstration. 
     (There may be a &lt;5sec pause while tests are run in the console.)\n
     <table><tr>"""
     demos = ['prime_number', 'leap_year', 'guess2', 'fizz_buzz']

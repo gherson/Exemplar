@@ -39,11 +39,13 @@ def guess3():
     for guess_count in range(0, 3):
         print('Take a guess.')
         guess = int(input("guess:"))  # Eg, 10
-        print('Your guess is too high.')
+        if guess > secret:
+            print('Your guess is too high.')
     for guess_count in range(0, 3):
         print('Take a guess.')
         guess = int(input("guess:"))  # Eg, 2
-        print('Your guess is too low.')
+        if guess < secret:
+            print('Your guess is too low.')
     for guess_count in range(0, 3):
         print('Take a guess.')
         guess = int(input("guess:"))  # Eg, 4
