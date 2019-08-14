@@ -28,7 +28,7 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * 2019-08- . h
 * 2019-08- . h
 * 2019-08- . h
-* 2019-08- . h
+* 2019-08-13 Refactoring in starter file, reformatting in exemplar.py. 3h
 * 2019-08-12 Generalized for_loops_conflict() to control_conflict(table). 3h
 * 2019-08-11 All integration tests passing. Refamiliarized myself with the code. 4h
 * 2019-08-10 All integration tests pass except get test_fill_cbt_guess4() so investigating that and the ins and outs of

@@ -7,7 +7,7 @@ import unittest
 from typing import List, Tuple, Dict, Any
 #import os
 
-DEBUG = True  # True turns on testing and more feedback.
+DEBUG = False #True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
 SUCCESS = True
@@ -1509,9 +1509,11 @@ def generate_code(example_id: int) -> List[str]:
     code_stripped = []  # Used to avoid duplicating code in 'code'.
     prior_input, preceding_equality, variable_types, indents, loop_start = {}, {}, {}, 1, -1
 
-    # Loop over all example_lines of given example.
+    # Loop over all example_lines of given example, also pulling their condition info where it exists.
     sql = """SELECT el.el_id, el.line, el.line_type, c.condition_type, c.control_id 
-    FROM example_lines el LEFT JOIN conditions c ON el.el_id = c.el_id WHERE el.example_id=? ORDER BY el.el_id"""
+    FROM example_lines el 
+    LEFT JOIN conditions c ON el.el_id = c.el_id 
+    WHERE el.example_id=? ORDER BY el.el_id"""
     cursor.execute(sql, (example_id,))
     example_lines = cursor.fetchall()
     if len(example_lines) == 0:
@@ -1783,7 +1785,8 @@ def inputs(example_id: int) -> List:
 def generate_tests(function_name: str, example_id: int) -> str:
     """
     Generate a unit test per example in the .exem: each example's input and output lines will be compared to the
-    io_trace filled in by the print()s and input()s called by the target function, while operating on the example_input.
+    actual_io_trace filled in by the print()s and input()s called by the target function, while operating on the
+    example_input.
     :database: SELECT example_lines.
     :param function_name: used for test function name and calling the function under test.
     """
@@ -1810,13 +1813,13 @@ def generate_tests(function_name: str, example_id: int) -> str:
         # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    global example_input\n"
         test_code += "    example_input = ['" + "', '".join(inputs(row[0])) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
-        test_code += "    " + function_name + "()  # The function under test is used to write to io_trace.\n"  # TODO need formal params!!
+        test_code += "    " + function_name + "()  # The function under test is used to write to actual_io_trace.\n"  # TODO need formal params!!
         #                                       Return the named .exem (stripped of comments):
         f_name = function_name
         if len(function_name) > 4 and function_name[-4:] == '_stf':  # Remove "_stf" when naming the .exem file.
             f_name = f_name[0:-4]
-        test_code += "    self.assertEqual(get_expected('" + f_name + ".exem', " + str(example_id) + \
-                     "), io_trace)\n"
+        test_code += "    self.assertEqual(get_expected_io('" + f_name + ".exem', example_id=" + str(example_id) + \
+                     "), actual_io_trace)\n"
 
         # previous_example_id = example_id
         i += 1
@@ -2718,12 +2721,9 @@ def get_function(file: str, example_id: int) -> int:
                         print(cursor.fetchall())
                         exit()
             # Table cbt_last_el_ids is done.
-            # if any first_el_id and last_el_id in cbt_last_el_ids straddle another
-            # (todo combine with for_loop_conflict()),
-            # `continue` and rollback,
-            # as an optimization. (Once implemented, test with (if1:0_340, 1, 340, None, None, 345, None, if1:0)
-            # as penultimate cbt row in test_fill_cbt_guess4(). 8/11/19)
-            if control_conflict():  # (we don't just check 'if's because adding 'while' controls is a todo.)
+
+            # A check meant to optimize for time:
+            if control_conflict():  # (we don't check 'if's alone because adding 'while' controls is a todo.)
                 cursor.execute("ROLLBACK TO if_endings_trial")
                 continue  # to next if_maybes_row.
 
@@ -2805,25 +2805,26 @@ def get_function(file: str, example_id: int) -> int:
 
 def get_functions(file: str) -> None:
     """
-    Build the cbt_last_el_ids table, put IF statement info into controls and cbt tables, including all last_el_id_maybe
-    possibilities, and generate and test the target functions.
+    Create cbt_last_el_ids table data, and generate and test the target functions, per example (todo that a good idea??)
     :param file: An .exem filename of trace examples
     :return: None
     """
-    # Fill the cbt_last_el_ids (clei) table, starting with the *known* endings:
+    # Fill the cbt_last_el_ids (clei) table, starting with FOR loops' known endings:
     cursor.execute("""INSERT INTO cbt_last_el_ids -- cbt_id, example_id, control_id, last_el_id
                 -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc.
-                SELECT cbt_id, example_id, first_el_id, control_id, last_el_id FROM control_block_traces 
-                WHERE last_el_id IS NOT NULL AND substr(control_id,1,3)='for'""")
+                SELECT cbt_id, example_id, first_el_id, control_id, last_el_id 
+                  FROM control_block_traces 
+                 WHERE last_el_id IS NOT NULL AND 
+                       substr(control_id,1,3)='for'""")
     # (for cbt_id's where last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
     # should be null).)
 
     functions = []
     cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
-    for example_id in range(cursor.fetchone()[0]):  # For each example, starting with 0.
+    for example_id in range(cursor.fetchone()[0]):  # For each example, from 0th example to last.
 
         functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
-    # functions.append(get_function(file, 1))                 # **********************************************
+    # functions.append(get_function(file, 1))             # **********************************************
     print("Functions found:", len(functions))
 
 
@@ -2845,9 +2846,9 @@ def reverse_trace(file: str) -> str:
     reset_db()
     store_examples(example_lines)  # Insert the .exem's lines into the database.
     remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
-    print(dump_table("example_lines"))
-
-    fill_conditions_table()  # The table of true conditions aka assertions.
+    if DEBUG:
+        print(dump_table("example_lines"))
+    fill_conditions_table()  # The table of user assertions aka truth.
     if DEBUG:
         print(dump_table("conditions"))
 
