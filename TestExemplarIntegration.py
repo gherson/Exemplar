@@ -388,7 +388,7 @@ class TestExemplarIntegration(unittest.TestCase):
         expected = """"""
         print(exemplar.dump_table("example_lines"))
         self.assertEqual(expected, exemplar.dump_table("example_lines"))
-        # control_conflict(first_el_id: int, last_el_id_maybe: int) -> int:
+        # get_control_conflicts(first_el_id: int, last_el_id_maybe: int) -> int:
 
     def test_fill_cbt_jokes(self):  # One FOR, no IFs, so expected == test_load_for_loops_jokes()'s expected1
         example_lines = exemplar.from_file("jokes.exem")

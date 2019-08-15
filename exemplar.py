@@ -550,7 +550,7 @@ equality should be tested in the WHILE loop top. how can that be seen from examp
     rows = cursor.fetchall()
     for row in rows:
         el_id, relation = row
-        if not variable_name_of_i1(relation):
+        if not get_variable_name(relation):
             selections.append(el_id)
     if len(selections) > 0:  #                                vVv
         cursor.execute("UPDATE example_lines SET loop_likely = 0 WHERE el_id IN (" + ','.join('?' * len(selections)) +
@@ -708,9 +708,12 @@ def find_safe_pretests() -> None:
 
 
 def debug_db() -> None:
+    """
+    Run the integration/database tests if DEBUG_DB or (DEBUG and it's been >1 hour).
+    :return: None
+    """
     cursor.execute("""CREATE TABLE IF NOT EXISTS history (prior_db_test_run INTEGER NOT NULL)""")
 
-    # Run the integration/database tests if DEBUG_DB or (DEBUG and it's been >1 hour).
     global DEBUG_DB
     if DEBUG:
         hour_in_seconds = 60 * 60  # minutes in an hour * seconds in a minute
@@ -1169,7 +1172,7 @@ def unused_variable_name_of_value(truth_line: str, value: any) -> str:
     return ''
 
 
-def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]+') -> str:
+def get_variable_name(truth_line: str, input_variable: str = 'i[0-9]+') -> str:
     """
     Return truth_line's name for (i.e., equivalence to) the input_variable, if any.
     :database: not involved.
@@ -1188,12 +1191,12 @@ def variable_name_of_i1(truth_line: str, input_variable: str = 'i[0-9]+') -> str
 
 
 if DEBUG and __name__ == "__main__":
-    assert 'guess' == variable_name_of_i1('guess==i1')
-    assert '' == variable_name_of_i1('     guess==1')
-    assert 'guess' == variable_name_of_i1('guess==i1', 'i1')
-    assert '' == variable_name_of_i1('   guess == i1', 'i5')
-    assert 'guess' == variable_name_of_i1('guess==i5', 'i5')
-    assert 'guess' == variable_name_of_i1('guess==i5')
+    assert 'guess' == get_variable_name('guess==i1')
+    assert '' == get_variable_name('     guess==1')
+    assert 'guess' == get_variable_name('guess==i1', 'i1')
+    assert '' == get_variable_name('   guess == i1', 'i5')
+    assert 'guess' == get_variable_name('guess==i5', 'i5')
+    assert 'guess' == get_variable_name('guess==i5')
 
 
 def store_code(code):
@@ -1424,9 +1427,9 @@ def get_example(el_id: int) -> int:
 
 def get_python(current_el_id: int) -> Tuple[int, str]:
     """
-    Return the last_el_id (used to dedent) and python code corresponding to the control at current_el_id.
+    If current_el_id equals a controls.first_el_id, return latter's last_el_id (used to dedent) and python code.
     :param current_el_id:
-    :return: a FOR or IF last_el_id, python line tuple (or (None, None) if no code found)
+    :return: a FOR or IF last_el_id, python line tuple (or None, None if no code found).
     """
     # Minimal extent in lines is used for IFs while maximal extent is used for FORs.
     cursor.execute("""SELECT cs.python, min(clei.last_el_id) as if_end, max(clei.last_el_id) as for_end
@@ -1493,62 +1496,60 @@ def get_longest_example() -> int:
 
 def generate_code(example_id: int) -> List[str]:
     """
-    The information in tables example_lines, conditions, controls, control_trace_blocks, and cbt_last_el_ids are used
+    The information in tables selection, conditions, controls, control_trace_blocks, and cbt_last_el_ids are used
     to generate exem-conforming Python code.  More specifically:
     Each line of the exem is considered in turn.
     * Inputs and outputs are added to the generated 'code' iff they haven't already been added since the beginning of
     the latest loop.
     * 'assign'ments are captured in a lookup table used for variable mention in the output (prints).
     * Control statements 'for' and 'if' are added to 'code' iff it is that full statement's first appearance in the
-    example_lines.
-    :database: SELECTs sequential_function, example_lines. UPDATEs sequential_function via likely_data_type()).
+    selection.
+    :database: SELECTs sequential_function, selection. UPDATEs sequential_function via likely_data_type()).
     :return: Python code as 'code'
     """
 
     code = []  # Return value.
-    code_stripped = []  # Used to avoid duplicating code in 'code'.
-    prior_input, preceding_equality, variable_types, indents, loop_start = {}, {}, {}, 1, -1
+    code_flush_left = []  # Used to avoid duplicating code in 'code'.
+    prior_values, nonvariable_equalities, variables_typed, indents, loop_start = {}, {}, {}, 1, -1
 
-    # Loop over all example_lines of given example, also pulling their condition info where it exists.
+    # Loop over all selection of given example, also pulling their condition info where it exists.
     sql = """SELECT el.el_id, el.line, el.line_type, c.condition_type, c.control_id 
     FROM example_lines el 
     LEFT JOIN conditions c ON el.el_id = c.el_id 
     WHERE el.example_id=? ORDER BY el.el_id"""
     cursor.execute(sql, (example_id,))
-    example_lines = cursor.fetchall()
-    if len(example_lines) == 0:
+    selection = cursor.fetchall()
+    if len(selection) == 0:
         print("*Zero* example lines found.")
 
     # todo Distinguish arguments from variable assignments and input() statements.
     last_el_ids = []
-    i = 0  # example_lines line counter
-    for row in example_lines:
+    i = 0  # selection line counter
+    for row in selection:
         el_id, line, line_type, condition_type, control_id = row
 
         if i == 0:
             assert scheme(line) == "_==__example__"
             i += 1
-            continue  # Don't create an examples loop.
+            continue  # Avoid creating an examples loop.
 
         # Code an input (for which the example data is unspecified except in the tests and comments).
         if line_type == 'in':
 
-            if line.strip() == '':  # Then in 'line', there's *no* example input provided.
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
+            if line.strip() == '':  # 'line' has *no* example input.
                 code.append(indents * "    " + "input()")
-                code_stripped.append("input()")
+                code_flush_left.append("input()")
                 i += 1
                 continue
-
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
-
             # Create a default name for the variable, then look for a better one.
             variable_name = "v" + str(el_id)
-            if i+1 < len(example_lines):
-                next_row = example_lines[i+1]  # el_id, line, line_type
+            if i+1 < len(selection):
+                next_row = selection[i+1]  # el_id, line, line_type
                 # If the next row is truth and has an equality "naming" 'line's value, make that name the variable name.
                 if next_row[3] == 'assign' and \
-                        variable_name_of_i1(next_row[1], 'i1'):  # Eg, name_of_input('guess==i1')
-                    variable_name = variable_name_of_i1(next_row[1], 'i1')  # Eg, 'guess'
+                        get_variable_name(next_row[1], 'i1'):  # Eg, ('guess==i1', 'i1') => guess
+                    variable_name = get_variable_name(next_row[1], 'i1')  # Eg, 'guess'
 
             # # int and float inputs need a cast.
             # if likely_data_type(variable_name) != "str":  # N.B. updates sequential_function
@@ -1556,61 +1557,63 @@ def generate_code(example_id: int) -> List[str]:
             #     assignment = variable_name + " = " + cast + "(input('" + variable_name + ":'))"
             #     # cursor.execute("UPDATE sequential_function SET line = ? WHERE el_id = ?", (assignment, el_id))
             # else:  # Casting is added later for the first call, via the database.
+
             assignment = variable_name + ' = input("' + variable_name + ':")'
-            #
-            if assignment not in code_stripped[loop_start:]:
-                # Add the input() assignment to 'code' (with "# Eg, " + line appended.)
+            if assignment not in code_flush_left[loop_start:]:
                 code.append(indents * "    " + assignment + "  # Eg, " + line)
-                code_stripped.append(assignment)
-            # Remember the variable-input associations.
-            prior_input[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
-            # Note if the variable input needs a cast (it will be added later).
-            if variable_name not in variable_types:
-                variable_types[variable_name] = type_string(line)
-            elif variable_types[variable_name] != 'str' and type_string(line) == 'float':
-                variable_types[variable_name] = 'float'
+                code_flush_left.append(assignment)
 
-        elif line_type == 'out':  # A print() is modelled.
+            # Remember the values associated with variables for substituting the former in output (prints).
+            prior_values[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
+
+            # Find the input's data type (to add a cast later, if needed).
+            if variable_name not in variables_typed:
+                variables_typed[variable_name] = type_string(line)
+            elif variables_typed[variable_name] != 'str' and type_string(line) == 'float':  # int->float
+                variables_typed[variable_name] = 'float'
+
+        elif line_type == 'out':  # A print().
             # todo Distinguish return from print()'s...
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (should this simply be done for all lines??)
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (Should this simply be done for all lines??)
 
-            # Replace anything hard-coded in 'line' that should be soft-coded (we know because there's a match on a
-            # prior input value or prior equality assertion).
-            prior_values = prior_input  # Combine prior_input and
-            prior_values.update(preceding_equality)  # the preceding_equality.
-            line = replace_hard_code(prior_values, line)  # todo Remove prior_values and add prior_input and preceding_equality as args here.
+            # Replace anything hard-coded in 'line' that should be soft-coded (we'll know from a match on
+            # prior input value or equality assertion).
+            # prior_values = prior_input  # Combine prior_input and prior
+            # prior_values.update(nonvariable_equalities)  # non-variable equalities.
+            line = replace_hard_code(prior_values, line)
 
             print_line = "print('" + line + "')"
             # Add the print() to the code if it's new to current loop.
-            if print_line not in code_stripped[loop_start:]:
+            if print_line not in code_flush_left[loop_start:]:
                 code.append(indents * "    " + print_line)
-                code_stripped.append(print_line)  # If really need code_stripped, consolidate these 2 lines into 1 call.
+                code_flush_left.append(print_line)
 
         else:  # truth/assertions/reasons/conditions
 
+            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (do for all lines todo)
             if condition_type == "assign":
                 left, operator, right = assertion_triple(line)
-                if not left.isidentifier():  # Eg, guess_count + 1
-                    # Eg, preceding_equality['guess_count'] = 3 allows swapping in guess_count for 3 in a later print:
-                    # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
-                    preceding_equality[left] = right  # preceding_equality['guess_count + 1'] = 3
+                if not left.isidentifier():  # Special case of, eg, guess_count + 1
+                    ## Eg, nonvariable_equalities['guess_count'] = 3 allows swapping in guess_count for 3 in a later print:
+                    ## guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
+                    prior_values[left] = right  # prior_values['guess_count + 1'] = 3
             else:
                 last_el_id, python = get_python(el_id)  # If el_id is a controls.first_el_id.
                 if python:
                     code.append(indents * "    " + python)
-                    code_stripped.append(python)
+                    code_flush_left.append(python)
                     last_el_ids.append(last_el_id)
                     indents += 1  # Note the new block.
                     if condition_type == 'for':
                         loop_start = len(code)
 
         while last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
-            indents -= 1  # dedent
             last_el_ids.pop()
+            indents -= 1  # dedent
 
-        i += 1  # example_lines line counter
+        i += 1  # selection line counter
 
-    return cast_inputs(code, variable_types)
+    return cast_inputs(code, variables_typed)
     # Below will be selectively re-activated as more example problems are handled.
 
 
@@ -1618,7 +1621,7 @@ def generate_code(example_id: int) -> List[str]:
     # (old: Reasons where loop_likely==0 map to conditions 1:1.)
 
     sql = """
-        SELECT line, example_id, step_id AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 0
+        SELECT line, example_id, step_id AS r1 FROM selection WHERE line_type = 'truth' AND loop_likely = 0
             ORDER BY (SELECT COUNT(*) FROM pretests WHERE pretest = r1) DESC, LENGTH(line) DESC, 
             line -- (for order stability) 
          """
@@ -1648,7 +1651,7 @@ def generate_code(example_id: int) -> List[str]:
     # Finally, we gen code from the *********** WHILE *********** conditions.
 
     sql = """
-        SELECT line AS r1 FROM example_lines WHERE line_type = 'truth' AND loop_likely = 1 ORDER BY step_id DESC, 
+        SELECT line AS r1 FROM selection WHERE line_type = 'truth' AND loop_likely = 1 ORDER BY step_id DESC, 
             line -- (for order stability) 
          """
     cursor.execute(sql)
@@ -2076,7 +2079,7 @@ def fill_conditions_table() -> None:
     for row in conditions:
         rowid, condition, intraexample_repetition = row
         # If condition names a variable and it occurs 1x.
-        if variable_name_of_i1(condition, 'i1') and intraexample_repetition == 0:
+        if get_variable_name(condition, 'i1') and intraexample_repetition == 0:
             simple_assignments.append((rowid,))
         elif intraexample_repetition > 0:
             iteratives.append((rowid,))
@@ -2228,7 +2231,7 @@ def get_el_id(start_el_id: int, distance: int) -> int:
     # todo return -1 if no such value or error out?
 
 
-def store_for_loops() -> None:  # into control_block_traces, noting scopes.
+def store_for_loops() -> None:  # into controls and control_block_traces, noting scopes.
     """
     Create a cbt record for each instance of a for-loop scheme. The cbt row will scope the blocks and note the loop
     variable's first and last values. (Iteration endpoints aka last_el_id's, come later.)
@@ -2246,7 +2249,7 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
         schemes_seen = []  # To avoid redundant analyses.
 
         # Loop over every for-loop iteration to, eg, create a record in cbt for each.
-        # Ie, pull all the FOR controls, i.e., assignments to FOR loop variables (id'ed by fill_conditions_table()).
+        # Ie, pull all the FOR controls, ie, assignments to FOR loop variables (id'ed by fill_conditions_table()).
         cursor.execute("""SELECT el_id, condition FROM conditions WHERE example_id=? AND condition_type='for' 
         ORDER BY el_id""", (example_id,))
         for_conditions = cursor.fetchall()
@@ -2257,7 +2260,8 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
             assertion_scheme = scheme(condition)
             if assertion_scheme not in schemes_seen:  # (We assume loop variables aren't re-used.)
                 # (We also assert loop variable's consistency re: increment and starting integer.)
-                cursor.execute("SELECT el_id, condition FROM conditions WHERE example_id=? AND scheme=? ORDER BY el_id",
+                cursor.execute("SELECT el_id, condition FROM conditions "
+                               "WHERE example_id=? AND scheme=? ORDER BY el_id",
                                (example_id, assertion_scheme))
                 iterations = cursor.fetchall()
                 loop_variable, loop_increment, next_left, last_value = None, None, None, None
@@ -2271,7 +2275,7 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
                     last_iteration = 0  # False
                     if our_iteration == len(iterations) - 1:  # Globally last iteration
                         last_iteration = 2                    # of assertion_scheme.
-                        last_value = left  # Note climatic loop variable value, for FOR statement.
+                        last_value = left  # Note climactic loop variable value, for FOR statement.
                         last_el_id_of_iteration = None  # (Last el_id also unknown when loop_variable==first_value.)
                     else:  # Not overall last iteration.
                         # Get and assign the el_id that is /one el_id before/ the start of the next iteration.
@@ -2293,8 +2297,9 @@ def store_for_loops() -> None:  # into control_block_traces, noting scopes.
                     if 'loop_preamble' in locals():  # Should be equal each iteration.
                         assert loop_preamble == get_unconditionals_post_control(iteration_el_id)
 
-                    if next_left == first_value:  # Last local iteration, ie, before an outer loop restarts this loop.
-                        last_iteration = 1  # Denoting a *local* last iteration. Fortunately, in this case,
+                    if next_left == first_value:
+                        last_iteration = 1  # Denote last local iteration, ie, last iteration before an outer loop restarts this loop.
+                        # Fortunately, in this case,
                         # last_el_id_of_iteration must also be the last_el_id, because it is the el_id immediately
                         # behind the next start of this loop schema.
 
@@ -2410,7 +2415,7 @@ def likely_same_IF(el_id1: int, el_id2: int) -> int:
         return get_unconditionals_post_control(el_id1) == get_unconditionals_post_control(el_id2)
 
 
-def control_conflict(table="cbt_last_el_ids") -> int:  # todo verify while default table is used
+def get_control_conflicts(table="cbt_last_el_ids") -> int:  # todo verify while default table is used
     """
     Any control A that straddles a control B's last_el_id_maybe, i.e., starts between control B's first_el_id and
     last_el_id_maybe and ends after last_el_id_maybe, invalidates that last_el_id_maybe, because controls can't overlap.
@@ -2421,8 +2426,8 @@ def control_conflict(table="cbt_last_el_ids") -> int:  # todo verify while defau
                    "A.first_el_id>B.first_el_id AND "  # For control A to start 
                    "A.first_el_id<B.last_el_id AND "  # within control B and 
                    "A.last_el_id>B.last_el_id")  # finish after it is impossible.
-    rows = cursor.fetchall()
-    return True if rows else False
+    return cursor.fetchall()
+    #return True if rows else False
 
 
 def create_maybe_rows(first_el_id: int, min_el_id: int, max_el_id: int, data: Tuple) -> Any:
@@ -2678,7 +2683,13 @@ def get_function(file: str, example_id: int) -> int:
             # At this point there are endpoints postulated for all for-loop iterations. Stuff them into:
             fill_for_loops_table()
             # Any overlapping for-loops? Then go to the next for_maybes_row.
-            if control_conflict("for_loops"):
+            rows = get_control_conflicts("for_loops")
+            if rows:
+                for row in rows:
+                    print("Conflict row fields control_id, example_id, first_el_id, last_el_id:", end=" ")
+                    for field in row:
+                        print(field, end=" ")
+                    print()
                 cursor.execute("ROLLBACK")  # Wipe all db changes since BEGIN and try next for_maybes_row
                 continue
 
@@ -2723,7 +2734,7 @@ def get_function(file: str, example_id: int) -> int:
             # Table cbt_last_el_ids is done.
 
             # A check meant to optimize for time:
-            if control_conflict():  # (we don't check 'if's alone because adding 'while' controls is a todo.)
+            if get_control_conflicts():  # (we don't check 'if's alone because adding 'while' controls is a todo.)
                 cursor.execute("ROLLBACK TO if_endings_trial")
                 continue  # to next if_maybes_row.
 
@@ -2840,10 +2851,10 @@ def reverse_trace(file: str) -> str:
     # global pid, db, cursor
 
     # Read input .exem
-    print("\nProcessing", file)
-    example_lines = from_file(file)
     debug_db()
     reset_db()
+    print("\nProcessing", file)
+    example_lines = from_file(file)
     store_examples(example_lines)  # Insert the .exem's lines into the database.
     remove_all_c_labels()  # Remove any (currently unused) constant (c) labels.
     if DEBUG:
