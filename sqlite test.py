@@ -7,12 +7,11 @@ In sum,
 tuple/s otherwise.
 """
 
-
 db = sqlite3.connect(':memory:', isolation_level=None)
 cursor = db.cursor()
 
 cursor.execute("CREATE TABLE testing (text_col TEXT NOT NULL, int_col INTEGER)")
-cursor.execute("INSERT INTO testing (text_col) VALUES ('original value')")
+cursor.execute("INSERT INTO testing (text_col, int_col) VALUES ('original value', NULL)")
 cursor.execute("SELECT int_col FROM testing")
 row = cursor.fetchone()
 print("fetchone(col) row of NULL value is (None,):", row)

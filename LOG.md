@@ -26,11 +26,11 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 
 # Log of work
 * 2019-08- . h
-* 2019-08- . h
-* 2019-08-14 Debugging guess5.exem with TestGuess5Manual (where guess5 is an important step to being able to synthesize 
+* 2019-08-15 Progress in debugging guess5.exem processing. 4h
+* 2019-08-14 Debugging guess5.exem with TestGuess5Manual.py (where guess5 is an important step in being able to synthesize 
 from multiple examples). 3h
 * 2019-08-13 Refactoring in starter file, reformatting in exemplar.py. 3h
-* 2019-08-12 Generalized for_loops_conflict() to get_control_conflicts(table). 3h
+* 2019-08-12 Generalized for_loops_conflict() into get_control_conflicts(table). 3h
 * 2019-08-11 All integration tests passing. Refamiliarized myself with the code. 4h
 * 2019-08-10 All integration tests pass except get test_fill_cbt_guess4() so investigating that and the ins and outs of
 exemplar.for_loop_conflict(). 2h

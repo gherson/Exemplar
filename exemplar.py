@@ -14,7 +14,7 @@ SUCCESS = True
 
 # (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
 db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=False)  # 3rd arg is for repl.it
-db.row_factory = sqlite3.Row
+db.row_factory = sqlite3.Row  # For Row objects instead of tuples. Use row[0] or row['column_name'] (case insensitive)
 cursor = db.cursor()
 
 """
@@ -148,7 +148,7 @@ if DEBUG and __name__ == '__main__':
 
 def clean(examples: List[str]) -> List[str]:
     """
-    Remove header and line comments and trim each line.
+    Remove header and line comments, trim each line, and escape single quotes.
     :database: not involved.
     :param examples:  An exem file's contents.
     :return:
@@ -160,6 +160,7 @@ def clean(examples: List[str]) -> List[str]:
         if len(line.lstrip()) and line.lstrip()[0] == '#':
             continue  # Skip full line comments.
         line = denude(line)  # (def denude() is above.)
+        line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
 
         if previous_line == '':  # Then on first line.
             if line == '':  # Skip initial blank lines.
@@ -205,6 +206,7 @@ if DEBUG and __name__ == '__main__':
     assert ["code"] == clean([" code # This should be removed. # 2nd comment ","   "])
     assert ["code \# This should NOT be removed."] == clean([' '," code \# This should NOT be removed. # comment ",""])
     assert ["code '# This should NOT be removed.'"] == clean([''," code '# This should NOT be removed.' # comment ",""])
+    assert ["co\'de"] == clean(["  co'de  "])
 
 
 # c labels aren't being used. 2/20/19
@@ -1425,28 +1427,28 @@ def get_example(el_id: int) -> int:
     return cursor.fetchone()[0]
 
 
-def get_python(current_el_id: int) -> Tuple[int, str]:
+def get_python(current_el_id: int) -> Tuple[str, int]:
     """
-    If current_el_id equals a controls.first_el_id, return latter's last_el_id (used to dedent) and python code.
+    If current_el_id equals a controls.first_el_id, return latter's python code and last_el_id (used to dedent).
     :param current_el_id:
-    :return: a FOR or IF last_el_id, python line tuple (or None, None if no code found).
+    :return: a python line, FOR or IF last_el_id tuple (or None, None if no code found).
     """
     # Minimal extent in lines is used for IFs while maximal extent is used for FORs.
-    cursor.execute("""SELECT cs.python, min(clei.last_el_id) as if_end, max(clei.last_el_id) as for_end
-        FROM conditions c 
-        JOIN controls cs USING (control_id) 
+    cursor.execute("""SELECT cntl.python, min(clei.last_el_id) as if_end, max(clei.last_el_id) as for_end
+        FROM controls cntl  
         JOIN cbt_last_el_ids clei USING (control_id) 
-        WHERE c.el_id=? AND clei.first_el_id=?""", (current_el_id, current_el_id))  # start_el_id
+        WHERE cntl.first_el_id=? AND clei.first_el_id=?""",
+                   (current_el_id, current_el_id))
     rows = cursor.fetchall()
     # assert len(rows) == 1, str(rows)  cast(substr(clei.cbt_id, instr(clei.cbt_id, '_') + 1) as int)=?
-    if rows[0] == (None, None, None):
+    if rows[0][0] is None:
         return None, None
     else:
         python, if_end, for_end = rows[0]
         if python[0:2] == 'if':
-            return if_end, python
+            return python, if_end
         elif python[0:3] == 'for':
-            return for_end, python
+            return python, for_end
 
 
 def cast_inputs(code: List[str], variable_types: Dict[str, str]) -> List[str]:
@@ -1497,7 +1499,7 @@ def get_longest_example() -> int:
 def generate_code(example_id: int) -> List[str]:
     """
     The information in tables selection, conditions, controls, control_trace_blocks, and cbt_last_el_ids are used
-    to generate exem-conforming Python code.  More specifically:
+    to generate exem-conforming Python code. More specifically:
     Each line of the exem is considered in turn.
     * Inputs and outputs are added to the generated 'code' iff they haven't already been added since the beginning of
     the latest loop.
@@ -1536,12 +1538,12 @@ def generate_code(example_id: int) -> List[str]:
         # Code an input (for which the example data is unspecified except in the tests and comments).
         if line_type == 'in':
 
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
-            if line.strip() == '':  # 'line' has *no* example input.
+            if line.strip() == '':  # This is the rare case where 'line' has *no* example input.
                 code.append(indents * "    " + "input()")
                 code_flush_left.append("input()")
                 i += 1
                 continue
+
             # Create a default name for the variable, then look for a better one.
             variable_name = "v" + str(el_id)
             if i+1 < len(selection):
@@ -1574,7 +1576,6 @@ def generate_code(example_id: int) -> List[str]:
 
         elif line_type == 'out':  # A print().
             # todo Distinguish return from print()'s...
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (Should this simply be done for all lines??)
 
             # Replace anything hard-coded in 'line' that should be soft-coded (we'll know from a match on
             # prior input value or equality assertion).
@@ -1590,22 +1591,23 @@ def generate_code(example_id: int) -> List[str]:
 
         else:  # truth/assertions/reasons/conditions
 
-            line = line.translate(str.maketrans({"'": r"\'"}))  # Escape ' (do for all lines todo)
             if condition_type == "assign":
                 left, operator, right = assertion_triple(line)
-                if not left.isidentifier():  # Special case of, eg, guess_count + 1
+                if not left.isidentifier():  # Special case. left is, eg, guess_count + 1
                     ## Eg, nonvariable_equalities['guess_count'] = 3 allows swapping in guess_count for 3 in a later print:
                     ## guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
                     prior_values[left] = right  # prior_values['guess_count + 1'] = 3
-            else:
-                last_el_id, python = get_python(el_id)  # If el_id is a controls.first_el_id.
+            else:                  # **********
+                python, last_el_id = get_python(el_id)  # Retrieves code if el_id is a controls.first_el_id.
                 if python:
                     code.append(indents * "    " + python)
                     code_flush_left.append(python)
-                    last_el_ids.append(last_el_id)
+
+                    last_el_ids.append(last_el_id)  # These are tracked to determine when to dedent.
+
                     indents += 1  # Note the new block.
-                    if condition_type == 'for':
-                        loop_start = len(code)
+                    if condition_type == 'for' and loop_start==-1:  # create loop_start tiers when needed todo
+                        loop_start = len(code)  # Used to determine what is already in loop before adding to it.
 
         while last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
             last_el_ids.pop()
@@ -2234,7 +2236,7 @@ def get_el_id(start_el_id: int, distance: int) -> int:
 def store_for_loops() -> None:  # into controls and control_block_traces, noting scopes.
     """
     Create a cbt record for each instance of a for-loop scheme. The cbt row will scope the blocks and note the loop
-    variable's first and last values. (Iteration endpoints aka last_el_id's, come later.)
+    variable's first and last values. (Iteration endpoints aka last_el_ids come later.)
     Create a for_loops record for each complete loop of a for-loop scheme.
     Create a controls record for each for-loop scheme as a whole. Also note its control_id in its 'conditions' record.
     todo last_el_id2 and indents via another loop. old?
@@ -2298,7 +2300,8 @@ def store_for_loops() -> None:  # into controls and control_block_traces, noting
                         assert loop_preamble == get_unconditionals_post_control(iteration_el_id)
 
                     if next_left == first_value:
-                        last_iteration = 1  # Denote last local iteration, ie, last iteration before an outer loop restarts this loop.
+                        last_iteration = 1  # Denote last local iteration, ie, last iteration before an outer loop
+                        # restarts this loop.
                         # Fortunately, in this case,
                         # last_el_id_of_iteration must also be the last_el_id, because it is the el_id immediately
                         # behind the next start of this loop schema.
@@ -2641,10 +2644,10 @@ def fill_for_loops_table() -> None:
                                                                   prior["last_el_id"]))
 
 
-def get_function(file: str, example_id: int) -> int:
+def get_function(file_arg: str, example_id: int) -> int:
     """
     Attempt to find an example-satisfying function then report success or failure.
-    :param file:
+    :param file_arg:
     :param example_id:
     :return SUCCESS or not SUCCESS:
     """
@@ -2696,9 +2699,9 @@ def get_function(file: str, example_id: int) -> int:
         # ******************************** IFs **************************
         # Having (theorized) endpoints for the for-loops helps greatly in constraining the possible IF endpoints.
         store_ifs(example_id)  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
-        # C.b.t. table is now in its final form for this trial. But not yet the clei table.
+        # C.b.t. table is now in its final form for this trial. Only finishing the clei table remains.
 
-        # First, add the /known/ IF endings to the cbt_last_el_ids (clei) table.
+        # First, add the known IF endings to the cbt_last_el_ids (clei) table.
         cursor.execute("""INSERT INTO cbt_last_el_ids 
                             -- old: Eg, for guess4, (for0:0_5, 130), (for0:0_135, 355), (for0:1_40, 65), etc.
                             SELECT cbt_id, example_id, first_el_id, control_id, last_el_id FROM control_block_traces 
@@ -2733,7 +2736,7 @@ def get_function(file: str, example_id: int) -> int:
                         exit()
             # Table cbt_last_el_ids is done.
 
-            # A check meant to optimize for time:
+            # A check to optimize for time:
             if get_control_conflicts():  # (we don't check 'if's alone because adding 'while' controls is a todo.)
                 cursor.execute("ROLLBACK TO if_endings_trial")
                 continue  # to next if_maybes_row.
@@ -2750,51 +2753,51 @@ def get_function(file: str, example_id: int) -> int:
 
             # Gen code and see if it passes the unit tests made from the examples.
 
-            function_name = file[0:-5]  # Remove ".exem" extension.
+            function_name = file_arg[0:-5]  # Remove ".exem" extension.
             signature = "def " + function_name + '(' + formal_params() + "):\n"
 
-            #                                                ***********************
+            #                                                          ***********************
             code = signature + '\n'.join(generate_code(example_id))  # **** GENERATE CODE ****
             if DEBUG:
                 print("\n" + code + "\n")  # Show off generated function.
 
             # Create unit tests for the sequential version of the target function, as sanity checks. DISABLED
-            starter = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
+            new_tests = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
 
             class_name = "Test" + underscore_to_camelcase(function_name)
             class_signature = "class " + class_name + "(unittest.TestCase):"
-            starter = starter.replace('<class signature>', class_signature, 1)
+            new_tests = new_tests.replace('<class signature>', class_signature, 1)
 
-            # *** GENERATE TESTS ***
             # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
-            #     starter += "    " + line  # Indent each line, as each test is part of a class.
+            #     new_tests += "    " + line  # Indent each line, as each test is part of a class.
+            # ********* GENERATE TESTS ******** and add them to new_tests.
             for line in generate_tests(function_name, example_id).splitlines(True):
-                starter += "    " + line
+                new_tests += "    " + line
 
-            starter += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
+            new_tests += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
 
-            # to_file(class_name + ".py", starter)
+            # to_file(class_name + ".py", new_tests)
             # print("Testing STF: ", end='')
             # test_results = run_tests(class_name)  # **** RUN TESTS ****
             # if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
             # print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
 
             # Write a class file ahead of run_tests() call.
-            test_file_contents = starter.replace('#<function under test>', code, 1)  # CODE
-            to_file(class_name + ".py", test_file_contents)
-            print("Running and testing", file + ": ", end='')
+            new_tests = new_tests.replace('#<function under test>', code, 1)  # CODE
+            to_file(class_name + ".py", new_tests)
+            print("Running and testing", file_arg + ": ", end='')
             test_results = run_tests(class_name)  # **** RUN TESTS ****
             if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                 db.commit()
-                print("winning for_maybes_row:", str(for_maybes_row))
+                print("The winning for_maybes_row:", str(for_maybes_row))
                 print("No errors or failures! Database changes committed.")
                 # print("\n" + code + "\n")
                 print("passed all tests\n")
 
                 # ************ RETURN ************
-                return SUCCESS  # Successful code ##, test_file_contents
+                return SUCCESS  # Successful code ##, new_tests
 
-            # Unless it's the very last trial, ROLLBACK TO if_endings_trial.
+            # Failure. Unless it's the very last trial, ROLLBACK TO if_endings_trial.
             if (if_maybes_row != if_maybes[len(if_maybes) - 1]) or for_maybes_row != for_maybes[len(for_maybes) - 1]:
                 cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
                 print("Before if_endings_trial rollback: clei count(*)", cursor.fetchone()[0])
@@ -2804,35 +2807,35 @@ def get_function(file: str, example_id: int) -> int:
 
         # Unless it's the very last trial, ROLLBACK
         if for_maybes_row == for_maybes[len(for_maybes) - 1]:  # Last trial
-            db.commit()
+            db.commit() # To enable analysis.
         else:
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
             print("Before for loop rollback: clei count(*)", cursor.fetchone()[0])
             cursor.execute("ROLLBACK")  # Undo this failed iteration's experimental for-loop endings.
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
             print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
-    return not SUCCESS  ##, test_file_contents  # Used by repl.it (N.B. return above as well)
+    return not SUCCESS  ##, new_tests  # Used by repl.it (N.B. return above as well)
 
 
 def get_functions(file: str) -> None:
     """
-    Create cbt_last_el_ids table data, and generate and test the target functions, per example (todo that a good idea??)
+    Create cbt_last_el_ids table data, and generate and test the target functions, per example (todo not a good idea)
     :param file: An .exem filename of trace examples
     :return: None
     """
-    # Fill the cbt_last_el_ids (clei) table, starting with FOR loops' known endings:
-    cursor.execute("""INSERT INTO cbt_last_el_ids -- cbt_id, example_id, control_id, last_el_id
-                -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc.
+    # Fill the cbt_last_el_ids (clei) table, starting with all FOR loops' known (as opposed to conjectured) endings:
+    cursor.execute("""INSERT INTO cbt_last_el_ids 
+                -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc. ?
                 SELECT cbt_id, example_id, first_el_id, control_id, last_el_id 
                   FROM control_block_traces 
                  WHERE last_el_id IS NOT NULL AND 
                        substr(control_id,1,3)='for'""")
-    # (for cbt_id's where last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
-    # should be null).)
+    # (for cbt_id's whose last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
+    # should be null). ??)
 
     functions = []
     cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
-    for example_id in range(cursor.fetchone()[0]):  # For each example, from 0th example to last.
+    for example_id in range(cursor.fetchone()[0]):  # For each example
 
         functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
     # functions.append(get_function(file, 1))             # **********************************************

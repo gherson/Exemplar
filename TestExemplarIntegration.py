@@ -577,7 +577,7 @@ class TestExemplarIntegration(unittest.TestCase):
 (350, 0, Your guess is too high., out, None, if0:0),
 (355, 0, guess_count >= 5, truth, if0:3, if0:0),
 (360, 0, Nope. The number I was thinking of was 3., out, None, if0:0)]"""
-        print(exemplar.dump_table("example_lines"))
+        # print(exemplar.dump_table("example_lines"))
         self.assertEqual(expected, exemplar.dump_table("example_lines"))
 
     ''' Under maintenance
