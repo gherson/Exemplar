@@ -28,21 +28,22 @@ Version 1 finished 3/25/2018 can generate one if/elif/else. This version correct
 and leap_year.exem. These 'reason's are 0 or 1 conditions only.
 
 Glossary:
-example == A trace imagining input, output, and assertions as specification of a desired (target) function.
+code == Python code generated.
+example == A trace imagining a complete input/output interaction with a function to be generated, complete with 
+assertion/hints, provided by a user as specification.
 exem == The user's examples collected in a file of extension .exem.
+line == An example_lines.line.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 control_id could be for0:0 from 'for' + example_id + ':' + control_count['for']
 
-Variable name prefixes:
-cbt == control_block_traces. E.g., cbt_id could be for0:0_40 from control_id + '_' + first_el_id.
-el == example_line
-clei == cbt_last_el_ids table
-
-Function name prefixes:
-"fill_" == building a table's data.
-"insert_" == inserting one record into a table.
-"store_" == finding instances of a control structure in raw/low level data and inserting them into a higher level table.
+Prefixes:
+cbt_ == control_block_traces. E.g., cbt_id could be for0:0_40 from control_id + '_' + first_el_id.
+clei_ == cbt_last_el_ids table
+el_ == example_line
+fill_ == function that fills a table.
+insert_ == function that inserts one table record per call.
+store_ == function that lifts lower level data into a higher level table.
 """
 
 
@@ -1436,10 +1437,11 @@ def get_python(current_el_id: int) -> Tuple[str, int]:
     :return: a python line, FOR or IF last_el_id tuple (or None, None if no code found).
     """
     # Minimal extent in lines is used for IFs while maximal extent is used for FORs.
-    cursor.execute("""SELECT cntl.python, min(clei.last_el_id) as if_end, max(clei.last_el_id) as for_end
-        FROM controls cntl  
-        JOIN cbt_last_el_ids clei USING (control_id) 
-        WHERE cntl.first_el_id=? AND clei.first_el_id=?""",
+    cursor.execute("""SELECT cntl.python, 
+    min(clei.last_el_id) as if_end, 
+    max(clei.last_el_id) as for_end
+        FROM controls cntl JOIN cbt_last_el_ids clei USING (control_id) 
+        WHERE cntl.first_el_id=? AND clei.last_el_id>?""",  # AND clei.first_el_id=?""",
                    (current_el_id, current_el_id))
     rows = cursor.fetchall()
     # assert len(rows) == 1, str(rows)  cast(substr(clei.cbt_id, instr(clei.cbt_id, '_') + 1) as int)=?
@@ -1646,10 +1648,12 @@ def generate_code(example_id: int) -> List[str]:
             line = get_1st_line_of_iteration(last_el_id)  # Eg, 'eg == 0'
             # first_line2 = get_1st_line_of_local_last_iteration(last_el_id)  # Eg, 'guess_count==2'
             # Eg,                              "for guess_count in range(0, 6)"                "guess_count==2"
-            if line and abs(last_int_of_string(latest_for_statement)) > abs(last_int_of_string(line)):
+            if line and latest_for_statement and \
+                    abs(last_int_of_string(latest_for_statement)) > abs(last_int_of_string(line)):
                 print("len(code), el_id, latest, line: ", len(code), el_id, line, latest_for_statement)
                 code.append(indents * "    " + "break")
                 code_flush_left.append("break")
+                latest_for_statement = None
             # top_line = get_latest_block(code, line=0)
             # if top_line[0:4] == "for " and abs(last_int(top_line)) > loop_variable_value(last_el_id):
             indents -= 1  # dedent
