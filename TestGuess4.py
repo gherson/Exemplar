@@ -42,33 +42,10 @@ def guess4():
         guess = int(input("guess:"))  # Eg, 11
         if guess > secret:
             print('Your guess is too high.')
-    for guess_count in range(0, 6):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 1
-        if guess < secret:
-            print('Your guess is too low.')
-    for guess_count in range(0, 6):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 2
-        if guess < secret:
-            print('Your guess is too low.')
-    for guess_count in range(0, 6):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 10
-        if guess > secret:
-            print('Your guess is too high.')
-    for guess_count in range(0, 6):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 9
-        if guess > secret:
-            print('Your guess is too high.')
-    for guess_count in range(0, 6):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 8
-        if guess > secret:
-            print('Your guess is too high.')
-            if guess_count >= 5:
-                print('Nope. The number I was thinking of was ' + str(secret) + '.')
+    if guess < secret:
+        print('Your guess is too low.')
+    if guess_count >= 5:
+        print('Nope. The number I was thinking of was ' + str(secret) + '.')
 
 
 class TestGuess4(unittest.TestCase):

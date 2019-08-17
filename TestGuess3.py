@@ -42,16 +42,10 @@ def guess3():
         guess = int(input("guess:"))  # Eg, 10
         if guess > secret:
             print('Your guess is too high.')
-    for guess_count in range(0, 3):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 2
-        if guess < secret:
-            print('Your guess is too low.')
-    for guess_count in range(0, 3):
-        print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 4
-        if secret == guess:
-            print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
+    if guess < secret:
+        print('Your guess is too low.')
+    if secret == guess:
+        print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
 
 
 class TestGuess3(unittest.TestCase):
