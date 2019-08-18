@@ -25,6 +25,7 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Exemplar generates solutions to single-example traces, 2019-04-17
 
 # Log of work
+* 2019-08-17 Function synthesis from guess5.exem working correctly. 2h 
 * 2019-08-16 Debugging generate_code()'s attempts to insert "break" iff a FOR loop ends prematurely. Bug fix in 
 fill_for_loops_table(). Wrote get_1st_line_of_iteration(last_el_id). 10h
 * 2019-08-15 Progress in debugging guess5.exem processing. 4h

@@ -1,6 +1,5 @@
-# this is working but many changes were needed; see esp'ly all the code commented out. 8/13/19
 """
-So E's job is to recognize the control implied (shown to the right) by the example_lines (at left):
+Exemplar's job is to recognize the control implied (shown to the right) by the example_lines (at left):
 [all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)
 (5, 0, __example__==0, truth, None, None),
@@ -11,7 +10,7 @@ So E's job is to recognize the control implied (shown to the right) by the examp
 (30, 0, 4, in, None, None),
 (35, 0, secret==i1, truth, None, None),
 (40, 0, Well, Albert, I am thinking of a number between 1 and 20., out, None, None),
-(45, 0, guess_count==0, truth, None, None),                     for guess_count in range(0, ?):  # ?==2 in this example.
+(45, 0, guess_count==0, truth, None, None),                     for guess_count in range(0, ?):  # ?==2 just for this example.
 (50, 0, Take a guess., out, None, None),
 (55, 0, 10, in, None, None),
 (60, 0, guess==i1, truth, None, None),
@@ -30,10 +29,9 @@ So E's job is to recognize the control implied (shown to the right) by the examp
 (125, 0, guess==secret, truth, None, None),                         elif guess==secret
 (130, 0, guess_count + 1 == 3, truth, None, None),
 (135, 0, Good job, Albert! You guessed my number in 3 guesses!, out, None, None),
-                                                                        break # implied by premature (2 not 5) ending to this
-                                                                                iteration of the guess_count loop. But note
-                                                                                that this can only be detected once the
-                                                                                eg==1 example (below) is processed.
+                                                                        break # implied by premature (2 not 6) ending to this
+                                                                                example of the guess_count loop, detectable
+                                                                                once the below eg==1 example is processed.
 (140, 0, eg == 1, truth, None, None),
 (145, 0, Hello! What is your name?, out, None, None),
 (150, 0, John, in, None, None),
@@ -77,9 +75,8 @@ So E's job is to recognize the control implied (shown to the right) by the examp
 (340, 0, guess==i1, truth, None, None),
 (345, 0, guess>secret, truth, None, None),                          ...
 (350, 0, Your guess is too high., out, None, None),
-(355, 0, guess_count >= 5, truth, None, None),              end of guess_count loop 1 line above implied by break from
-                                                            past iterations. Can be best explained by reaching range end.
-                                                            if guess_count >= 5:
+(355, 0, guess_count >= 5, truth, None, None),              (end of guess_count loop one line above is implied by this
+ line's deviation from past iterations. Can be best explained by reaching range end.<p>This line implies) if guess_count >= 5:
 (360, 0, Nope. The number I was thinking of was 3., out, None, None)]
 """
 import unittest, exemplar
@@ -125,58 +122,14 @@ def guess5():
             guess = int(input("guess:"))  # Eg, 10
             if guess > secret:
                 print('Your guess is too high.')
-        # for guess_count in range(0, 6):  Should only be output for first cbt_id of its control_id...
-        #     print('Take a guess.')
-        #     guess = int(input("guess:"))  # Eg, 2
             if guess < secret:
                 print('Your guess is too low.')
-        # for guess_count in range(0, 6):
-        #     print('Take a guess.')
-        #     guess = int(input("guess:"))  # Eg, 4
             if secret == guess:
                 print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
-                break  # out of inner FOR. ADDED. If the same "for" loop exits with differing loop var value, add
-                # "break" after the ones that end early.
+                break
+    if guess_count >= 5:
+        print('Nope. The number I was thinking of was ' + str(secret) + '.')
 
-    # for eg in range(0, 2):
-    #     print('Hello! What is your name?')
-    #     name = input("name:")  # Eg, John
-    #     secret = int(input("secret:"))  # Eg, 3
-    #     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 11
-    #         if guess > secret:
-    #             print('Your guess is too high.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 1
-    #         if guess < secret:
-    #             print('Your guess is too low.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 2
-    #         if guess < secret:
-    #             print('Your guess is too low.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 10
-    #         if guess > secret:
-    #             print('Your guess is too high.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 9
-    #         if guess > secret:
-    #             print('Your guess is too high.')
-    #     for guess_count in range(0, 6):
-    #         print('Take a guess.')
-    #         guess = int(input("guess:"))  # Eg, 8
-    #         if guess > secret:
-    #             print('Your guess is too high.')
-    #             if guess_count >= 5:
-    #                 print('Nope. The number I was thinking of was ' + str(guess_count+1) + '.')
-        if guess_count >= 5:
-            print('Nope. The number I was thinking of was ' + str(secret) + '.')  # was: guess_count+1
 
 class TestGuess5(unittest.TestCase):
 
