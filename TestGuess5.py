@@ -8,6 +8,7 @@ example_input = []   # Assigned in each test to provide input() values to the fu
 # print() is mocked so the tests can recreate the .exem in actual_io_trace.
 def print(line: str = "") -> None:
     global actual_io_trace
+    line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
     actual_io_trace += ">" + line + '\n'
 
 
@@ -15,6 +16,7 @@ def print(line: str = "") -> None:
 def input(line: str = "") -> str:
     global actual_io_trace
     result = example_input.pop(0)
+    result = result.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
     actual_io_trace += "<" + result + '\n'  # Eg, '<Albert\n'
     return result
 
@@ -48,8 +50,8 @@ def guess5():
             if secret == guess:
                 print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
                 break
-    if guess_count >= 5:
-        print('Nope. The number I was thinking of was ' + str(secret) + '.')
+            if guess_count >= 5:
+                print('Nope. The number I was thinking of was ' + str(guess_count+1) + '.')
 
 
 class TestGuess5(unittest.TestCase):

@@ -8,14 +8,14 @@ example_input = []   # Assigned in each test to provide input() values to the fu
 # print() is mocked so the tests can recreate the .exem in actual_io_trace.
 def print(line: str = "") -> None:
     global actual_io_trace
-    actual_io_trace += ">" + line + '\n'
+    actual_io_trace += ">" + exemplar.clean(line) + '\n'
 
 
 # input() is mocked to simulate user entries, for the tests' processing and for the tests' actual_io_trace record.
 def input(line: str = "") -> str:
     global actual_io_trace
     result = example_input.pop(0)
-    actual_io_trace += "<" + result + '\n'  # Eg, '<Albert\n'
+    actual_io_trace += "<" + exemplar.clean(result) + '\n'  # Eg, '<Albert\n'
     return result
 
 

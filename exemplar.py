@@ -7,7 +7,7 @@ import unittest
 from typing import List, Tuple, Dict, Any
 #import os
 
-DEBUG = False #True  # True turns on testing and more feedback.
+DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
 pid = ''  # Tracks parent vs child forks.
 SUCCESS = True
@@ -29,8 +29,8 @@ and leap_year.exem. These 'reason's are 0 or 1 conditions only.
 
 Glossary:
 code == Python code generated.
-example == A trace imagining a complete input/output interaction with a function to be generated, complete with 
-assertion/hints, provided by a user as specification.
+example == An imagined trace of a complete input/output interaction with a function to be generated, with added 
+assertion/hints, provided by the user.
 exem == The user's examples collected in a file of extension .exem.
 line == An example_lines.line.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
@@ -161,7 +161,7 @@ def clean(examples: List[str]) -> List[str]:
         if len(line.lstrip()) and line.lstrip()[0] == '#':
             continue  # Skip full line comments.
         line = denude(line)  # (def denude() is above.)
-        line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes in the exem input lines.
+        line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes.
 
         if previous_line == '':  # Then on first line.
             if line == '':  # Skip initial blank lines.
@@ -202,12 +202,13 @@ if DEBUG and __name__ == '__main__':
     assert ["code"] == clean(['  code  '])
     assert ["code"] == clean([" code # This should be removed. # 2nd comment "])
     assert ["code \# This should NOT be removed."] == clean([" code \# This should NOT be removed. # 1st comment "])
-    assert ["code '# This should NOT be removed.'"] == clean([" code '# This should NOT be removed.' # 1st comment "])
+    # Why 3 backslashes? "'".translate(str.maketrans({"'": r"\'"})) returns only 2: "\\'"
+    assert ['code \\\'# This should NOT be removed.\\\''] == clean([" code '# This should NOT be removed.' # 1st comment "])
     assert ["code"] == clean(["  ",'  code  ',''])
     assert ["code"] == clean([" code # This should be removed. # 2nd comment ","   "])
     assert ["code \# This should NOT be removed."] == clean([' '," code \# This should NOT be removed. # comment ",""])
-    assert ["code '# This should NOT be removed.'"] == clean([''," code '# This should NOT be removed.' # comment ",""])
-    assert ["co\'de"] == clean(["  co'de  "])
+    assert ["code \\\'# This should NOT be removed.\\\'"] == clean([''," code '# This should NOT be removed.' # comment ",""])
+    assert ["co\\\'de"] == clean(["  co'de  "])
 
 
 # c labels aren't being used. 2/20/19
@@ -863,7 +864,8 @@ def reset_db() -> None:
                         line TEXT NOT NULL,
                         line_type TEXT NOT NULL, -- in/out/truth 
                         control_id TEXT, -- from conditions.control_id
-                        controller TEXT -- the control_id most directly controlling this line (?)
+                        controller TEXT -- the control_id most directly controlling this line, ie, the nearest, earlier 
+                        -- control_id whose block hasn't ended.
                         )''')
 
     # # # of `reason`s * # of inputs == # of records. To show how every `reason` evaluates across every example input.
@@ -1521,7 +1523,12 @@ def get_1st_line_of_iteration(last_el_id) -> str:
     return fetched_one[0] if fetched_one else None
 
 
-def last_int_of_string(line) -> int:
+def last_int_of_string(line: str) -> int:
+    """
+    Return the last integer of given `line`.  Error if none present.
+    :param line:
+    :return: integer
+    """
     return int(re.search(r'(\d+)\D*$', line).group(1))
 
 

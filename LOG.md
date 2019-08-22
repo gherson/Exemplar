@@ -22,9 +22,12 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 
 # Done
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
-* Exemplar generates solutions to single-example traces, 2019-04-17
 
 # Log of work
+* 2019-08-21 Unify single quoting handling. Exemplar.py's internal unit tests now all passing. 2h
+* 2019-08-20 "Finished" reading the paper to pickup terms etc for starting my own. 1h
+* 2019-08-19 Reading "Program synthesis: challenges and opportunities" by David and Kroenig 2017. 2h
+* 2019-08-18 Organizing my research notes and browsing papers to determine journal to target for my research paper. 2h
 * 2019-08-17 Function synthesis from guess5.exem working correctly. 2h 
 * 2019-08-16 Debugging generate_code()'s attempts to insert "break" iff a FOR loop ends prematurely. Bug fix in 
 fill_for_loops_table(). Wrote get_1st_line_of_iteration(last_el_id). 10h
