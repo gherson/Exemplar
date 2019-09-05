@@ -15,6 +15,7 @@ cursor.execute("INSERT INTO testing (text_col, int_col) VALUES ('original value'
 cursor.execute("SELECT int_col FROM testing")
 row = cursor.fetchone()
 print("fetchone(col) row of NULL value is (None,):", row)
+print("The type of an INTEGER selection is, in Python, int:", type(row[0]))
 
 cursor.execute("SELECT int_col FROM testing")
 row = cursor.fetchall()
@@ -40,8 +41,13 @@ cursor.execute("SELECT min(int_col) FROM testing WHERE 1=2")
 rows = cursor.fetchall()
 print("fetchall(min(col)) row where false is [(None,)]:", rows)
 
-cursor.execute("BEGIN")  # Turns off auto-commit.
-cursor.execute("INSERT INTO testing (text_col) VALUES ('value 2')")
-cursor.execute("SELECT text_col, int_col FROM testing")
-rows = cursor.fetchall()
-print("2nd, uncommitted insertion is selectable within this thread only:", rows)
+cursor.execute("INSERT INTO testing VALUES ('ignore', 2)")
+cursor.execute("SELECT int_col FROM testing WHERE int_col=2")
+row = cursor.fetchone()
+print("fetchone(col) row of INTEGER value is <class 'int'>:", type(row[0]))
+
+# cursor.execute("BEGIN")  # Turns off auto-commit.
+# cursor.execute("INSERT INTO testing (text_col) VALUES ('value 2')")
+# cursor.execute("SELECT text_col, int_col FROM testing")
+# rows = cursor.fetchall()
+# print("2nd, uncommitted insertion is selectable within this thread only:", rows)
