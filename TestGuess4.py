@@ -28,7 +28,7 @@ def get_expected_io(exem: str, example_id: int = -1) -> str:
     for line in exemplar.clean(exemplar.from_file(exem)):
         if not line.strip():
             example_reached += 1
-        if ((line.startswith('<') or line.startswith('>')) and 
+        if ((line.startswith('<') or line.startswith('>')) and
                 (example_id==example_reached or example_id==-1)):  # io line of {correct or any} example
             out_exem_lines.append(line)
     return '\n'.join(out_exem_lines) + '\n'
@@ -36,23 +36,22 @@ def get_expected_io(exem: str, example_id: int = -1) -> str:
 
 # The generated function under test.
 def guess4():
-    for __example__ in range(0, 2):
-        print('Hello! What is your name?')
-        name = input("name:")  # Eg, Albert
-        secret = int(input("secret:"))  # Eg, 4
-        print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-        for guess_count in range(0, 6):
-            print('Take a guess.')
-            guess = int(input("guess:"))  # Eg, 10
-            if guess > secret:
-                print('Your guess is too high.')
-            if guess < secret:
-                print('Your guess is too low.')
-            if secret == guess:
-                print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
-                break
-        if guess_count >= 5:
-            print('Nope. The number I was thinking of was ' + str(secret) + '.')
+    print('Hello! What is your name?')
+    name = input("name:")  # Eg, Albert
+    secret = int(input("secret:"))  # Eg, 4
+    print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
+    for guess_count in range(0, 6):
+        print('Take a guess.')
+        guess = int(input("guess:"))  # Eg, 10
+        if guess > secret:
+            print('Your guess is too high.')
+        if guess < secret:
+            print('Your guess is too low.')
+        if secret == guess:
+            print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
+            break
+    if guess_count >= 5:
+        print('Nope. The number I was thinking of was ' + str(secret) + '.')
 
 
 class TestGuess4(unittest.TestCase):
@@ -64,9 +63,15 @@ class TestGuess4(unittest.TestCase):
     
     def test_guess41(self):
         global global_input
-        global_input = ['Albert', '4', '10', '2', '4', 'John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
+        global_input = ['Albert', '4', '10', '2', '4']  # From an example of the .exem
         guess4()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual(get_expected_io('guess4.exem'), actual_io_trace)
+        self.assertEqual(get_expected_io('guess4.exem', example_id=0), actual_io_trace)
+    
+    def test_guess42(self):
+        global global_input
+        global_input = ['John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
+        guess4()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual(get_expected_io('guess4.exem', example_id=1), actual_io_trace)
 
 
 if __name__ == '__main__':

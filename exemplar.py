@@ -1555,7 +1555,7 @@ def generate_code() -> List[str]:
     sql = """SELECT el.el_id, el.line, el.line_type, c.condition_type, c.control_id 
     FROM example_lines el 
     LEFT JOIN conditions c ON el.el_id = c.el_id 
-    ORDER BY el.el_id"""  #WHERE el.example_id=?
+    ORDER BY el.el_id"""
     cursor.execute(sql)
     selection = cursor.fetchall()
     if len(selection) == 0:
@@ -1634,8 +1634,13 @@ def generate_code() -> List[str]:
                     ## Eg, nonvariable_equalities['guess_count'] = 3 allows swapping in guess_count for 3 in a later print:
                     ## guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
                     prior_values[left] = right  # prior_values['guess_count + 1'] = 3
-            else:                  # **********
+            else:
+                if scheme(line) == "_==__example__" and prior_values:
+                    prior_values = {}  # Clear this out between examples.
+
+                #                    **********
                 python, last_el_id = get_python(el_id)  # Retrieves code if el_id is a controls.first_el_id.
+                #                    **********
                 if python:
                     code.append(indents * "    " + python)
                     code_flush_left.append(python)
@@ -1843,32 +1848,29 @@ def inputs(example_id: int = -1) -> List:
     return result
 
 
-def generate_tests(function_name: str, example_id: int = -1) -> str:
+def generate_tests(function_name: str, together: int = 1) -> str:
     """
     Generate a unit test per example in the .exem: each example's input and output lines will be compared to the
     actual_io_trace filled in by the print()s and input()s called by the target function, while operating on the
     global_input.
     :database: SELECT example_lines.
     :param function_name: used for test function name and calling the function under test.
-    :param example_id: may identify an example to test with it only.
+    :param together: whether to test examples together (the default) or separately.
     """
-    # # For each example, ??
+    #delete:
     # cursor.execute('''SELECT inp.line, output.line, inp.example_id FROM example_lines inp, example_lines output
     #                     WHERE inp.example_id = output.example_id AND inp.line_type = 'in' AND output.line_type = 'out'
     #                     AND (inp.step_id = 5 OR output.step_id = 5) ORDER BY inp.example_id, output.step_id DESC''')
     # # The above DESC and the 'continue' below implement MAX(output.step_id) per example_id.
     #query = "SELECT DISTINCT example_id FROM example_lines WHERE example_id=? ORDER BY example_id"
     query = "SELECT DISTINCT example_id FROM example_lines "
-    if example_id > -1:
-        cursor.execute(query + "WHERE example_id=? ORDER BY example_id", (example_id,))
-    else:
-        cursor.execute(query + "ORDER BY example_id")
+    cursor.execute(query + "ORDER BY example_id")
     all_examples = cursor.fetchall()
     test_code = ""
     i = 1  # For appending to the test name.
     # previous_example_id = -1
     for row in all_examples:
-        example_id = row[0] if example_id > -1 else -1
+        example_id = row[0] if not together else -1
         # Create one test per example.
         # if example_id == previous_example_id:
         #     previous_example_id = example_id
@@ -1881,14 +1883,14 @@ def generate_tests(function_name: str, example_id: int = -1) -> str:
         test_code += "    " + function_name + "()  # The function under test is used to write to actual_io_trace.\n"  # TODO need formal params!!
         #                                       Return the named .exem (stripped of comments):
         f_name = function_name
-        if len(function_name) > 4 and function_name[-4:] == '_stf':  # Remove "_stf" when naming the .exem file.
-            f_name = f_name[0:-4]
+        #if len(function_name) > 4 and function_name[-4:] == '_stf':  # Remove "_stf" when naming the .exem file.
+        #    f_name = f_name[0:-4]
         test_code += "    self.assertEqual(get_expected_io('" + f_name + ".exem'"
-        if example_id > -1:  # Test with 1 example only.
+        if not together:  # Test examples separately.
             test_code += ", example_id=" + str(example_id)
         test_code += "), actual_io_trace)\n"
-        if example_id == -1:
-            break  # One test suffices: it is all inclusive.
+        if together:
+            break  # One, all-inclusive test only.
 
         # previous_example_id = example_id
         i += 1
@@ -2167,7 +2169,7 @@ def run_tests(class_name: str) -> str:
     """
     Run the unittest tests of the named file and print and return the results.
     :database: not involved.
-    :param filename:
+    :param class_name:
     :return: results of the tests
     """
     TestClass = importlib.import_module(class_name)
@@ -2711,25 +2713,43 @@ def fill_for_loops_table() -> None:
                                                                   prior["last_el_id"]))
 
 
+def remove_examples_loop(code_list: List[str]) -> List[str]:
+    """
+    Copy lines to output (stage 0) until "for __example__ in range(0, " reached (stage 1) then dedent.
+    :param code_list: python code
+    :return: python code without the __example__ loop
+    """
+    code_list_out = []
+    stage = 0
+    for line in code_list:
+        if stage == 0 and line.strip()[:28] == "for __example__ in range(0, ":
+            stage = 1
+        elif stage == 1:
+            code_list_out.append(line[4:])  # Dedent
+        else:
+            code_list_out.append(line)
+    assert stage == 1, "Error: remove_examples_loop() never advanced beyond Stage " + str(stage)
+    return code_list_out
+
+
 def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
     """
     Attempt to find an example-satisfying function then report success or failure.
     :param file_arg:
-    :param example_id:
     :return SUCCESS or not SUCCESS:
     """
     function_count = 0  # The # of generated functions
-    ##example_id = 1  # TESTING
-    ##print("Starting work specific to example", example_id)
 
     # First, add the known FOR endings (IFs are not yet ended) to the cbt_last_el_ids (clei) table.
     cursor.execute("""INSERT INTO cbt_last_el_ids 
                         SELECT cbt_id, example_id, first_el_id, control_id, last_el_id FROM control_block_traces 
                         WHERE last_el_id IS NOT NULL""")
+    # (for cbt_id's whose last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
+    # should be null)).
 
     # With the pre-determinable databased, gather all the last_el_id (block scope ending) possibilities to iterate
     # through them.
-    cbt_ids, for_maybes = get_last_el_id_maybes()  #example_id)  # ********* get_last_el_id_maybes of for-loops ********
+    cbt_ids, for_maybes = get_last_el_id_maybes()  # ********* get_last_el_id_maybes of for-loops ********
     if not for_maybes:
         for_maybes = [()]  # To force 1 iteration of loop below despite having 0 for-loop related last_el_id_maybe's.
 
@@ -2772,14 +2792,14 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
 
         # ******************************** IFs **************************
         # Having (theorized) endpoints for the for-loops helps greatly in constraining the possible IF endpoints.
-        store_ifs()  #example_id)  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
+        store_ifs()  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
         # C.b.t. table is now in its final form for this trial. Only finishing the clei table remains.
 
         # # First, add the known IF endings to the cbt_last_el_ids (clei) table.
         cursor.execute("""INSERT INTO cbt_last_el_ids
                             -- old: Eg, for guess4, (for0:0_5, 130), (for0:0_135, 355), (for0:1_40, 65), etc.
                             SELECT cbt_id, example_id, first_el_id, control_id, last_el_id FROM control_block_traces
-                            WHERE last_el_id IS NOT NULL AND substr(control_id,1,2)='if'""")  # AND example_id=?    , (example_id,))
+                            WHERE last_el_id IS NOT NULL AND substr(control_id,1,2)='if'""")
 
         # Then, a round of theorized IF endpoints.
         if_cbt_ids, if_maybes = get_last_el_id_maybes()  # ************ IF get_last_el_id_maybes *************
@@ -2822,56 +2842,60 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             print(dump_table("for_loops"))
             print(dump_table("cbt_last_el_ids"))
 
-            # # TEMPORARY............. for testing test_add_control_info_to_example_lines_guess5()
-            # db.commit()
-            # return not SUCCESS  #raise  # exit
-
             # Gen code and see if it passes the unit tests made from the examples.
 
             function_name = file_arg[0:-5]  # Remove ".exem" extension.
             signature = "def " + function_name + '(' + formal_params() + "):\n"
 
-            #                                              ***********************
-            code = signature + '\n'.join(generate_code())  # **** GENERATE CODE ****
+            #                              ***********************
+            code_list = generate_code()  # **** GENERATE CODE ****
+            code0 = signature + '\n'.join(code_list)  # Includes __example__ loop.
+            code = signature + '\n'.join(remove_examples_loop(code_list))
             function_count += 1
             if DEBUG:
-                print("\nFunction", str(function_count) + ":\n" + code, "\n")  # Print generated function.
+                print("\nFunction", str(function_count) + ":\n" + code0, "\n")  # Print generated function.
 
-            # Create unit tests for the sequential version of the target function, as sanity checks. DISABLED
-            new_tests = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
+            # Create an all-in-one unit test.
+            test = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
 
             class_name = "Test" + underscore_to_camelcase(function_name)
             class_signature = "class " + class_name + "(unittest.TestCase):"
-            new_tests = new_tests.replace('<class signature>', class_signature, 1)
+            test = test.replace('<class signature>', class_signature, 1)
 
             # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
-            #     new_tests += "    " + line  # Indent each line, as each test is part of a class.
-            # ********* GENERATE TESTS ******** and add them to new_tests.
-            example_id = if_cbt_ids[i][2] if if_cbt_ids else 0  # (May be re-introduced into call on next line.)
+            #     test += "    " + line  # Indent each line, as each test is part of a class.
+            # ********* GENERATE TESTS ******** and add them to test.
+            #example_id = if_cbt_ids[i][2] if if_cbt_ids else 0
+            tests = test
             for line in generate_tests(function_name).splitlines(True):
-                new_tests += "    " + line
+                test += "    " + line
+            for line in generate_tests(function_name, together=False).splitlines(True):
+                tests += "    " + line
 
-            new_tests += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
-
-            # to_file(class_name + ".py", new_tests)
-            # print("Testing STF: ", end='')
-            # test_results = run_tests(class_name)  # **** RUN TESTS ****
-            # if len(test_results.errors) == 0 and len(test_results.errors) == 0:  # The STF works.
-            # print("STF error and failure count is 0. Proceeding to structured trial with current endpoint universe.")
+            test += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
+            tests += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
 
             # Write a class file ahead of run_tests() call.
-            new_tests = new_tests.replace('#<function under test>', code, 1)  # CODE
-            to_file(class_name + ".py", new_tests)
-            print("Running and testing", file_arg + ": ", end='')
-            test_results = run_tests(class_name)  # **** RUN TESTS ****
+            test = test.replace('#<function under test>', code0, 1)  # Single test. code0 has __example__ loop.
+            tests = tests.replace('#<function under test>', code, 1)  # 2nd stage code and tests.
+
+            to_file(class_name + ".py", test)
+            test_results = run_tests(class_name)  # **** RUN TEST ****
             if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                 db.commit()
                 print(function_count, "functions generated")
                 print("Passed all tests - no errors or failures. Database changes committed.")
-                # print("\n" + code + "\n")
-
-                # ************ RETURN ************
-                return SUCCESS  # Successful code ##, new_tests
+                to_file(class_name + ".tmp", test)  # Backup TestX.py to TestX.tmp, in effect.
+                # Write a new TestX.py that's without the for __example__ loop but includes multiple unit tests.
+                to_file(class_name + ".py", tests)
+                test_results = run_tests(class_name)  # **** RUN TESTS ****
+                if len(test_results.errors) == 0 and len(test_results.failures) == 0:
+                    print("Stage 2 success")
+                    # ************ RETURN ************
+                    return SUCCESS
+                else:
+                    print("Unexpected failure in Stage 2")
+                    return not SUCCESS  # Used by repl.it
 
             # Failure. Unless it's the very last trial, ROLLBACK TO if_endings_trial.
             if (if_maybes_row != if_maybes[len(if_maybes) - 1]) or for_maybes_row != for_maybes[len(for_maybes) - 1]:
@@ -2891,33 +2915,7 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             cursor.execute("SELECT COUNT(*) FROM cbt_last_el_ids")
             print("After for loop rollback: clei count(*)", cursor.fetchone()[0])
     print(function_count, "functions generated, none successful")
-    return not SUCCESS  ##, new_tests  # Used by repl.it (N.B. return above as well)
-
-
-# UNUSED
-def get_functions(file: str) -> None:
-    """
-    Create cbt_last_el_ids table data, and generate and test the target functions
-    :param file: An .exem filename of trace examples
-    :return: None
-    """
-    # Fill the cbt_last_el_ids (clei) table, starting with all FOR loops' known (as opposed to conjectured) endings:
-    cursor.execute("""INSERT INTO cbt_last_el_ids 
-                -- Eg, for guess4, (for0_5, 130), (for0_135, 355), (for1_40, 65), etc. ?
-                SELECT cbt_id, example_id, first_el_id, control_id, last_el_id 
-                  FROM control_block_traces 
-                 WHERE last_el_id IS NOT NULL AND 
-                       substr(control_id,1,3)='for'""")
-    # (for cbt_id's whose last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
-    # should be null). ??)
-
-    functions = []
-    cursor.execute("SELECT count(DISTINCT example_id) FROM example_lines")
-    for example_id in range(cursor.fetchone()[0]):  # For each example
-
-        functions.append(get_function(file, example_id))  # *************** GET_FUNCTION *****************
-    # functions.append(get_function(file, 1))             # **********************************************
-    print("Functions found:", len(functions))
+    return not SUCCESS  # Used by repl.it (N.B. return above as well)
 
 
 def reverse_trace(file: str) -> str:

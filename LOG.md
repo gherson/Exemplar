@@ -24,8 +24,11 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-09-09 Completed work started yesterday. 4h
+* 2019-09-08 At the point unneeded, removing __example__ loop and the all-in-one unit test (in favor of many). 2h
+* 2019-09-05 Organizing Exemplar-related material in OneNote. 2h
 * 2019-09-04 Exemplar now considers multiple examples automatically (without need to manually create loops as in 
-guess5.exem). Both examples of guess4.exem are used, tested, and working. 10h
+guess5.exem). As such, both examples of guess4.exem are used to create its solution. 10h
 * 2019-08-26 Posted 8min video, solicited ML improvement ideas from CS7641 Machine Learning. 1.5h
 * 2019-08-21 Unify single quoting handling. Exemplar.py's internal unit tests now all passing. 2h
 * 2019-08-20 "Finished" reading the paper to pickup terms etc for starting my own. 1h
