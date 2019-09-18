@@ -24,7 +24,17 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
-* 2019-09-09 Completed work started yesterday. 4h
+* 2019-09-18 Rewrote much of formal_args() for concision and correctness. leap_years.exem not yet (re) solved but 
+TestLeapYear.py is at last being created. 4h
+* 2019-09-17 Edited assertion_triple(), scheme(), get_unconditionals_post_control() and the conditions table to allow 
+for compound conditions. 4h
+* 2019-09-16 Rewrote fill_conditions_table() to allow for compound conditions. Generalized get_el_id() into 
+get_line_item(). 4h
+* 2019-09-15 Began enabling leap_years.exem, which has compound conditions in the assertions and is return-oriented 
+(with a long IF structure) rather than interactive with the user as in the guess() functions. Created consistent_preambles() 
+for store_for_loops(). 4h
+* 2019-09-09 Completed work started yesterday. Also, clearing the "environment" (prior_values) between the processing of
+ __example__ iterations. 4h
 * 2019-09-08 At the point unneeded, removing __example__ loop and the all-in-one unit test (in favor of many). 2h
 * 2019-09-05 Organizing Exemplar-related material in OneNote. 2h
 * 2019-09-04 Exemplar now considers multiple examples automatically (without need to manually create loops as in 
@@ -133,7 +143,7 @@ that in Python on Windows. Can't, so researched virtual machine options, then cr
 * 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
 * 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_for_loops(), store_ifs(). 6.75h
-* 2019-03-08 More for-loop logistics in new functions get_el_id(), insert_for_loop_into_cbt(). 7.75h
+* 2019-03-08 More for-loop logistics in new functions get_line_item(), insert_for_loop_into_cbt(). 7.75h
 * 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h
 * 2019-03-05 get_range() now looking at one example at a time. 3.75h

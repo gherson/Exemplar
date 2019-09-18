@@ -272,11 +272,11 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = 120
-        self.assertEqual(expected, exemplar.get_el_id(100, 4))
+        self.assertEqual(expected, exemplar.get_line_item(100, 4))
         expected = 150
-        self.assertEqual(expected, exemplar.get_el_id(80, 14))
+        self.assertEqual(expected, exemplar.get_line_item(80, 14))
         expected = 20
-        self.assertEqual(expected, exemplar.get_el_id(115, -19))
+        self.assertEqual(expected, exemplar.get_line_item(115, -19))
 
     def test_get_unconditional_post_control_guess4(self):
         example_lines = exemplar.from_file("guess4.exem")

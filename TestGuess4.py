@@ -5,15 +5,16 @@ global_input = []   # Assigned in each test to provide input() values to the fun
 
 
 # 3 functions unchanged from starter:
-# print() is mocked so the tests can recreate the .exem in actual_io_trace.
+# print() is mocked to see if the tests recreate the .exem-specified i/o in actual_io_trace.
 def print(line: str = "") -> None:
     global actual_io_trace
     line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
     actual_io_trace += ">" + line + '\n'
 
 
-# input() is mocked to simulate user entries, for the tests' processing and for the tests' actual_io_trace record.
-def input(line: str = "") -> str:
+# input() is mocked to return the test-specified input as well as add it to actual_io_trace.
+def input(variable_name: str = "") -> str:
+    # (variable_name is ignored because it may not have been specified by the .exem.)
     global actual_io_trace
     result = global_input.pop(0)
     result = result.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
@@ -23,15 +24,15 @@ def input(line: str = "") -> str:
 
 # Return the i/o statements of the named .exem file (for comparison with actual_io_trace).
 def get_expected_io(exem: str, example_id: int = -1) -> str:
-    out_exem_lines = []
+    return_exem_io_lines = []
     example_reached = 0
     for line in exemplar.clean(exemplar.from_file(exem)):
-        if not line.strip():
-            example_reached += 1
+        if not line.strip():  # line's empty,
+            example_reached += 1  # increment example count
         if ((line.startswith('<') or line.startswith('>')) and
-                (example_id==example_reached or example_id==-1)):  # io line of {correct or any} example
-            out_exem_lines.append(line)
-    return '\n'.join(out_exem_lines) + '\n'
+                (example_id==example_reached or example_id==-1)):  # `line` is an i/o line of {correct or any} example?
+            return_exem_io_lines.append(line)                      # Then note it for return.
+    return '\n'.join(return_exem_io_lines) + '\n'
 
 
 # The generated function under test.

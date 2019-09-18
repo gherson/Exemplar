@@ -1,9 +1,10 @@
 """
 leapYear(int year):
 returns true iff
-* the year is divisible by 4 and not divisible by 100 (e.g. 2012, 2016, 2020, 2024). 
-* or the year is divisible by 400 (e.g. 2000, 2400, 2800).
-
+* the year is divisible by 4 and not divisible by 100 (e.g. 2012, 2016, 2020, 2024)
+or
+* the year is divisible by 400 (e.g. 2000, 2400, 2800)
+DELETE:
 (After swapping in SQL for dicts) Exemplar correctly turned the below examples into
 if i1 % 400 == 0:
 	return True
@@ -11,37 +12,34 @@ elif i1 % 4 == 0 and i1 % 100 != 0:
 	return True
 else:  # True
 	return False
-   
+
 on its first try, 2018-02-24.   
 """
-2012
-True
+<2012
 i1 % 4 == 0 and i1 % 100 != 0
+>True
 
-2000
-True
+<2000
 i1 % 400 == 0
+>True
 
-2013
-False
-True
+<2013
+>False
 
-2014
-False
-True
+<2014
+>False
 
-2015
-False
-True
+<2015
+>False
 
-2016
-True
+<2016
 i1 % 4 == 0 and i1 % 100 != 0
+>True
 
-2020
-True
+<2020
 i1 % 4 == 0 and i1 % 100 != 0
+>True
 
-2400
-True
+<2400
 i1 % 400 == 0
+>True

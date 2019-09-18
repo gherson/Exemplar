@@ -8,13 +8,14 @@ from typing import List, Tuple, Dict, Any
 #import os
 
 DEBUG = True  # True turns on testing and more feedback.
-DEBUG_DB = False  # True sets database testing (from an hour apart if DEBUG is True) to always on.
+DEBUG_DB = False  # True sets database testing to always on.
 pid = ''  # Tracks parent vs child forks.
 SUCCESS = True
 
 # (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
 db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=False)  # 3rd arg is for repl.it
-db.row_factory = sqlite3.Row  # For Row objects instead of tuples. Use row[0] or row['column_name'] (case insensitive)
+# For Row objects instead of tuples. Use row[0] or row['column_name'] (The objects are opaque to the debugger.)
+#db.row_factory = sqlite3.Row
 cursor = db.cursor()
 
 """
@@ -48,18 +49,25 @@ store_ == function that lifts lower level data into a higher level table.
 """
 
 
-def assertion_triple(truth_line: str) -> Tuple:
+def assertion_triple(truth_line: str) -> Tuple[any]:
     """
-    List the relations in truth_line in a standard form.
-    Ie, each relation should be (left_operand, relational_operator, right_operand).
+    List the relation in truth_line as a standardized triplet, if possible. Else, return Nones.
+    Ie, (left_operand, relational_operator, right_operand) or (None, None, None).
     A valid identifier not of form i[0-9]+ is placed on the right in equality expressions.
     Double quotes are swapped for single.
     :database: not involved.
     :param truth_line:
-    :return: the operands and relational operator in truth_line.
+    :return: The left operand, rel op, and right operand in truth_line (or 3 Nones)
     """
     # assertions = list_conditions(truth_line)
     # for assertion in assertions:
+    # Qualify truth_line as a single relational comparison, or return Nones.
+    t = truth_line
+    if "==" not in t and "!=" not in t and '<' not in t and '>' not in t:
+        return None, None, None  # None relational
+    if " and " in t or " or " in t:
+        return None, None, None  # Compound
+
     assertion = truth_line.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency. todo ignore escaped "s
     # Create the relation triple: left_operand, relational_operator, right_operand.
     left_operand, relational_operator, right_operand = '', '', ''
@@ -87,6 +95,8 @@ if DEBUG and __name__ == "__main__":
     assert ('10', '>', '4') == assertion_triple("10>4"), "We instead got " + str(assertion_triple("10>4"))
     assert ('1', '==', 'guess_count') == assertion_triple("guess_count==1"), \
         "We instead got " + str(assertion_triple("guess_count==1"))
+    assert ('3', '==', 'count+1') == assertion_triple('3==count + 1'), "We instead got " + \
+                                                                         str(assertion_triple("3==count + 1"))
 
 
 def positions_outside_strings(string: str, character: str) -> List[int]:
@@ -327,16 +337,22 @@ def scheme(condition: str) -> str:
     :param condition:
     :return:
     """
+    # Protect the whitespace around "and" and "or".
+    condition.replace(" and ", "⋅and⋅")
+    condition.replace(" or ", "⋅or⋅")
     # Remove unquoted whitespace.
     for whitespace in ' \n\t\r':
         possibly_shortened = ''
         for i in range(len(condition)):
-            if i not in positions_outside_strings(condition, whitespace):
-                possibly_shortened += condition[i]
-        condition = possibly_shortened  # Latest whitespace character removed.
+            if i not in positions_outside_strings(condition, whitespace):  # Then condition[i] is not unquoted whitespace,
+                possibly_shortened += condition[i]  # so preserve it.
+        condition = possibly_shortened  # Latest whitespace character (blank, \n, \t, or \r) removed.
 
     triple = assertion_triple(condition)  # Standardize assertion form.
-    condition = triple[0] + triple[1] + triple[2]
+    if triple[0] is not None:
+        condition = triple[0] + triple[1] + triple[2]
+    condition.replace("⋅and⋅", " and ")
+    condition.replace("⋅or⋅", " or ")
 
     # Only reduce to underscore those integers not immediately following a valid Python identifier (via negative
     # lookbehind) AND not immediately before a 'c' or period (via negative lookahead).
@@ -720,7 +736,7 @@ def debug_db() -> None:
     cursor.execute("""CREATE TABLE IF NOT EXISTS history (prior_db_test_run INTEGER NOT NULL)""")
 
     global DEBUG_DB
-    if DEBUG:
+    if False:  # DEBUG:
         hour_in_seconds = 60 * 60  # minutes in an hour * seconds in a minute
         cursor.execute("""SELECT STRFTIME('%s','now'), prior_db_test_run FROM history""")
         row = cursor.fetchone()
@@ -842,9 +858,9 @@ def reset_db() -> None:
                         example_id INTEGER NOT NULL,
                         condition TEXT NOT NULL,
                         scheme TEXT NOT NULL, 
-                        left_side TEXT NOT NULL,
-                        relop TEXT NOT NULL,
-                        right_side TEXT NOT NULL,
+                        left_side TEXT, 
+                        relop TEXT, 
+                        right_side TEXT, 
                         control_id INTEGER,
                         condition_type TEXT, -- assign/if/for/while
                         FOREIGN KEY(el_id) REFERENCES example_lines(el_id))""")
@@ -1603,7 +1619,7 @@ def generate_code() -> List[str]:
                 code_flush_left.append(assignment)
 
             # Remember the values associated with variables for substituting the former in output (prints).
-            prior_values[variable_name] = line  # Eg, prior_input['name'] = 'Albert'
+            prior_values[variable_name] = line  # Eg, prior_values['name'] = 'Albert'
 
             # Find the input's data type (to add a cast later, if needed).
             if variable_name not in variables_typed:
@@ -1966,75 +1982,62 @@ def to_file(filename: str, text: str) -> None:
 
 def formal_params() -> str:
     """
-    Use the examples and Python's type() to create a formal parameters declaration.
-    Each example should have the same # of arguments and they occur before any output, in the same order.
-    These facts are used here to determine the data type each argument correlates to, in the examples.
+    Example inputs occurring before anything else (assertions or output) are held to be arguments.
+    Use the examples with Python's type() to create a formal parameters declaration. Report any inconsistency between
+    the user examples in # of arguments or data type.
     :database: SELECTs example_lines.
     :return: formal parameters declaration, eg, i1: str, i2: int
     """
     result = ''
-    # Ordering by example_id to glean arguments one example at a time.
-    # Ordering by example_id within examples to determine argument order.
-    sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY example_id, el_id"
+    sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY el_id"  # All example lines, in order.
     cursor.execute(sql)
     rows = cursor.fetchall()
     previous_example_id = ''
-    arguments = {}  # Associates a counter with a data type.
-    argument_index = 0
-    arguments_count = sys.maxsize  # Total # of args, minus 1.
+    arguments = []  # List of data types.
+    argument_total = -1
     goto_next_example = False
-    i = 0
+    i = 1
     for row in rows:
         example_id, line, line_type = row
 
-        if i > 0 and example_id != previous_example_id:  # Then up to a new example in the rows.
-            argument_index -= 1  # Correct a +1 overshoot.
-            if arguments_count == sys.maxsize:  # Hasn't been set,
-                arguments_count = argument_index  # until now.
-            elif arguments_count != argument_index:  # Each example should have the same # of arguments.
-                sys.exit("In example " + str(example_id) + ', ' + str(arguments_count+1) + " arguments expected, " +
-                         str(argument_index+1) + " arguments found.")
-            argument_index = 0  # We've returned to the first input argument (if it exists).
-            goto_next_example = False  # Reset this because we've arrived at the next example.
+        if goto_next_example and example_id != previous_example_id:
+            goto_next_example = False  # Arrived at next example, so run the below gauntlet.
 
-        if line_type == 'out':  # Then we're past any possible arguments for the current example.
-            if arguments_count == sys.maxsize:
-                arguments_count = -1  # There are no arguments.
-            elif argument_index < arguments_count < sys.maxsize:  # Then we didn't see enough arguments.
-                sys.exit("Last " + str(arguments_count - argument_index) + " arguments are missing (of " +
-                         str(arguments_count) + ") in example " + str(example_id))
-            goto_next_example = True  # Because we're past any possible arguments in this example.
+        if goto_next_example and example_id == previous_example_id:
+            pass  # Not there yet.
 
-        if line_type == 'in' and not goto_next_example:  # Then row refers to an argument.
-            # # ast module isn't needed.  data_type = type(ast.literal_eval(line))  # Determine its data type.
-
-            # Determine line's data type. (SQLite v Python: NULL==None, REAL==float, TEXT==str, BLOB==bytes)
+        elif line_type == 'in':  # `line` is a leading input of current example.
+            # Determine line's data type. (SQLite v Python: NULL v None, REAL v float, TEXT v str, BLOB v bytes)
             data_type = type(line)
 
-            if arguments_count == sys.maxsize:  # Then we're still counting.
-                arguments[argument_index] = data_type
-                argument_index += 1
-            elif arguments_count < sys.maxsize and argument_index not in arguments:
+            if argument_total == -1:  # Then still processing args of 1st example.
+                arguments.append(data_type)
+            elif len(arguments) == argument_total:  # Another input shouldn't have been reached.
                 sys.exit("Too many arguments in example " + str(example_id) + " (Line content: " + line + ')')
-            elif data_type is not arguments[argument_index]:
+            elif data_type is not arguments[i % argument_total]:
                 if data_type is str:
-                    print("arguments[" + argument_index + "] was thought to be of type " +
-                          arguments[argument_index] + " but is now TEXT to allow value '" + line + "'")
-                    arguments[argument_index] = str
-                elif data_type is float and arguments[argument_index] is int:
-                    print("Example " + str(example_id) + " has argument " + line + " where a value of type INT was expected."
-                        + " The argument's data type is now FLOAT to accommodate it.")
-                    arguments[argument_index] = float
+                    print("arguments[" + i % argument_total + "] was thought to be of type " +
+                          arguments[i % argument_total] + " but is now TEXT to allow value '" + line + "'")
+                    arguments[i % argument_total] = str
+                elif data_type is float and arguments[i % argument_total] is int:
+                    print("Example " + str(example_id) + " has argument " + line + " where a value of type INT was " +
+                          "expected. The argument's data type is now FLOAT to accommodate it.")
+                    arguments[i % argument_total] = float
                 else:
                     sys.exit("Example " + str(example_id) + " has argument " + line + " where a value of type " +
-                             arguments[argument_index] + " was expected.")
+                             arguments[i % argument_total] + " was expected.")
+        else:  # Past leading inputs of current example.
+            if argument_total == -1:
+                argument_total = len(arguments)  # (Assumes there'll be an assertion or output for every example.)
+            goto_next_example = True
 
         # Set up for next row.
         previous_example_id = example_id
         i += 1
 
+    # Done collecting argument data.
     for i in arguments:
-        result += 'i' + i+1 + ": " + arguments[i+1] + ", "  # Creating formal param list. Eg, i1: str, i2: int,
+        result += 'i' + i + ": " + arguments[i] + ", "  # Creating formal param list. Eg, i1: str, i2: int,
     return result.rstrip(", ")
 
 
@@ -2073,8 +2076,10 @@ def fill_conditions_table() -> None:
 
     for example_line in example_lines:
         el_id, example_id, condition = example_line
-        left, operator, right = assertion_triple(condition)  # Format
-        condition = left + ' ' + operator + ' ' + right      # condition.
+
+        left, operator, right = assertion_triple(condition)  # Format condition.
+        if left is not None:
+            condition = left + ' ' + operator + ' ' + right
 
         all_conditions.append((el_id, example_id, condition, scheme(condition), left, operator, right))
 
@@ -2088,39 +2093,27 @@ def fill_conditions_table() -> None:
 
     for row in rows:
         el_id, example_id, condition, row_scheme = row
-        left, operator, right = assertion_triple(condition)  # Format
 
-        condition_type = ''  # We now attempt to fill this in.
+        condition_type = 'if'  # Determine if/for/assign ('if' is the default).
+        left, operator, right = assertion_triple(condition)
+        if left is None:
+            condition_type = 'if'  # condition is compound or hasn't a relational operator.
+
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
         # **** FOR_SUSPECTS ****
-        if row_scheme == "_==__example__":  # Special case: doesn't repeat intra-example because it delimits them.
+        elif row_scheme == "_==__example__":  # Special case: doesn't repeat intra-example because it delimits them.
             condition_type = "for"
 
         # Eg,          3                     == guess_count
-        elif left.isdigit() and operator == '==' and not re.match(r'i\d', right) and re.match('[A-z]', right) and \
-                right.isidentifier() and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
-
-            # A non-input variable rhythmically asserted (alone) equal to an integer implies a ****** FOR loop ******
-            # (And assertions showing a non-input variable growing without explanation is proof of a FOR loop.)
-            # if scheme(condition) not in for_suspects:  # scheme(line) is new. todo Search with indent + line
-                # get_range() doesn't know scopes, because they take alot of info to guess the ends of, so I had to comment
-                # this out. 3/4/19
-                # range_pair, last_el_id_of_loop, loop_pattern = get_range(el_id, condition)
-                # if len(loop_pattern) > 1:  # The scheme repeats.
-            # for_suspects.append(scheme(condition))  # todo add indent for better discrimination
-            # Ideally, a scheme repetition only counts in the scope of a putative control structure but to start with
-            # we're going with example scope (with the above most_repeats_in_an_example() call). 3/9/19
+        elif "==" in condition and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
             condition_type = "for"
 
-        # 'i1==count' is a simple assignment. '3==count + 1' is too, for swapping out '3' in a following output. 4/4/19
-        elif operator == "==" and (re.match(r'i[\d]$', left) or not right.isidentifier()):  # ***** ASSIGN *****
-            condition_type = "assign"
-
-        # elif 'condition', in addition to all the other things it's not, is also not an assignment from input,
-        # then assume it's an IF or WHILE.
-        elif not (operator == '==' and re.match(r'i[\d]$', left) and re.match(r'[A-z]', right)):  # Eg, not 'i1 == a'
-            # control = if_or_while(el_id, condition, second_pass=0)  # ********* IF OR WHILE ********
-            condition_type = 'if'  # Just IFs for now....  control.partition(' ')[0]  # 1st word of 'control'
+        # **** ASSIGN ***** Eg, 'myVar==i1', 'i2 == myVar', '3==count + 1' (for swapping out '3' in next line.)
+        elif "==" in condition and (('i1' in condition and get_line_item(el_id, -1, 'line')[0] == '<')  # Ie, previous line is input.
+                                    or
+                                   (assertion_triple(condition)[0] in get_line_item(el_id, 1, 'line') and
+                                    get_line_item(el_id, 1, 'line')[0] == '>')):  # Ie, condition's literal is in next line, which is output.
+            condition_type = "assign"  # (In future, backtrack to 'if' when this condition_type fails.)
 
         # Store conclusion.
         cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
@@ -2204,32 +2197,35 @@ def get_condition_type(el_id: int) -> str:
 
 def get_unconditionals_post_control(first_el_id: int) -> List[str]:
     """
-    first_el_id may point to an IF or FOR loop start.  If former, this function is useful for comparing IF lines.
-    If the latter:
-    Since they reflect the same code, the types of the pre-IF lines of each iteration of a given FOR loop
-    must be the same. (The actual input will typically vary.) That is, the minimum last_el_id is the
-    first control (as that can redirect execution from sequential). todo create method to also count IF conditions, and their NOTed counterparts, repeated each iteration.
-    Useful for sanity checking and (more importantly) to set our major source of ambiguity, (minimum) last_el_id.
-    :param first_el_id: First el_id of a loop block (ie, iteration)
-    :return: Pattern of example_lines that should begin each iteration of the given loop
+    Return the statement pattern occurring after given control statement.
+    Since they reflect the same code, the types of the (pre-IF) lines of each iteration of a given FOR loop
+    must be the same. todo create method to also count IF conditions, and their NOTed counterparts, repeated each iteration. why?
+    :param first_el_id: of an IF or loop iteration
+    :return: The list of line_types following first_el_id, eg, ['in','out','assign','for']
     """
+    assert get_condition_type(first_el_id) in 'if|for'
+
+    # Get all lines after first_el_id, in order, until the end of its example.
     cursor.execute("""SELECT el.line, el.line_type, c.condition_type FROM example_lines el 
-    LEFT JOIN conditions c USING (el_id) WHERE el.el_id>? AND el.example_id=?""",
+    LEFT JOIN conditions c USING (el_id) WHERE el.el_id>? AND el.example_id=? ORDER BY el.el_id""",
                    (first_el_id, get_example(first_el_id)))
     rows = cursor.fetchall()
     assert len(rows), \
         "get_unconditionals_post_control()'s argument must point to a FOR or IF, which must have a line following."
-    if get_condition_type(first_el_id) == 'if':
-        return rows[0][2]  # line_type   todo lengthen if possible
+    # Commented these 2 out 9/17/19 because I no longer see why an IF should be treated differently.
+    # if get_condition_type(first_el_id) == 'if':
+    #     return rows[0][2]  # line_type, eg, 'in'.
+    # Gather the line types until end or IF reached, then return them.
     pattern = []
-    for line, line_type, c_type in rows:
-        if line_type == 'truth' and c_type == 'if':
-            break
+    for line, line_type, condition_type in rows:
+        if line_type == 'truth' and condition_type == 'if':
+            pattern.append('if')
+            break  # Bets are off after an IF.
         else:
             if line_type == 'truth':
-                line_type = c_type
+                line_type = condition_type
             pattern.append(line_type)  # in/out/assign/for
-    return pattern  # The preamble, as we have defined it, is over.
+    return pattern  # The preamble (as we've defined it) is over.
 
 
 def insert_iteration_into_cbt(loop_variable: str, last_el_id_of_iteration: int, last_or_not: int, control_id: str,
@@ -2263,7 +2259,7 @@ def insert_iteration_into_cbt(loop_variable: str, last_el_id_of_iteration: int, 
         cursor.execute("UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?",
                        (last_el_id_of_iteration, last_rowid))
     else:  # (Global or local) last iteration
-        last_el_id_min = get_el_id(first_el_id, 1 + len(get_unconditionals_post_control(first_el_id)))
+        last_el_id_min = get_line_item(first_el_id, 1 + len(get_unconditionals_post_control(first_el_id)))
         last_el_id_max = get_last_el_id_of_example_at(first_el_id)  # improve on this too-generous max. todo
         assert last_el_id_min and last_el_id_max
 
@@ -2274,13 +2270,14 @@ def insert_iteration_into_cbt(loop_variable: str, last_el_id_of_iteration: int, 
                        (last_el_id_min, one_endpoint, last_el_id_max, last_rowid))
 
 
-def get_el_id(start_el_id: int, distance: int) -> int:
+def get_line_item(start_el_id: int, distance: int, item = 'el_id') -> int:
     """
-    get_el_id(15, 1) means return the closest el_id value to 15 that is >15.
-    get_el_id(15, -2) means return the 2nd closest el_id value to 15 that is <15.
+    get_line_item(15, 1) means return the closest el_id value to 15 that is >15.
+    get_line_item(15, -2) means return the 2nd closest el_id value to 15 that is <15.
     :database: SELECTs example_lines
     :param start_el_id:
     :param distance: the # of el_id values from the given el_id.
+    :param item: the example_lines field to return (el_id by default).
     :return: the el_id value 'distance' ordered records from 'el_id' in table example_lines. Or None if none.
     """
     if distance < 0:
@@ -2289,14 +2286,29 @@ def get_el_id(start_el_id: int, distance: int) -> int:
     else:
         direction = 'ASC'
         sign = '>'
-    cursor.execute("SELECT el_id FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " + direction + " LIMIT ?",
-                   (start_el_id, abs(distance)))
+    cursor.execute("SELECT " + item + " FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " + direction +
+                   " LIMIT ?", (start_el_id, abs(distance)))
     rows = cursor.fetchall()
     # assert rows, "No rows found with start_el_id " + str(start_el_id) + " and distance " + str(distance)
     return_el_id = None
     for row in rows:
         return_el_id = row[0]
     return return_el_id
+
+
+def consistent_preambles(loop_preamble: List[str], iteration_preamble: List[str]) -> int:
+    """
+    iteration preambles (eg, ['in','out','if']) only have to match up to loop_preambles' first IF. (For an example of
+    why, see leap_year.exem.)
+    :param loop_preamble:
+    :param iteration_preamble:
+    :return: True or False
+    """
+    if loop_preamble[-1] == 'if':
+        length = len(loop_preamble) - 1
+        return loop_preamble[0:length] == iteration_preamble[0:length]
+    else:
+        return loop_preamble == iteration_preamble
 
 
 def store_for_loops() -> None:  # into controls and control_block_traces, noting scopes.
@@ -2351,7 +2363,7 @@ def store_for_loops() -> None:  # into controls and control_block_traces, noting
                     last_el_id_of_iteration = None  # Ie, unknown
                 else:
                     # last el_id of iter: the el_id that is /one el_id before/ the start of the next iteration.
-                    last_el_id_of_iteration = get_el_id(iterations[our_iteration + 1][0], -1)
+                    last_el_id_of_iteration = get_line_item(iterations[our_iteration + 1][0], -1)
                     # Get the next loop variable comparison value (for use below).
                     next_constant = int(assertion_triple(iterations[our_iteration + 1][1])[0])
 
@@ -2362,12 +2374,14 @@ def store_for_loops() -> None:  # into controls and control_block_traces, noting
                     loop_preamble = get_unconditionals_post_control(first_el_id)  # Should be same each iteration.
                 elif not loop_increment:  # 2nd iteration, globally speaking.
                     loop_increment = constant - first_value  # Doesn't change.
+                    iteration_preamble = get_unconditionals_post_control(iteration_el_id)
+                    assert consistent_preambles(loop_preamble, iteration_preamble)
                 else:  # >2nd iteration. Sanity check the increment.
                     assert (loop_increment == constant - prior_value) or (constant == first_value), \
                         "FOR loop increment " + str(constant - prior_value) + " found where " + str(loop_increment) + \
                         " was expected, at condition: " + iteration_condition
-                if 'loop_preamble' in locals():
-                    assert loop_preamble == get_unconditionals_post_control(iteration_el_id)  # Each iteration.
+                    iteration_preamble = get_unconditionals_post_control(iteration_el_id)
+                    assert consistent_preambles(loop_preamble, iteration_preamble)
 
                 if next_constant == first_value:
                     how_last = 1  # Local last, ie, the last iteration before an outer loop restarts this loop.
@@ -2458,13 +2472,13 @@ def unused_get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     # commenting below out because I cannot rule out a user naming an input (ie, an 'assign') at end of a block.
     # # Assignments do not result in a line of code so cannot serve as block ends.
     # while condition_type(last_el_id_max) == 'assign':
-    #     last_el_id_max = get_el_id(last_el_id_max, -1)
+    #     last_el_id_max = get_line_item(last_el_id_max, -1)
 
     last_el_id_min = el_id
     # Below commented out because its logic is presently handled in create_maybe_rows()
     # An IF needs >=1 lines of consequent to make sense.
     # while condition_type(last_el_id_min) == 'if':
-    #     last_el_id_min = get_el_id(last_el_id_min, 1)  #
+    #     last_el_id_min = get_line_item(last_el_id_min, 1)  #
     return last_el_id_min, local_last_el_id_of_open_loop
 
 
@@ -2585,7 +2599,7 @@ def store_ifs() -> None:  #example_id: int) -> None:  # into control_block_trace
         # Insert the current IF condition into c.b.t. table.
         cbt_id = control_id + '_' + str(el_id)  # Eg, 'if3_45'
         # min, max = get_last_el_ids('if', el_id)  # Eg, 125, 130 for el_id 120 in guess4.
-        last_el_id_min = get_el_id(el_id, 1)
+        last_el_id_min = get_line_item(el_id, 1)
         last_el_id_max = get_local_el_id_of_open_loop('last', el_id)
         one_endpoint = True
         if last_el_id_min != last_el_id_max:  # Find the last_el_id_maybe el_id's and add them to cbt if there's >1:
@@ -2701,7 +2715,7 @@ def fill_for_loops_table() -> None:
             # row represents a new loop if the prior row doesn't link up to the current row.
             if not prior:
                 loop_first_el_id = first_el_id
-            elif get_el_id(prior["last_el_id"], 1) != first_el_id:
+            elif get_line_item(prior["last_el_id"], 1) != first_el_id:
                 # prior was the last of its kind. Insert it.
                 cursor.execute("INSERT INTO for_loops VALUES (?,?,?,?)", (control_id, prior["example_id"], loop_first_el_id,
                                                                           prior["last_el_id"]))

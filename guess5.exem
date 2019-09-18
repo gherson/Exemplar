@@ -1,4 +1,6 @@
-# guess5 is guess4's 2 examples combined into a simulated loop. 5/4/2019 
+# todo Make the problem of print('Nope. The number I was thinking of was ' + str(guess_count+1) + '.') never occur. First,
+# see if providing another example works.  9/9/19
+# guess5 is guess4's 2 examples combined into a simulated loop. 5/4/2019
 # Adapted from http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
 
 # Example 0: User wins.
