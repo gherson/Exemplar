@@ -24,6 +24,9 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-09-22 Good progress in getting leap_year.exem correctly interpreted again now that examples are not simply input,
+assertions, and output, in that order. Created Boolean function open_loop(code), enabled a bool datatype interpretation 
+of example data, and the generated function now both prints and returns last output where that appears desirable. 9h 
 * 2019-09-18 Rewrote much of formal_args() for concision and correctness. leap_years.exem not yet (re) solved but 
 TestLeapYear.py is at last being created. 4h
 * 2019-09-17 Edited assertion_triple(), scheme(), get_unconditionals_post_control() and the conditions table to allow 

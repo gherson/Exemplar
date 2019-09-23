@@ -6,10 +6,11 @@ global_input = []   # Assigned in each test to provide input() values to the fun
 
 # 3 functions unchanged from starter:
 # print() is mocked to see if the tests recreate the .exem-specified i/o in actual_io_trace.
-def print(line: str = "") -> None:
+def print(line="") -> None:
     global actual_io_trace
-    line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
-    actual_io_trace += ">" + line + '\n'
+    if line is str:
+        line = line.translate(str.maketrans({"'": r"\'"}))  # Escape single quotes
+    actual_io_trace += ">" + str(line) + '\n'
 
 
 # input() is mocked to return the test-specified input as well as add it to actual_io_trace.

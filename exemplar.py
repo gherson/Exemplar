@@ -1405,11 +1405,12 @@ def unused_get_last_el_id_of_loop(first_el_id: int, last_el_id_top: int) -> Tupl
 
 def type_string(value: str) -> str:
     """
-    Preference is given to int, then float, then string (as string is the most lax).
     :param value:
-    :return: data type
+    :return: 'bool'|'str'|'float'|'int'
     """
-    if not value.isnumeric():
+    if value == 'True' or value == 'False':
+        return 'eval'  # eval('False') returns False, unlike bool('False').
+    elif not value.isnumeric():
         return 'str'
     elif not value.isdigit():
         return 'float'
@@ -1549,6 +1550,34 @@ def last_int_of_string(line: str) -> int:
     return int(re.search(r'(\d+)\D*$', line).group(1))
 
 
+def open_loop(code: List[str]) -> int:
+    """
+    Return whether 'code' has an open loop.
+    :param code:
+    :return: Boolean
+    """
+    for_indent = None
+    for line in code:
+        line_indent = len(line) - len(line.lstrip())
+        if line.lstrip().startswith('for ') and (for_indent is None or for_indent > line_indent):
+            for_indent = line_indent  # The indentation of the outermost FOR control.
+        elif for_indent is not None and line_indent <= for_indent:  # Outermost FOR has ended.
+            for_indent = None
+
+    if for_indent is None:
+        a_loop_is_open_in_code = False
+    else:
+        a_loop_is_open_in_code = True
+    return a_loop_is_open_in_code
+
+
+if DEBUG and __name__ == '__main__':
+    assert open_loop(['for i in range(0,3):', '    print "hi"'])  # Loop's open.
+    assert open_loop(['if False:', '    for i in range(0,3):', '        print "hi"'])  # Loop's open.
+    assert not open_loop(['if False:', '    for i in range(0,3):', '        print "hi"', '    print "bye"'])
+    assert not open_loop(['print "hi"'])
+
+
 def generate_code() -> List[str]:
     """
     The information in tables selection, conditions, controls, control_trace_blocks, and cbt_last_el_ids are used
@@ -1565,7 +1594,7 @@ def generate_code() -> List[str]:
 
     code = []  # Return value.
     code_flush_left = []  # Used to avoid duplicating code in 'code'.
-    prior_values, nonvariable_equalities, variables_typed, indents, loop_start = {}, {}, {}, 1, -1
+    prior_values, nonvariable_equalities, variables_typed, indents, control_start = {}, {}, {}, 1, -1
 
     # Loop over all example_lines, also pulling their condition info where it exists.
     sql = """SELECT el.el_id, el.line, el.line_type, c.condition_type, c.control_id 
@@ -1597,9 +1626,9 @@ def generate_code() -> List[str]:
                 i += 1
                 continue
 
-            # Create a default name for the variable, then look for a better one.
-            variable_name = "v" + str(el_id)
-            if i+1 < len(selection):
+            # Use our default variable name, then see if another was assigned. todo Increment 'i1' when required.
+            variable_name = "i1"  # "v" + str(el_id)
+            if i+1 < len(selection):  # Unless at last 'line', look ahead.
                 next_row = selection[i+1]  # el_id, line, line_type
                 # If the next row is truth and has an equality "naming" 'line's value, make that name the variable name.
                 if next_row[3] == 'assign' and \
@@ -1630,17 +1659,25 @@ def generate_code() -> List[str]:
         elif line_type == 'out':  # A print().
             # todo Distinguish return from print()'s...
 
-            # Replace anything hard-coded in 'line' that should be soft-coded (we'll know from a match on
+            # Replace any constants in 'line' that should instead be soft-coded (we'll know from a match on
             # prior input value or equality assertion).
             # prior_values = prior_input  # Combine prior_input and prior
             # prior_values.update(nonvariable_equalities)  # non-variable equalities.
             line = replace_hard_code(prior_values, line)
 
-            print_line = "print('" + line + "')"
-            # Add the print() to the code if it's new to current loop.
-            if print_line not in code_flush_left[loop_start:]:
+            if type_string(line) == 'str':
+                print_line = "print('" + line + "')"
+            else:
+                print_line = "print(" + line + ')'
+            # Add the print() to the code if it's new to current control.
+            control_start = max(loop_start, if_start)
+            if print_line not in code_flush_left[control_start:]:
                 code.append(indents * "    " + print_line)
                 code_flush_left.append(print_line)
+                # If 'line' is not a string > 10 chars and not in a real (non-__example__) loop
+                # (todo) and its datatype is consistent across cohort.
+                if (type_string(line) != 'str' or len(line) <= 10) and not open_loop(code[1:]):
+                    code.append((indents * "    ") + "#return " + line)  # ('#return ' -> 'return ' in Stage 2.)
 
         else:  # truth/assertions/reasons/conditions
 
@@ -1667,8 +1704,11 @@ def generate_code() -> List[str]:
                         latest_for_statement = python
 
                     indents += 1  # Note the new block.
-                    if condition_type == 'for' and loop_start==-1:  # create loop_start tiers when needed todo
-                        loop_start = len(code)  # Used to determine what is already in loop before adding to it.
+                    # loop_start and if_start are used to determine what code is new vs can be ignored.
+                    if condition_type == 'for':  # and loop_start==-1:  # create loop_start tiers when needed todo
+                        loop_start = len(code)
+                    elif condition_type == 'if':
+                        if_start = len(code)
 
         while last_el_ids and el_id >= last_el_ids[-1]:  # A block has ended.
             last_el_id = last_el_ids.pop()
@@ -2748,7 +2788,10 @@ def remove_examples_loop(code_list: List[str]) -> List[str]:
 
 def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
     """
-    Attempt to find an example-satisfying function then report success or failure.
+    Attempt to find an example-satisfying function then report success or failure in two stages.
+    Stage 1 searches for a function that passes all examples as part of the same (__example__) FOR loop. Stage 2 renames
+    that TestX.py (to TestX.tmp) before creating another without the artificial FOR loop and with a unit test per
+    user example.
     :param file_arg:
     :return SUCCESS or not SUCCESS:
     """
@@ -2770,7 +2813,7 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
     for for_maybes_row in for_maybes:  # Each iteration creates a cbt_last_el_ids table with endings for consideration.
 
         # (The problem with forking was that PyCharm will only show the original process while the database is sullied
-        # with trial-specific data. A simple loop with database ROLLBACK thus seems a better option.  4/10/19
+        # with trial-specific data. A simple loop with database ROLLBACK thus seems a better option. 4/10/19
         # if pid == 0:  # We're in the child, meaning the database was changed in the last iteration and needs disposal.
         #     exit()
         # # fork() to create a parent and child that each have their own copy of the database.
@@ -2865,11 +2908,12 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             code_list = generate_code()  # **** GENERATE CODE ****
             code0 = signature + '\n'.join(code_list)  # Includes __example__ loop.
             code = signature + '\n'.join(remove_examples_loop(code_list))
+            code.replace("        #return ", "        return ")  # For Stage 2, enable the return's.
             function_count += 1
             if DEBUG:
                 print("\nFunction", str(function_count) + ":\n" + code0, "\n")  # Print generated function.
 
-            # Create an all-in-one unit test.
+            # Create an all-in-one unit test (Stage 1).
             test = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.
 
             class_name = "Test" + underscore_to_camelcase(function_name)
@@ -2880,29 +2924,30 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             #     test += "    " + line  # Indent each line, as each test is part of a class.
             # ********* GENERATE TESTS ******** and add them to test.
             #example_id = if_cbt_ids[i][2] if if_cbt_ids else 0
+            # Create a Stage 2 Test file that (drops the for __example__ loop and) breaks out the unit tests.
             tests = test
-            for line in generate_tests(function_name).splitlines(True):
+            for line in generate_tests(function_name).splitlines(True):  # Single unit test.
                 test += "    " + line
-            for line in generate_tests(function_name, together=False).splitlines(True):
-                tests += "    " + line
+            for line in generate_tests(function_name, together=False).splitlines(True):  # Unit tests broken out.
+                tests += "    " + line  # Note the plural variable name.
 
             test += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
             tests += "\n\nif __name__ == '__main__':\n    unittest.main()\n"
 
             # Write a class file ahead of run_tests() call.
-            test = test.replace('#<function under test>', code0, 1)  # Single test. code0 has __example__ loop.
-            tests = tests.replace('#<function under test>', code, 1)  # 2nd stage code and tests.
+            test = test.replace('#<function under test>', code0, 1)  # Stage 1: single test, code0 has __example__ loop.
+            tests = tests.replace('#<function under test>', code, 1)  # Stage 2 code and tests.
 
-            to_file(class_name + ".py", test)
-            test_results = run_tests(class_name)  # **** RUN TEST ****
+            to_file(class_name + ".py", test)     # Create State 1 Test file
+            test_results = run_tests(class_name)  # **** RUN Stage 1 TEST ****
             if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                 db.commit()
                 print(function_count, "functions generated")
-                print("Passed all tests - no errors or failures. Database changes committed.")
+                print("Passed Stage 1 test - no errors or failures. Database changes committed.")
                 to_file(class_name + ".tmp", test)  # Backup TestX.py to TestX.tmp, in effect.
-                # Write a new TestX.py that's without the for __example__ loop but includes multiple unit tests.
+                # Write a Stage 2 TestX.py that's without the for __example__ loop but includes multiple unit tests.
                 to_file(class_name + ".py", tests)
-                test_results = run_tests(class_name)  # **** RUN TESTS ****
+                test_results = run_tests(class_name)  # **** RUN Stage 2 TESTS ****
                 if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                     print("Stage 2 success")
                     # ************ RETURN ************
