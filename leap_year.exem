@@ -24,12 +24,15 @@ i1 % 400 == 0
 >True
 
 <2013
+True
 >False
 
 <2014
+True
 >False
 
 <2015
+True
 >False
 
 <2016

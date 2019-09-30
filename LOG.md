@@ -24,6 +24,8 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Best best: 
+consecutive IFs originating from different examples will be considered to represent if/else structures.  10h  
 * 2019-09-22 Good progress in getting leap_year.exem correctly interpreted again now that examples are not simply input,
 assertions, and output, in that order. Created Boolean function open_loop(code), enabled a bool datatype interpretation 
 of example data, and the generated function now both prints and returns last output where that appears desirable. 9h 
