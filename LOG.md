@@ -24,10 +24,15 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-10-16 Began committing planned code changes that allow generate_code() to systematically distinguish new and 
+corroborate old info from the user examples as they're turned into Python code. Prior 4 days: 6+4+11+11.5= 32.5h
+* 2019-10-07 Continuing. 8h
+* 2019-10-06 More planning, then began changes to generate_code(). 8h.
+* 2019-10-05 Planning how to make generate_code() systematic rather than ad hoc.  5h 
 * 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Best bet: 
 consecutive IFs originating from different examples will be considered to be representing an if/else.  10h  
 * 2019-09-22 Good progress in getting leap_year.exem correctly interpreted again now that examples are not simply input,
-assertions, and output, in that order. Created Boolean function open_loop(code), enabled a bool datatype interpretation 
+assertions, and output, in that order. Created Boolean function is_loop_open(code), enabled a bool datatype interpretation 
 of example data, and the generated function now both prints and returns last output where that appears desirable. 9h 
 * 2019-09-18 Rewrote much of formal_args() for concision and correctness. leap_years.exem not yet (re) solved but 
 TestLeapYear.py is at last being created. 4h
@@ -36,7 +41,7 @@ for compound conditions. 4h
 * 2019-09-16 Rewrote fill_conditions_table() to allow for compound conditions. Generalized get_el_id() into 
 get_line_item(). 4h
 * 2019-09-15 Began enabling leap_years.exem, which has compound conditions in the assertions and is return-oriented 
-(with a long IF structure) rather than interactive with the user as in the guess() functions. Created consistent_preambles() 
+(with a long IF structure) rather than interactive with the user as in the guess() functions. Created are_preambles_consistent() 
 for store_for_loops(). 4h
 * 2019-09-09 Completed work started yesterday. Also, clearing the "environment" (prior_values) between the processing of
  __example__ iterations. 4h
