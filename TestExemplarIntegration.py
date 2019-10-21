@@ -293,7 +293,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         expected = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, control_id, condition_type)
 (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, for0:0, for)]"""  # All correct
@@ -306,7 +306,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         expected = """[all conditions:
 (el_id, example_id, condition, scheme, left_side, relop, right_side, control_id, condition_type)
 (5, 0, 0 == __example__, _==__example__, 0, ==, __example__, for0:0, for),
@@ -331,7 +331,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0:0_5, 0, 5, None, None, 80, None, for0:0)]"""  # All correct
@@ -343,7 +343,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0:0_5, 0, 5, None, None, 130, None, for0:0),
@@ -359,7 +359,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
 (for0:0_5, 0, 5, None, None, 130, None, for0:0),
@@ -396,7 +396,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         exemplar.get_functions("jokes.exem")
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
@@ -411,7 +411,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         exemplar.get_functions("guess3.exem")
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
@@ -434,7 +434,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.remove_all_c_labels()
         # print(exemplar.dump_table("example_lines"))
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         exemplar.get_functions("guess4.exem")
         expected = """[all control_block_traces:
 (cbt_id, example_id, first_el_id, last_el_id_maybe, last_el_id_min, last_el_id, last_el_id_max, control_id)
@@ -471,7 +471,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         exemplar.get_functions("jokes.exem")
         expected = """[all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)
@@ -501,7 +501,7 @@ class TestExemplarIntegration(unittest.TestCase):
         exemplar.store_examples(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
-        exemplar.store_for_loops()
+        exemplar.store_fors()
         exemplar.get_functions("guess5.exem")
         expected = """[all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)

@@ -24,6 +24,7 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-10-21 Done: making maximal use of trace info. guess4.exem working again. Prior 5 days: 5+6+2+9.5+11.5= 34h
 * 2019-10-16 Began committing planned code changes that allow generate_code() to systematically distinguish new and 
 corroborate old info from the user examples as they're turned into Python code. Prior 4 days: 6+4+11+11.5= 32.5h
 * 2019-10-07 Continuing. 8h
@@ -42,7 +43,7 @@ for compound conditions. 4h
 get_line_item(). 4h
 * 2019-09-15 Began enabling leap_years.exem, which has compound conditions in the assertions and is return-oriented 
 (with a long IF structure) rather than interactive with the user as in the guess() functions. Created are_preambles_consistent() 
-for store_for_loops(). 4h
+for store_fors(). 4h
 * 2019-09-09 Completed work started yesterday. Also, clearing the "environment" (prior_values) between the processing of
  __example__ iterations. 4h
 * 2019-09-08 At the point unneeded, removing __example__ loop and the all-in-one unit test (in favor of many). 2h
@@ -56,7 +57,7 @@ guess5.exem). As such, both examples of guess4.exem are used to create its solut
 * 2019-08-18 Organizing my research notes and browsing papers to determine journal to target for my research paper. 2h
 * 2019-08-17 Function synthesis from guess5.exem working correctly. 2h 
 * 2019-08-16 Debugging generate_code()'s attempts to insert "break" iff a FOR loop ends prematurely. Bug fix in 
-fill_for_loops_table(). Wrote get_1st_line_of_iteration(last_el_id). 10h
+update_for_loops_table(). Wrote get_1st_line_of_iteration(last_el_id). 10h
 * 2019-08-15 Progress in debugging guess5.exem processing. 4h
 * 2019-08-14 Debugging guess5.exem with TestGuess5Manual.py (where guess5 is an important step in being able to synthesize 
 from multiple examples). 3h
@@ -71,7 +72,7 @@ exemplar.for_loop_conflict(). 2h
 * 2019-05-18 Finished studying DRAKON and conclude that it improves on flowcharting but is not a *r*evolution. 2h
 * 2019-05-17 Studying DRAKON algorithmic visual programming and modeling language for its ideas. 3h
 * 2019-05-11 Worked on how to present Exemplar. Created get_control_conflicts(). 5.5h
-* 2019-05-10 Created for_loops table and fill_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 5h
+* 2019-05-10 Created for_loops table and update_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 5h
 * 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 6h
 * 2019-05-08 Improving store_ifs() and create_maybe_rows(). 3.5h
 * 2019-05-07 Re-enabling integration tests. 2.5h
@@ -113,7 +114,7 @@ last_el_id calculation, i.e., reject 'assign' conditions as last_el_id's. 6.75h
 * 2019-04-10 Forgoing os.fork()'ing trials in favor of ROLLBACK. 6h
 * 2019-04-09 Because store_ifs() and store_code() modify the database while trialing last_el_id values, fork()ing added 
 to reverse_trace() ahead of those. Read Sumit Gulwani's "Program Synthesis" to page "25". 5h
-* 2019-04-08 Commenting store_for_loops() then reworking store_ifs() in its image. 3h
+* 2019-04-08 Commenting store_fors() then reworking store_ifs() in its image. 3h
 * 2019-04-07 Adjusted reverse_trace() for plan described in entry 2019-04-05. Added function get_python(el_id). 6.75h
 * 2019-04-06 Code added to reverse_trace() to add known end-points (last_el_id value), along with their ct_id (i.e., 
 control block identifier) into the table cbt_last_el_id (created yesterday) to offer a single point of last_el_id 
@@ -125,7 +126,7 @@ tables, in new function get_last_el_id_maybes(). Each combination is to be consi
 unit tests implied by the user examples (exem) to pass, until one is found. 9h 
 * 2019-04-04 Bushwacked life's encroachments only enough to make remaining integration tests pass, and tentatively begin 
 overhaul of generate_code() to eliminate redundant condition categorization. 2h
-* 2019-04-02 store_for_loops()'s relationship to insert_for_loop_into_cbt() reworked and working, a heavy lift. Improved 
+* 2019-04-02 store_fors()'s relationship to insert_for_loop_into_cbt() reworked and working, a heavy lift. Improved 
 store_ifs() and added supporting functions. 10h
 * 2019-04-01 Got exemplar working for guess3.exem again. Created controls table. 6h
 * 2019-03-31 Added a handful of working integration tests. Analyzed how guess4.exem should break down, then began migrating
@@ -152,7 +153,7 @@ conditions and control_traces tables. 4.25h
 that in Python on Windows. Can't, so researched virtual machine options, then created a 6GB Ubuntu VM and installed PyCharm on it. 5h
 * 2019-03-11 Worked on the user interface with TG and on database support Exemplar will need for generate and test. 2h
 * 2019-03-10 Integrating use of the control_traces table into generate_code() and (new) top_of_open_loop(el_id). 7h
-* 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_for_loops(), store_ifs(). 6.75h
+* 2019-03-09 Improved if_or_while() and fill_conditions_table() with new functions most_repeats_in_an_example(), store_fors(), store_ifs(). 6.75h
 * 2019-03-08 More for-loop logistics in new functions get_line_item(), insert_for_loop_into_cbt(). 7.75h
 * 2019-03-07 Planned changes to database, largely new tables loops and loop_patterns. 1.75h
 * 2019-03-06 Fixed replace_hard_code() to only replace whole words with variable references. 3.25h
