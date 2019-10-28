@@ -1614,7 +1614,7 @@ def generate_code() -> List[str]:
     """
 
     code = []
-    FORs, IFs = dict(), dict()
+    FORs, IFs, ELIFs = dict(), dict(), []
     variables_typed, indents = {}, 1
 
     # Loop over all example_lines, also pulling their condition info where it exists. (Keep this select list in sync
@@ -1636,7 +1636,6 @@ def generate_code() -> List[str]:
     i = 0  # selection line counter
     for row in selection:
         el_id, example_id, line, line_type, condition_type, control_id = row
-        line = line.strip()
         if DEBUG:
             print("i =", i)
 
@@ -1719,7 +1718,8 @@ def generate_code() -> List[str]:
                 #                    **********
                 python, last_el_id = get_python(control_id, el_id)  # Retrieves iff el_id is a controls.first_el_id
                 #                    **********
-                if python:  # Then this is a control we haven't seen, so *** ADD *** ADD *** ADD *** it to `code`
+                if python:  # Then this is a control we haven't seen, so to `code`
+                    # *** ADD *** ADD *** ADD ***
                     code.append(indents * "    " + python)  # regardless of add_line_to_code's value.
                     key = len(code) - 1  # Point to last element so add_line_to_code will be set True.
 
@@ -1734,15 +1734,23 @@ def generate_code() -> List[str]:
                         FOR_period, FOR_increment = get_for_loops_record(control_id, last_el_id)[4:6]
 
                     elif condition_type == 'if':
-                        # Save in order to compare with new IF's before adding them to `code`:
-                        if indents not in IFs:
-                            IFs[indents] = [(code[key].lstrip()[3:-1].replace(' ', ''), key)]  # '   if g > s:' => 'g>s'
+                        # Standardize and save the condition to avoid re-adding IFs to `code`:
+                        condition = code[key].lstrip()[3:-1]  # '   if g > s:' => 'g > s'
+                        triple = assertion_triple(condition)  # 'g > s' => ('g','>','s')
+                        if triple[0] is None:
+                            condition = condition.replace(' ', '')  # 'g > s' => 'g>s'
                         else:
-                            IFs[indents].append((code[key].lstrip()[3:-1].replace(' ', ''), key))
+                            condition = triple[0] + triple[1] + triple[2]  # 'g' + '>' + 's' => 'g>s'
+                        if indents not in IFs:
+                            IFs[indents] = [(condition, key)]
+                        else:
+                            IFs[indents].append((condition, key))  # A list of 2-tuples 1:1 with if-conditions.
+                            # This code position is already occupied by an IF, so change latest IF to an ELIF. (improve)
+                            code[len(code)-1] = code[len(code)-1].replace("if ", "elif ", 1)
                     indents += 1  # A new block opens.
 
                 else:  # Sanity checks and getting `key` into matching `code`.
-                    last_el_id = get_last_el_id(el_id)
+                    last_el_id = get_last_el_id(el_id, condition_type)
                     if condition_type == "for":  # Determine which FOR is being reiterated, and point to it.
                         # Pull related code[key] to prep for re-enactment.
                         local_iteration = get_block_record(first_el_id=el_id)[8]
@@ -1784,6 +1792,14 @@ def generate_code() -> List[str]:
                     code.append(indents * "    " + "break")
                     latest_for_statement = None
 
+            # A later control may need this indentation level so clear re: the control just closed.
+            if len(FORs) > indents:
+                FORs.pop(indents)
+            elif len(IFs) > indents:
+                if len(IFs[indents]) > 1:  # Then this is an if/elif. Note it to later groom its branch order.
+                    # ELIFs is a list of lists of (condition, key) tuples,
+                    ELIFs.append(IFs[indents])  # eg, [[("g>s",35), ("g<s",45), ("g==s", 55)], [(...),(...)]]
+                IFs.pop(indents)
             indents -= 1  # dedent
             last_el_id = last_el_ids.pop()  # Of the blocks just ended, pops the last_el_id of the innermost one first.
 
@@ -2260,16 +2276,17 @@ def get_final_el_id() -> int:
     return cursor.fetchone()[0]
 
 
-def get_last_el_id(first_el_id: int) -> int:
+def get_last_el_id(first_el_id: int, condition_type: str) -> int:
     """
     Pull from table for_loops for a FOR loop so that the /last/ of that loop's blocks is used.
     :param first_el_id:
+    :param condition_type: 'for'|'if'
     :return: the last_el_id of the associated control
     """
     cursor.execute("""SELECT control_id FROM cbt_last_el_ids WHERE first_el_id=?""", (first_el_id,))
     control_id = cursor.fetchone()[0]
-
-    if control_id[0:2] == 'if':
+    assert condition_type[0:2] == control_id[0:2], condition_type[0:2] + " is *not* " + control_id[0:2]
+    if condition_type == 'if':
         cursor.execute("""SELECT last_el_id FROM cbt_last_el_ids WHERE first_el_id=?""", (first_el_id,))
     else:
         cursor.execute("SELECT max(last_el_id) FROM for_loops WHERE control_id=? AND first_el_id<=? AND last_el_id>?",
@@ -2481,7 +2498,7 @@ def store_fors() -> None:
             cursor.execute("SELECT el_id, condition FROM conditions "
                            "WHERE scheme=? ORDER BY el_id", (assertion_scheme,))  #example_id=? AND    example_id,
             iteration_instances = cursor.fetchall()
-            loop_variable, loop_increment, next_constant, max_constant = None, None, None, 0
+            loop_variable, loop_increment, next_constant, max_constant = None, 1, None, 0
             control_id = 'for' + str(example_id) + ':' + str(control_count['for'])
             iteration_count = 1  # Easier to start this at 1 (and subtract 1 in call to insert_iteration_into_cbt()).
             local_iteration = 0
@@ -2492,7 +2509,7 @@ def store_fors() -> None:
                 constant, operator, variable = assertion_triple(iteration_condition)  # Eg: 5, ==, guess_count
                 constant = int(constant)  # Needed for comparison with other (integer) constants.
                 # Determine loop variable endpoint:
-                if max_constant < abs(constant):
+                if abs(constant) > max_constant:
                     max_constant = constant
 
                 how_last = 0  # By default
@@ -2512,7 +2529,7 @@ def store_fors() -> None:
                     first_el_id = iteration_el_id
                     local_first_el_id = iteration_el_id
                     loop_preamble = get_unconditionals_post_control(first_el_id)  # Should be same each iteration.
-                elif not loop_increment:  # 2nd iteration, globally speaking.
+                elif iteration_count == 2:  # 2nd iteration, globally speaking.
                     loop_increment = constant - first_value  # Doesn't change.
                     iteration_preamble = get_unconditionals_post_control(iteration_el_id)
                     assert are_preambles_consistent(loop_preamble, iteration_preamble)
@@ -2556,12 +2573,12 @@ def store_fors() -> None:
             cursor.execute("UPDATE for_loops SET period=? WHERE control_id=?", (max(periods), control_id))
 
             # Create the control record. Eg, 'for guess_count in range(0, 6)'
-            if not max_constant:  # Then why is this a FOR??
+            if not max_constant:  # A 1 iteration loop.
                 max_constant = first_value
-            if max_constant > 0:  # Needed due to Python's exclusive range-ing.
-                tmp = max_constant + 1
-            else:
-                tmp = max_constant - 1
+            # if max_constant > 0:
+            tmp = max_constant + 1  # Needed due to Python's exclusive range-ing.
+            # else:
+            #     tmp = max_constant - 1
             # Eg, python = "for __example__ in range(0, 2, 1):"
             python = "for " + loop_variable + " in range(" + str(first_value) + ', ' + str(tmp) + ', ' + \
                      str(loop_increment) + '):'
@@ -3060,7 +3077,7 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             code.replace("        #return ", "        return ")  # For Stage 2, enable the return's.
             function_count += 1
             if DEBUG:
-                print("\nFunction", str(function_count) + ":\n" + code0, "\n")  # Print generated function.
+                print("\nStage 1 function", str(function_count) + ":\n" + code0, "\n")  # Print generated function.
 
             # Create an all-in-one unit test (Stage 1).
             test = "".join(from_file("starter"))  # Contains mocked print() and input functions etc.

@@ -47,9 +47,9 @@ def guess4():
         guess = int(input("guess:"))  # Eg, 10
         if guess > secret:
             print('Your guess is too high.')
-        if guess < secret:
+        elif guess < secret:
             print('Your guess is too low.')
-        if secret == guess:
+        elif secret == guess:
             print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
             break
     if guess_count >= 5:

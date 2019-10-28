@@ -1,10 +1,8 @@
-# todo Make the problem of print('Nope. The number I was thinking of was ' + str(guess_count+1) + '.') never occur. First,
-# see if providing another example works.  9/9/19
-# guess5 is guess4's 2 examples combined into a simulated loop. 5/4/2019
+# guess5 combines guess4's 2 examples (to see if E should solve guess4 in similar fashion). 5/4/2019
 # Adapted from http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
 
 # Example 0: User wins.
-eg == 0
+user_loses == 0
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)
@@ -29,7 +27,7 @@ guess_count + 1 == 3  # SA
 >Good job, Albert! You guessed my number in 3 guesses!
 #
 # Example 1: User loses.
-eg == 1
+user_loses == 1
 >Hello! What is your name?
 <John
 name==i1

@@ -24,6 +24,16 @@ such as Python block endpoint? That also could lessen the need for generate-and-
 * Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
 
 # Log of work
+* 2019-10-27: Continued use of CASes Octave, Oct2Py, SymPy until, at 2am, success with sympy.solve([x<3, x<5])'s ability 
+to tell Exemplar to pose IF x<3 before ELIF x<5 (by returning x < 3 in this case). 8.75h
+* 2019-10-26: Continuing. 3h
+* 2019-10-25: Began work to determine if/elif branch order. Studying Octave and SymPy to see if their symbolic and 
+ logical abilities can help answer my questions of which IF conditions are mutually exclusive vs. have relationships
+ that are specializations, intersections, or are orthogonal. 9.5h
+* 2019-10-22: guess5.exem working with redone generate_code(). Co-located IFs now ELIFs, after first IF. 3h
+* 2019-10-21: 10 - 14:30. 16 - 18pm, 20:15 - 25:30 = 4.5 +2 + 5. 6hrs total.
+Committed changes after guess4.exem working.  Studied ACM Transactions on Programming Languages and Systems' author 
+guidelines.  Cleaning up notes.
 * 2019-10-21 Done: making maximal use of trace info. guess4.exem working again. Prior 5 days: 5+6+2+9.5+11.5= 34h
 * 2019-10-16 Began committing planned code changes that allow generate_code() to systematically distinguish new and 
 corroborate old info from the user examples as they're turned into Python code. Prior 4 days: 6+4+11+11.5= 32.5h
