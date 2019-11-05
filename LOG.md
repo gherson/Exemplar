@@ -1,6 +1,4 @@
 # Roadmap
-* Enable multi-example solving by pairwise merging of working functions. First match their sequential code sections 
-then find the union of their FOR ranges and combine IFs. 2019-04-19
 * Enable modeling of arbitrary function calls:
 
 ```
@@ -12,27 +10,36 @@ then find the union of their FOR ranges and combine IFs. 2019-04-19
 * Reproduce Python’s split function; a Turing Machine; an algorithm requiring inner loops; finding the difference in 
 time between any two given date-time objects; a problem requiring input of at least three arguments (i1, i2, and i3); 
 alphabetizing an input list's elements; examples that include a literal “i1” in the output and ‘reason’
-
-# Questions
-1. Would like to understand how [SymPy's simplify()](http://docs.sympy.org/latest/modules/simplify/simplify.html?highlight=simplify#sympy.simplify.simplify.simplify) 
-allows Octave's [isAlways()](https://sourceforge.net/p/octave/symbolic/ci/master/tree/inst/@sym/isAlways.m#l12) to 
-function, as it (or similar) offers a way to order IF statements w/o generate-and-testing. 2019-04-19
-2. How difficult is it to implement machine learning to find predictive correlations of database state to a dependent variable, 
-such as Python block endpoint? That also could lessen the need for generate-and-testing. 2019-04-23
+* Replace brute force search for successful Python block endpoint with one guided by machine learning that found
+ correlations between that goal and database state. 2019-04-23
 
 # Done
-* Single-example solving, supporting IF and FOR, publicly accessible at <http://repl.it/@gherson/Exemplar>, 2019-04-18
+* Single-example solving, supporting IF and FOR. 2019-04-18
+* Multiple example solving 2019-09-04
+* If/elif branch ordering 2019-11-04
 
 # Log of work
+* 2019-11-04: Got leap_year.exem and if/elif automatic ordering working. Latter is by brute force search completely 
+independent of that for block endpoints, so a dimension is not added to the algorithmic complexity of either. 5.75h
+* 2019-11-03: Had to improve input data typing for guess4.exem working with new IF handling. Then tested, refactored, 
+and improved. Got up to fixing if_order_search() to move 'if' consequents in addition to conditions. 9h
+* 2019-11-02: My notes say I got up to fixing expected vs actual condition, then data typing input. 10.75h
+* 2019-11-01: Up to testing a factoradics approach to counting the possible permutations of if/elif order. 9h
+* 2019-10-31: Finished building a data structure that tracks hopefully all the IF information needed to order the elif 
+branches. 6.75h
+* 2019-10-30: Implementing said solution, reaching point of altering IFs into ELIFs as needed. 10h   
+* 2019-10-29: Determined my if/elif order solution, which in short is to generate-and-test IFs that Exemplar evaluates 
+with eval(). 6.5h
+* 2019-10-28: Documenting what I've learned, organizing notes. 6h
 * 2019-10-27: Continued use of CASes Octave, Oct2Py, SymPy until, at 2am, success with sympy.solve([x<3, x<5])'s ability 
 to tell Exemplar to pose IF x<3 before ELIF x<5 (by returning x < 3 in this case). 8.75h
 * 2019-10-26: Continuing. 3h
 * 2019-10-25: Began work to determine if/elif branch order. Studying Octave and SymPy to see if their symbolic and 
  logical abilities can help answer my questions of which IF conditions are mutually exclusive vs. have relationships
  that are specializations, intersections, or are orthogonal. 9.5h
-* 2019-10-22: guess5.exem working with redone generate_code(). Co-located IFs now ELIFs, after first IF. 3h
+* 2019-10-22: guess5.exem working with redone generate_code(). Co-located IFs now ELIFs after first IF. 3h
 * 2019-10-21: 10 - 14:30. 16 - 18pm, 20:15 - 25:30 = 4.5 +2 + 5. 6hrs total.
-Committed changes after guess4.exem working.  Studied ACM Transactions on Programming Languages and Systems' author 
+Committed changes after guess4.exem working. Studied ACM Transactions on Programming Languages and Systems' author 
 guidelines.  Cleaning up notes.
 * 2019-10-21 Done: making maximal use of trace info. guess4.exem working again. Prior 5 days: 5+6+2+9.5+11.5= 34h
 * 2019-10-16 Began committing planned code changes that allow generate_code() to systematically distinguish new and 
@@ -40,8 +47,8 @@ corroborate old info from the user examples as they're turned into Python code. 
 * 2019-10-07 Continuing. 8h
 * 2019-10-06 More planning, then began changes to generate_code(). 8h.
 * 2019-10-05 Planning how to make generate_code() systematic rather than ad hoc.  5h 
-* 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Best bet: 
-consecutive IFs originating from different examples will be considered to be representing an if/else.  10h  
+* 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Solution: 
+consecutive IFs originating from different examples or iteration represent an if/else, not adjacent IFs.  10h  
 * 2019-09-22 Good progress in getting leap_year.exem correctly interpreted again now that examples are not simply input,
 assertions, and output, in that order. Created Boolean function is_loop_open(code), enabled a bool datatype interpretation 
 of example data, and the generated function now both prints and returns last output where that appears desirable. 9h 
