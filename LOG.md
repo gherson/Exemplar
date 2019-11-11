@@ -14,15 +14,27 @@ and i3), alphabetizing an input list's elements, examples that include a literal
  correlations between that goal and database state). 2019-04-23
 
 # Done
-* If/elif branch ordering 2019-11-04
-* Multiple example solving 2019-09-04
-* Single-example solving, supporting IF and FOR 2019-04-18
-* Automatic unit testing (1 test per example) 2019-01-29
-* Multiple inputs and outputs allowed per user example 2019-01-27
+* If/elif branch order (by generate and test). 2019-11-04
+* Multiple example solving (by treating the examples as iterations of a temporary FOR loop). 2019-09-04
+* Single-example solving supporting IF and FOR loops (endpoints found by generate and test). 2019-04-18
+* Automatic unit tests (1 test per user example) created and run. 2019-01-29
+* The user example format changes from a single input/output/assertions triple to an unbounded # of <input, >output, and 
+assertion lines (to exemplify, e.g., user interaction and state). 2019-01-26 
+* While loop generation (since removed) and unlimited assertions (correctly handling prime_number.exem). 2018-10-20  
+* Single if/elif/else generated from user examples of 0 or 1 assertions (correctly handling fizz_buzz.exem, guess2.exem, 
+and leap_year.exem). 2018-03-25
+
 
 # Log of work
-* 2019-11-10: Working on prime_number.exem and normalizing all conditions. 1.75h + 15:45 - 16:55 + 17:55 - 
-* 2019-11-09: Got E working on repl.it again. fizz_buzz.exem now also working. Changed store_IFs to better recognize 
+Next: 
+Show how common problems can be modelled with Exemplar.
+Enable assertion-less user examples (testbed: leap_year.exem) then rewrite  elif True  statements as  else.
+
+* 2019-11-11: To handle more complex assertions (needed by prime_number.exem), SymPy will today replace current 
+assertion normalization, eg, assertion_triple(). Start w/loop increment. 9:50 - 
+* 2019-11-10: Worked on prime_number.exem until deciding to recruit SymPy's help in determining loop increment
+and normalizing (all) assertions. Then browsed SymPy documentation and all in use exemplar.py code. 8.5h 
+* 2019-11-09: Got E working on repl.it again. fizz_buzz.exem now also working. Changed store_IFs() to better recognize 
 condition novelty. 5h 
 * 2019-11-05: Working on repl.it. 2.5h 
 * 2019-11-04: Got leap_year.exem and if/elif automatic ordering working. Latter is by brute force search completely 

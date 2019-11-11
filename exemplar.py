@@ -21,14 +21,7 @@ db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=Fals
 cursor = db.cursor()
 
 """
-reverse_trace(file) reverse engineers a function from the examples in the named .exem `file`.
-
-Version 3, started 1/26/2019, models state and user interaction. The input file has changed from examples of a single 
-i/o[/reasons] triple to examples of an unbounded # of lines of <inputs, >outputs, and assertions. 
-Version 2 finished 10/20/2018 can also generate a while loop. This version can also handle prime_number.exem. 
-'reason's are now an unlimited # of conditions.  
-Version 1 finished 3/25/2018 can generate one if/elif/else. This version correctly handles fizz_buzz.exem, guess2.exem, 
-and leap_year.exem. These 'reason's are 0 or 1 conditions only.
+reverse_trace(file) reverse engineers a function from the examples in a given .exem file.
 
 Glossary:
 code == Python code generated.
@@ -50,6 +43,9 @@ fill_ == function that fills a table.
 insert_ == function that inserts one table record per call.
 is_ == Boolean function
 store_ == function that lifts lower level data into a higher level table.
+
+When retiring a function, in a comment just above it, note that date so matching calling code can be found for use in 
+stepping through the retired function should that become of interest again. 
 """
 
 
@@ -285,7 +281,7 @@ if DEBUG and __name__ == '__main__':
     assert 'i1 % (i1-1) != 0, (i1-1)>2' == remove_c_labels('i1 % (i1-1) != 0c, (i1-1)>2c')
 
 
-def get_last_condition(reason: str) -> str:
+def unused_get_last_condition(reason: str) -> str:
     """
     Find the last condition in reason. (This is useful because often it's a loop-termination condition.)
     E.g., 'i1 % (i1-1) != 0c, (i1-1)>2c' --> '(i1-1)>2c'
@@ -300,7 +296,7 @@ def get_last_condition(reason: str) -> str:
 
 
 # Replaced with scheme() 2/12/19
-def replace_increment(condition: str) -> str:
+def unused_replace_increment(condition: str) -> str:
     """
     Find the increment in the given condition, eg, 23, and replace with underscore.
     Used to match iterations of the same loop step.  Example:
@@ -595,7 +591,6 @@ def remove_all_c_labels() -> None:
     # :database: SELECTs example_lines. UPDATEs example_lines.
     # The "c" labels are not needed. (Constants can have a "c" suffix in `reason` and
     # `output`.) Since they interfere with eval(), update each such record to remove_c_labels().
-
     cursor.execute('''SELECT el_id, line FROM example_lines WHERE line_type != 'in' ''')  # WHERE loop_likely = 0''')
     #non_looping = cursor.fetchall()
     for row in cursor.fetchall():  #non_looping:
@@ -605,7 +600,6 @@ def remove_all_c_labels() -> None:
         cursor.execute(query, (line, el_id))
 
 
-# Next time, note date of retirement so the old code can be found and stepped thru
 def unused_build_reason_evals() -> None:
     """
     FOR IF CONDITION ORDERING
@@ -704,7 +698,7 @@ def unused_build_reason_evals() -> None:
         print()
 
 
-def find_safe_pretests() -> None:
+def unused_find_safe_pretests() -> None:
     """
     For if/elif/else generation.
     Build table pretests that shows for every reason A, each reason ("safe pretest") B that is *false* with *all* of A's
@@ -1235,7 +1229,7 @@ if DEBUG and __name__ == "__main__":
     assert 'guess' == get_variable_name('guess==i5')
 
 
-def store_code(code):
+def unused_store_code(code):
     code_lines, line_id = [], 0
     for line in code.split('\n'):
         code_lines.append((line_id, line))
@@ -1243,7 +1237,6 @@ def store_code(code):
     cursor.executemany("INSERT INTO sequential_function (line_id, line) VALUES (?, ?)", code_lines)
 
 
-# unused
 def unused_get_range(first_el_id: int, line: str) -> Tuple[int, int]:
     """
     old:
@@ -1300,7 +1293,6 @@ def unused_get_range(first_el_id: int, line: str) -> Tuple[int, int]:
     return first_value, last_value + increment  # Old: Eg, (0, 2 + 1), 115, 'toitto, toittt'
 
 
-# unused
 def unused_if_or_while(el_id: int, condition: str, second_pass: int) -> str:
     """
     Determine what kind of control structure the given condition represents, based on conditions.loop_likely
@@ -1371,7 +1363,6 @@ def unused_if_or_while(el_id: int, condition: str, second_pass: int) -> str:
             return "elif " + condition + ':'
 
 
-# unused
 def unused_get_last_el_id_of_loop(first_el_id: int, last_el_id_top: int) -> Tuple[str, int]:
     """
     :database: SELECTs example_lines.
@@ -1543,11 +1534,6 @@ if DEBUG and __name__ == "__main__":
         cast_inputs(['v110 = input("v110:")  # Eg, 4', 'v110 = input("v110:")  # Eg, 4.0'], {'v110': 'int'})
 
 
-# def get_longest_example() -> int:
-#     cursor.execute("SELECT example_id FROM example_lines el GROUP BY example_id ORDER BY count(el.el_id) DESC, el_id")
-#     return cursor.fetchone()[0]
-
-
 def get_1st_line_of_iteration(last_el_id) -> str:
     """
     Return the first line of the last FOR loop iteration control_block_trace whose last_el_id equals that given. Or
@@ -1710,7 +1696,7 @@ if __name__ == '__main__':
 
 def get_IF_test_function(code: List[int], an_IF: List[int]) -> str:
     """
-    Translate a list of keys pointing to if/elif branches into a test IF function incorporating them, for return.
+    Translate a list of keys pointing to if/elif branches in `code` into a (test) IF function incorporating them, for return.
     :param code:
     :param IF: List of keys into `code`, pointing to if/elif branches.
     :return: IF_function
@@ -1739,13 +1725,14 @@ def get_IF_test_function(code: List[int], an_IF: List[int]) -> str:
 def IF_order_search(code: List[int], an_IF: List[int],
                     IFs: Dict[int, Dict[int, Tuple[str, int, List[Dict[str, Any]]]]]) -> List[int]:
     """
-    Order given IF by trying all possible orders until 1 succeeds. Then apply that IF to reordered_code, for return.
+    Order the given IF by trying all possible branch orders until 1 succeeds. Then apply that IF to reordered_code,
+    for return.
     :param code: the Python function being generated
     :param an_IF: a list of code keys pointing to if/elif branches
     :param IFs: IFs[indents][starting code line] = (condition, is_elif, [prior_values.copy()])
     :return: reordered_code
     """
-    maximum_trial = math.factorial(len(an_IF))  # The # of ways an_IF's branches can be ordered (ie, permuted).
+    maximum_trial = math.factorial(len(an_IF))  # The # of ways an_IF's branches can be ordered, ie, permuted.
     success = False
     IF_permutation = an_IF.copy()
     if DEBUG:
@@ -1774,7 +1761,7 @@ def IF_order_search(code: List[int], an_IF: List[int],
                 trial += 1
                 IF_permutation = get_IF_permutation(an_IF, trial)
                 IF_function = get_IF_test_function(code, IF_permutation)
-                break
+                break  # Onto next trial, starting with 1st an_IF branch.
         if success:
             break  # IF_function succeeded with all an_IF's branches.
     assert success, IF_function[0:min(len(IF_function), 80)] + "... cannot be ordered successfully"
@@ -1788,15 +1775,15 @@ def IF_order_search(code: List[int], an_IF: List[int],
     for key in IF_branches_sorted_by_line:
         keys.append(key)
     # Then we can reorder IFs' conditions in reordered_code.
-    # The idea here is to superimpose each branch of IF_permutation (the correct ordering) from the bottom up onto a
-    # code copy (reordered_code) using the if/elif branch locations held in an_IF. Each iteration handles the if/elif
-    # condition then the consequent.
+    # We'll superimpose each branch of IF_permutation (the correct ordering) from the bottom up onto a
+    # code copy (reordered_code) using the if/elif branch locations held in an_IF. Each iteration herein handles the
+    # if/elif condition, then the consequent.
     if_key = IF_permutation[0]
     i = len(an_IF) - 1  # We'll start from the bottom so that starting points
     IF_permutation.reverse()  # of the IF don't change indirectly.
     for branch in IF_permutation:
         # Copy each if/elif condition into position in reordered_code.
-        # (Also update IFs[key][is_elif] w/our new info?)
+        # (May need to eventually update IFs[key][is_elif] w/this new info, if that Boolean remains important.)
         tc = reordered_code[keys[i]]  # tc==target condition to be replaced.
         if i == 0 and branch != an_IF[0]:  # Last step: The correct 'if' condition needs to be copied topmost.
             assert branch == if_key
@@ -1811,11 +1798,11 @@ def IF_order_search(code: List[int], an_IF: List[int],
         reordered_code[keys[i]] = tc  # Adjustment made.
 
         # Copy each if/elif *consequent* into position in reordered_code, as well,
-        # by first deleting the unwanted consequent (deleting targeted lines allows unconditionally appending new),
+        # by first deleting the unwanted consequent.
         last_key_of_block = get_last_line_of_indent(code, keys[i] + 1, any_change=False)  # Assumes condition is 1 line.
         target_body_length = 1 + last_key_of_block - (keys[i] + 1)
-        del reordered_code[keys[i]+1 : keys[i]+1+target_body_length]
-        # then adding the desired consequent.
+        del reordered_code[keys[i]+1 : keys[i]+1+target_body_length]  # Deleting targeted lines allows unconditionally
+        # adding the desired consequent.
         last_key_of_block = get_last_line_of_indent(code, branch + 1, any_change=False)
         source_body_length = 1 + last_key_of_block - (branch + 1)
         for j in range(source_body_length):
@@ -1833,7 +1820,7 @@ def order_IFs(code: List[str], IFs: Dict[int, Dict[int, Tuple[str, int, List[Dic
     :return: `code` with its IF branches in order.
     """
 
-    # Sort IFs' keys into list IFs_keys in order of the code lines referenced.
+    # Sort IFs' keys into list IFs_keys in order of the `code` lines referenced.
     # (IFs structure: IFs[indents][key] = (condition, is_elif, [prior_values.copy()]))
     IFs_keys = []
     for indents in IFs:
@@ -1859,14 +1846,13 @@ def generate_code() -> List[str]:
     """
     Information gathering steps done, now the info in tables selection, conditions, controls, control_trace_blocks,
     and last_el_ids are collated into exem-conforming Python code.
-    Each example_lines record is considered in turn, in example_id major order.
-    Such a record's implied code is added to `code` if not already there, and sanity checked against it otherwise.
+    Each example_lines record is considered in turn, in example_id major order. Specifically, their
+    implied code is added to `code` if not already there, and sanity checked against it otherwise.
     Subsequent appearances can be from multiple examples or loop iterations. Additionally, 'assign'ments are
     captured in a lookup table used for variable mention in the output (prints).
     :database: SELECTs sequential_function, selection. UPDATEs sequential_function via likely_data_type()).
     :return: Python `code`
     """
-
     code = []
     FORs = dict()  # Dictionaries instead of lists because indents (the key) aren't necessarily linear.
     IFs = dict()
@@ -1883,8 +1869,8 @@ def generate_code() -> List[str]:
     if len(selection) == 0:
         print("*Zero* example lines found.")
 
-    key = 0  # Key into `code` for comparison. It is incremented at loop top to point to the next expected code line,
-    # eg, 1 beyond `code`s length.
+    code_key = 0  # Incremented at loop top to point to the next expected code line for comparison or, if appending is
+    # planned, 1 + `code`s current length.
     # todo Distinguish arguments from variable assignments and input() statements.
     latest_IF_added = ''
     last_el_ids = []
@@ -1898,13 +1884,12 @@ def generate_code() -> List[str]:
         if example_id != prior_row[1]:  # then we're on a new user example.
             assert scheme(line) == "_==__example__"
             prior_values = {}  # Clear out (or initialize).
-            key = 0  # Start comparing anew, at the top of `code`.
-            #use key or control_id instead. indentation_to_instances = dict()  # Target function may have multiple controls at a given indentation.
-        else:  # Default is to advance key with each `line`.
-            key += 1
+            code_key = 0  # Start comparing anew, at the top of `code`.
+        else:  # Default is to advance code_key with each `line`.
+            code_key += 1
 
         # Re: input and output lines, we can simply add them to `code` if we're on its frontier.
-        add_line_to_code = True if key == len(code) else False
+        add_line_to_code = True if code_key == len(code) else False
 
         # Code an INPUT. (Example data to be hinted in tests and comments.)
         if line_type == 'in':
@@ -1923,7 +1908,7 @@ def generate_code() -> List[str]:
                 code.append(assignment)
             else:  # Sanity check.
                 pos = assignment.find("  # Eg, ")  # Exclude " # Eg, [...]" comment from the following comparison.
-                assert code[key][0:pos+1] == assignment[0:pos+1], "'" + code[key][0:pos+1] + "'  *is not*  '" + \
+                assert code[code_key][0:pos+1] == assignment[0:pos+1], "'" + code[code_key][0:pos+1] + "'  *is not*  '" + \
                                                                   assignment[0:pos+1] + "'"
 
             if line:  # line's possibly empty (due to no example input).
@@ -1956,11 +1941,11 @@ def generate_code() -> List[str]:
                 # (todo) and its the last output and its datatype is consistent across cohort.
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
                     code.append((indents * "    ") + return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
-                    key += 1
+                    code_key += 1
             else:  # Sanity check
-                assert code[key] == print_line, "'" + code[key] + "'  *is not*  '" + print_line + "'"
-                if key < len(code) and code[key].find(return_text) > -1:
-                    key += 1  # To get past proto-return statement.
+                assert code[code_key] == print_line, "'" + code[code_key] + "'  *is not*  '" + print_line + "'"
+                if code_key < len(code) and code[code_key].find(return_text) > -1:
+                    code_key += 1  # To get past proto-return statement.
 
         else:  # truth/assertions/reasons/conditions
 
@@ -1973,7 +1958,7 @@ def generate_code() -> List[str]:
                         right_operand = int(right_operand)
                     prior_values[left_operand] = right_operand  # prior_values['guess_count + 1'] = 3
                 # No code added (though in the regular case  if next_row[4] == 'assign'  happens, see above) so:
-                key -= 1
+                code_key -= 1
             else:  # for or if
                 if condition_type == 'for':  # Needed for below latest_IF_added, which is used when adding IFs:
                     local_iteration = get_block_record(first_el_id=el_id)[8]  # "0 based local count"
@@ -1987,7 +1972,7 @@ def generate_code() -> List[str]:
                 if python:  # Then this is a control we haven't seen, so to `code`
                     # *** ADD *** ADD *** ADD ***
                     code.append(indents * "    " + python)  # regardless of add_line_to_code's value.
-                    key = len(code) - 1  # Point to last element so add_line_to_code will be set True.
+                    code_key = len(code) - 1  # Point to last element so add_line_to_code will be set True.
 
                     print("Appending", last_el_id, "for added line", line)
                     last_el_ids.append(last_el_id)  # last_el_ids are tracked to determine when to dedent.
@@ -2003,12 +1988,12 @@ def generate_code() -> List[str]:
                     if condition_type == 'for':
                         if indents not in FORs:
                             FORs[indents] = dict()  # dict() needed because there can be >1 FOR at a given indent.
-                        FORs[indents][key] = right_operand  # To enable recall of loop's variable and 1st line (`key`).
+                        FORs[indents][code_key] = right_operand  # To enable recall of loop's variable and 1st line.
                         FOR_period, FOR_increment = get_for_loops_record(control_id, last_el_id)[4:6]  # Loop details.
 
                     elif condition_type == 'if':
                         # Standardize and save the condition to avoid re-adding IFs to `code`:
-                        condition = code[key].lstrip()[3:-1]  # '   if g > s:' => 'g > s'
+                        condition = code[code_key].lstrip()[3:-1]  # '   if g > s:' => 'g > s'
                         triple = assertion_triple(condition)  # 'g > s' => ('g','>','s')
                         if triple[0] is None:
                             # Protect AND and OR.
@@ -2023,20 +2008,20 @@ def generate_code() -> List[str]:
                         # Track all co-located IF branches to decide their ELIF order at bottom.
                         is_elif = False
                         if indents not in IFs:
-                            # dict() because there are usually >1 'if' branches at a given indent, and so another key
-                            IFs[indents] = dict()  # (such as starting code line) is needed to distinguish them.
+                            # dict() because there are usually >1 'if' branches at a given indent, and so another key,
+                            IFs[indents] = dict()  # starting code line, will be used to distinguish them.
                         # IFs at the same indent are most likely part of one if/elif, so if an IF is still open, and
                         elif is_open(code[:-1], 'if') and prior_IF_added != latest_IF_added:
                             # the most recently added IF is not from same example, iteration, etc, as last, "if"->"elif"
                             code[len(code) - 1] = code[len(code) - 1].replace("if ", "elif ", 1)
                             is_elif = True  # Mark ELIF
 
-                        assert key not in IFs[indents]  # I believe that this should always be true.
-                        IFs[indents][key] = (condition, is_elif, [prior_values.copy()])  # 3rd element list is for elif ordering via testing.
+                        assert code_key not in IFs[indents]  # I believe that this should always be true.
+                        IFs[indents][code_key] = (condition, is_elif, [prior_values.copy()])  # 3rd element list is for elif ordering via testing.
 
                     indents += 1  # A new block opens.
 
-                else:  # Sanity checks, eg, getting `key` into matching `code`. This is based on each example
+                else:  # Sanity checks, eg, getting code_key into matching `code`. This is based on each example
                     # necessarily re-treading the same target code, with the exception that IF conditions can
                     # continually be introduced (as examples finally make these (the related IF condition) true).
                     last_el_id = get_last_el_id(el_id, condition_type)
@@ -2046,19 +2031,19 @@ def generate_code() -> List[str]:
                             indents += 1  # FOR loop in this user example, opening a new block.
                             print("Appending", last_el_id, "for non-added FOR line", line)
                             last_el_ids.append(last_el_id)
-                        # Determine which FOR is being reiterated, and point to it with `key`.
-                        # (loop_variable, key = FORs[indents -1] would be good enough if indents couldn't repeat.)
-                        loop_variable, key = get_via_closest_prior_key(FORs[indents - 1], key, code, 'for')  # Re-assign `key`.
-                        #          *** ^^^ ***
+                        # Determine which FOR is being reiterated, and point to it with code_key.
+                        # (loop_variable, code_key = FORs[indents -1] would be good enough if indents couldn't repeat.)
+                        loop_variable, code_key = get_via_closest_prior_key(FORs[indents - 1], code_key, code, 'for')  # Re-assign code_key.
+                        #             *** ^^^ ***
 
-                        # indents = int((len(code[key]) - len(code[key].lstrip())) / 4) + 4
+                        # indents = int((len(code[code_key]) - len(code[code_key].lstrip())) / 4) + 4
                         assert loop_variable == right_operand, "'" + loop_variable + "'  *is not*  '" + right_operand + "'"
 
                     else:  # IF
                         print("Appending", last_el_id, "for non-added IF line", line)
                         last_el_ids.append(last_el_id)
 
-                        # Find key into `code` by locating `line` in IFs[indent].
+                        # Find code_key into `code` by locating `line` in IFs[indent].
                         if type(left_operand) == str:  # Collapse line for matching, below, unless it is None,
                             line = left_operand + str(operator) + str(right_operand)  # or eg, 'guess_count+1'
                         else:
@@ -2069,9 +2054,9 @@ def generate_code() -> List[str]:
                             line = line.replace("⋅and⋅", " and ")
                             line = line.replace("⋅or⋅", " or ")
 
-                        # IFs[indents][key] is a list of (condition, is_elif, [prior_values.copy()]) so
-                        # IF_dict[key] is a list of (condition, is_elif, [prior_values.copy()])
-                        # where key means line in `code`.
+                        # IFs[indents][code_key] is a list of (condition, is_elif, [prior_values.copy()]) so
+                        # IF_dict[code_key] is a list of (condition, is_elif, [prior_values.copy()])
+                        # where code_key means line in `code`.
                         IF_dict = IFs[indents]  # IF_dict's keys (1st line of an if/elif control) index IF conditions.
                         for if_key in IF_dict:  # Eg, for key in {8: ('guess>secret', False, [{'name',...}]), 10: ...}
                             # (Searching for the exact if/elif control in `code` got too hairy.)  IF = get_via_closest_prior_key(IFs[indents], key, code, 'if')  # IF is a list of if/elif branches.
@@ -2081,8 +2066,8 @@ def generate_code() -> List[str]:
 
                         # Asserting found because store_ifs() is supposed to give every unique IF a start_el_id.
                         assert IF_dict[if_key][0] == line, "\nExpected: " + IF_dict[if_key][0] + "\nActual: " + line
-                        key = if_key
-                        IFs[indents][key][2].append(prior_values.copy())  # For elif order testing.
+                        code_key = if_key
+                        IFs[indents][code_key][2].append(prior_values.copy())  # For elif order testing.
                         indents += 1  # A new block (an IF consequence) will open for the next `line`.
 
         while last_el_ids and el_id >= last_el_ids[-1]:  # For each block just ended (at el_id).
@@ -2119,17 +2104,17 @@ def generate_code() -> List[str]:
     code = order_IFs(code, IFs)  # Each IF's branches are in random order. Re-sort them until all examples pass.
 
     return cast_inputs(code, variable_types)
-    # Below may be selectively re-activated as more problems are handled.
+    """# Below may be selectively re-activated as more problems are handled.
 
 
     # Next, we gen code from the ************** IF/ELIF/ELSE ************** conditions, in that order.
     # (old: Reasons where loop_likely==0 map to conditions 1:1.)
 
-    sql = """
+    sql = "" "
         SELEC T line, example_id, step_id AS r1 FROM selection WHERE line_type = 'truth' AND loop_likely = 0
             ORDER BY (SELECT COUNT(*) FROM pretests WHERE pretest = r1) DESC, LENGTH(line) DESC, 
             line -- (for order stability) 
-         """
+         "" "
     cursor.execute(sql)
     conditions = cursor.fetchall()  # E.g., [('i1 % 5 == 0',), ('i1 % 3 == 0',)]
     if len(conditions) == 0:
@@ -2155,10 +2140,10 @@ def generate_code() -> List[str]:
 
     # Finally, we gen code from the *********** WHILE *********** conditions.
 
-    sql = """
+    sql = "" "
         SELECT line AS r1 FROM selection WHERE line_type = 'truth' AND loop_likely = 1 ORDER BY step_id DESC, 
             line -- (for order stability) 
-         """
+         "" "
     cursor.execute(sql)
     loop_likely_reasons = cursor.fetchall()  # E.g., [('i1 % 5 == 0',), ('i1 % 3 == 0',)]
     if len(loop_likely_reasons) == 0:
@@ -2215,7 +2200,7 @@ def generate_code() -> List[str]:
     code = code[0:len(code)-5]  # Clip off "elif "
     # E.g., i1 % (i1-accum1) == 0:\n\treturn False
 
-    return code
+    return code"""
 
 
 # Unused since change of .exem format. 2/20/19
@@ -2250,8 +2235,7 @@ def unused_get_output(reason_eid: int, step_id: int) -> str:
 
 def dump_table(table: str) -> str:
     """
-    When global variable DEBUG is True this prints, eg,
-    [all example_lines:
+    When global variable DEBUG is True this prints, eg, [all example_lines:
     (el_id, example_id, step_id, line, loop_likely, line_type)
     (0, 0, 0, Hello! What is your name?, -1, out),
     (5, 0, 5, Albert, -1, in),
@@ -2302,42 +2286,26 @@ def generate_tests(function_name: str, together: int = 1) -> str:
     :param function_name: used for test function name and calling the function under test.
     :param together: whether to test examples together (the default) or separately.
     """
-    #delete:
-    # cursor.execute('''SELECT inp.line, output.line, inp.example_id FROM example_lines inp, example_lines output
-    #                     WHERE inp.example_id = output.example_id AND inp.line_type = 'in' AND output.line_type = 'out'
-    #                     AND (inp.step_id = 5 OR output.step_id = 5) ORDER BY inp.example_id, output.step_id DESC''')
-    # # The above DESC and the 'continue' below implement MAX(output.step_id) per example_id.
-    #query = "SELECT DISTINCT example_id FROM example_lines WHERE example_id=? ORDER BY example_id"
     query = "SELECT DISTINCT example_id FROM example_lines "
     cursor.execute(query + "ORDER BY example_id")
     all_examples = cursor.fetchall()
     test_code = ""
     i = 1  # For appending to the test name.
-    # previous_example_id = -1
     for row in all_examples:
         example_id = row[0] if not together else -1
         # Create one test per example.
-        # if example_id == previous_example_id:
-        #     previous_example_id = example_id
-        #     continue
         test_code += "\ndef test_" + function_name + str(i) + "(self):\n"
-        # code += "    i1 = " + inp + "\n"  # (i1 may be referenced by output as well.)
-        # code += "    self.assertEqual(" + output + ", " + f_name + "(i1))\n\n"
         test_code += "    global global_input\n"
         test_code += "    global_input = ['" + "', '".join(inputs(example_id)) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
         test_code += "    " + function_name + "()  # The function under test is used to write to actual_io_trace.\n"  # TODO need formal params!!
         #                                       Return the named .exem (stripped of comments):
         f_name = function_name
-        #if len(function_name) > 4 and function_name[-4:] == '_stf':  # Remove "_stf" when naming the .exem file.
-        #    f_name = f_name[0:-4]
         test_code += "    self.assertEqual(get_expected_io('" + f_name + ".exem'"
         if not together:  # Test examples separately.
             test_code += ", example_id=" + str(example_id)
         test_code += "), actual_io_trace)\n"
         if together:
             break  # One, all-inclusive test only.
-
-        # previous_example_id = example_id
         i += 1
     return test_code
 
@@ -2347,7 +2315,6 @@ def underscore_to_camelcase(s: str) -> str:
     Take the underscore-separated value in 's' and return a CamelCase equivalent. Initial and final underscores
     are preserved, and medial pairs of underscores become single underscores.
     Credit https://stackoverflow.com/a/4303543/575012
-    :database: not involved.
     :param s:  Eg, this_is_not_camel_case
     :return:  Eg,
     """
@@ -2377,7 +2344,6 @@ if DEBUG and __name__ == "__main__":
 def from_file(filename: str) -> List[str]:
     """
     Return the named file's contents.
-    :database: not involved.
     :param filename:
     :return:
     """
@@ -2394,7 +2360,6 @@ def from_file(filename: str) -> List[str]:
 
 def to_file(filename: str, text: str) -> None:
     """
-    :database: not involved.
     :param filename:
     :param text:
     :return:
@@ -2562,7 +2527,7 @@ def fill_conditions_table() -> None:
 
 def exemplar_path():
     if sys.platform == "win32":
-        return __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\George\Documents\
+        return __file__[0:__file__.rfind('\\')+1]  # Eg, C:\Users\Jane\Documents\
     else:
         return __file__[0:__file__.rfind('/')+1]
 
@@ -2570,7 +2535,6 @@ def exemplar_path():
 def run_tests(class_name: str) -> str:
     """
     Run the unittest tests of the named file and print and return the results.
-    :database: not involved.
     :param class_name:
     :return: results of the tests
     """
@@ -2608,14 +2572,13 @@ def get_last_el_id(first_el_id: int, condition_type: str) -> int:
     return last_el_id
 
 
-def get_last_el_id_of_example_at(el_id: int) -> int:
-    cursor.execute("""SELECT max(el_id) FROM example_lines WHERE example_id = 
-    (SELECT example_id FROM example_lines WHERE el_id = ?)""", (el_id,))
-    return cursor.fetchone()[0]
-
-
-def get_first_el_id_of_example_at(el_id: int) -> int:
-    cursor.execute("""SELECT min(el_id) FROM example_lines WHERE example_id = 
+def get_el_id_of_example_at(extremity: str, el_id: int) -> int:
+    assert extremity == 'first' or extremity == 'last'
+    if extremity == 'first':
+        max_or_min = "min"
+    else:
+        max_or_min = "max"
+    cursor.execute("SELECT " + max_or_min + """(el_id) FROM example_lines WHERE example_id = 
     (SELECT example_id FROM example_lines WHERE el_id = ?)""", (el_id,))
     return cursor.fetchone()[0]
 
@@ -2645,7 +2608,9 @@ def get_condition_type(el_id: int, condition=None) -> str:
             condition_type = "for"
         # Eg, 3 == guess_count
         # elif left.isdigit() and   Doesn't work for prime_number.exem.
-        elif "==" in condition and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
+        # If an equals relations has >1 almost-repeats, assume it signifies a FOR loop iteration.
+        elif "==" in condition and \
+                (most_repeats_in_an_example(assertion_scheme=condition)[0] - most_repeats_in_an_example(assertion=condition)[0]) > 1:
             condition_type = "for"
 
         elif left is None:  # Then `condition` is compound or hasn't a relational operator (eg, 'True').
@@ -2676,6 +2641,7 @@ if DEBUG and __name__ == '__main__':
     assert "assign" == get_condition_type("name==i1")
 """
 
+
 def get_unconditionals_post_control(first_el_id: int) -> List[str]:
     """
     Return the statement pattern occurring after given control statement.
@@ -2696,6 +2662,7 @@ def get_unconditionals_post_control(first_el_id: int) -> List[str]:
     # Commented these 2 out 9/17/19 because I no longer see why an IF should be treated differently.
     # if get_condition_type(first_el_id) == 'if':
     #     return rows[0][2]  # line_type, eg, 'in'.
+
     # Gather the line types until end or IF reached, then return them.
     pattern = []
     for line, line_type, condition_type in rows:
@@ -2735,7 +2702,7 @@ def insert_iteration_into_cbt(loop_variable: str, last_el_id_of_iteration: int, 
     are handled by create_maybe_rows(). 4/8/19"""
     if loop_variable == '__example__':  # For internal use.
         cursor.execute("""UPDATE control_block_traces SET last_el_id = ? WHERE ROWID = ?""",
-                       (get_last_el_id_of_example_at(first_el_id), last_rowid))
+                       (get_el_id_of_example_at('last', first_el_id), last_rowid))
         # cursor.execute("SELECT last_el_id FROM control_block_traces WHERE ROWID=?", (lastrowid,))
         # print("debugging  last_el_id:", cursor.fetchone())
 
@@ -2744,7 +2711,7 @@ def insert_iteration_into_cbt(loop_variable: str, last_el_id_of_iteration: int, 
                        (last_el_id_of_iteration, last_rowid))
     else:  # (Global or local) last iteration
         last_el_id_min = get_line_item(first_el_id, 1 + len(get_unconditionals_post_control(first_el_id)))
-        last_el_id_max = get_last_el_id_of_example_at(first_el_id)  # improve on this too-generous max. todo
+        last_el_id_max = get_el_id_of_example_at('last', first_el_id)  # improve on this too-generous max. todo
         assert last_el_id_min and last_el_id_max
 
         data = (cbt_id, example_id, first_el_id, control_id, iteration, local_iteration)
@@ -2776,7 +2743,8 @@ def get_line_item(start_el_id: int, distance: int, item = 'el_id') -> int:
     cursor.execute("SELECT " + item + " FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " + direction +
                    " LIMIT ?", (start_el_id, abs(distance)))
     rows = cursor.fetchall()
-    # assert rows, "No rows found with start_el_id " + str(start_el_id) + " and distance " + str(distance)
+    # No longer enforced: assert rows, "No rows found with start_el_id " + str(start_el_id) + " and distance " +
+    # str(distance)
     return_el_id = None
     for row in rows:
         return_el_id = row[0]
@@ -2811,7 +2779,7 @@ def store_fors() -> None:
     schemes_seen = []  # To avoid redundant analyses.
     # Loop over every assignment to a FOR loop variable (id'ed by fill_conditions_table()).
     cursor.execute("""SELECT el_id, condition, example_id FROM conditions 
-    WHERE condition_type='for' ORDER BY el_id""")  #example_id=? AND   , (example_id,))
+    WHERE condition_type='for' ORDER BY el_id""")
     for_conditions = cursor.fetchall()
     control_count = {'for': 0}  # (Probably should be changed from a dict to for_count: int.)
     for row in for_conditions:  # PER SCHEME
@@ -2820,10 +2788,10 @@ def store_fors() -> None:
         el_id, condition, example_id = row
         assertion_scheme = scheme(condition)  # Compress and abstract the integers.
         periods = [0]  # To hold the total # of iterations per use of this loop. Can change due to BREAK.
-        if assertion_scheme not in schemes_seen:  # (We assume loop variables aren't re-used. fixme bad assumption)
+        if assertion_scheme not in schemes_seen:  # (We assume loop variables aren't re-used. fixme Bad assumption)
             # (We also assert loop variable's consistency re: increment and starting integer.)
             cursor.execute("SELECT el_id, condition FROM conditions "
-                           "WHERE scheme=? ORDER BY el_id", (assertion_scheme,))  #example_id=? AND    example_id,
+                           "WHERE scheme=? ORDER BY el_id", (assertion_scheme,))
             iteration_instances = cursor.fetchall()
             loop_variable, loop_increment, next_constant, max_constant = None, 1, None, 0
             control_id = 'for' + str(example_id) + ':' + str(control_count['for'])
@@ -2834,8 +2802,7 @@ def store_fors() -> None:
 
                 iteration_el_id, iteration_condition = row
                 constant, operator, variable = assertion_triple(iteration_condition)  # Eg: 5, ==, guess_count
-                if type(constant) == int:
-                    constant = int(constant)  # Needed for comparison with other (integer) constants.
+                constant = int(constant)  # Needed for comparison with other (integer) constants.
                 # Determine loop variable endpoint:
                 if abs(constant) > max_constant:
                     max_constant = constant
@@ -2866,11 +2833,11 @@ def store_fors() -> None:
                         "FOR loop increment " + str(constant - prior_value) + " found where " + str(loop_increment) + \
                         " was expected, at condition: " + iteration_condition
                     iteration_preamble = get_unconditionals_post_control(iteration_el_id)
-                    # Below commented out due to prime_number.exem causing:
+                    # Below changed from an assert due to prime_number.exem causing below error.
                     #   "preambles inconsistent between l.p. '['in', 'assign', 'if']' and i.p. '['in', 'if']'"
-                    # assert are_preambles_consistent(loop_preamble, iteration_preamble), \
-                    #     "preambles inconsistent between l.p. '" + str(loop_preamble) + "' and i.p. '" + \
-                    #     str(iteration_preamble) + "'"
+                    if not are_preambles_consistent(loop_preamble, iteration_preamble):
+                        print("Warning that the preambles are inconsistent between l.p. '" + str(loop_preamble) +
+                              "' and i.p. '" + str(iteration_preamble) + "'")
 
                 if constant == first_value:  # Back to square one. (Never true for the __example__ loop.)
                     local_iteration = 0
@@ -2961,7 +2928,6 @@ def get_local_el_id_of_open_loop(extremity: str, el_id: int) -> int:
     return cursor.fetchone()[0]
 
 
-# unused
 def unused_condition_type(el_id: int) -> str:
     cursor.execute("SELECT condition_type FROM conditions WHERE el_id=?", (el_id,))
     row = cursor.fetchone()
@@ -2970,7 +2936,6 @@ def unused_condition_type(el_id: int) -> str:
     return None
 
 
-# unused
 def unused_get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     """
     The minimum and maximum possible last_el_id of the control being constructed.
@@ -2997,7 +2962,7 @@ def unused_get_last_el_ids(control_type: str, el_id: int) -> Tuple[int, int]:
     return last_el_id_min, local_last_el_id_of_open_loop
 
 
-def is_IF_likely_same(el_id1: int, el_id2: int) -> int:
+def unused_is_IF_likely_same(el_id1: int, el_id2: int) -> int:
     """
     # Are example lines el_id1 and el_id2 the same condition, of condition_type 'if', and succeeded by similar lines?
     :param el_id1:
@@ -3026,7 +2991,6 @@ def get_control_conflicts(table="cbt_temp_last_el_ids") -> int:  # todo verify w
                    "A.first_el_id<B.last_el_id AND "  # within control B and 
                    "A.last_el_id>B.last_el_id")  # finish after it is impossible.
     return cursor.fetchall()
-    #return True if rows else False
 
 
 def create_maybe_rows(first_el_id: int, min_el_id: int, max_el_id: int, data: Tuple) -> Any:
@@ -3077,22 +3041,20 @@ def create_maybe_rows(first_el_id: int, min_el_id: int, max_el_id: int, data: Tu
         return maybes[0][0]  # Only 1 endpoint, so it's not a "maybe". Return it.
 
 
-def store_ifs() -> None:  # example_id: int) -> None:  # into control_block_traces table to track their block scope.
+def store_ifs() -> None:  # into control_block_traces table to track their block scope.
     """
-    # Todo Differentiate elif vs else vs if 4/2/19
     Where repeats are found, their `conditions` table record is updated to note the (pre-existing) control_id.
     :database: SELECTs conditions. INSERTs control_block_traces, controls. UPDATEs conditions.
     :return None:
     """
     # First, pull all example_id's IF conditions (as detected by fill_conditions_table()).
-    cursor.execute("""SELECT el_id, condition, scheme FROM conditions WHERE condition_type = 'if' --AND example_id=?
-    ORDER BY condition, el_id""")
+    cursor.execute("SELECT el_id, condition FROM conditions WHERE condition_type = 'if' ORDER BY condition, el_id")
     ifs = cursor.fetchall()
-    control_count = 0  #{'if': 0}
+    control_count = 0
     prior_row = [None, None, None]
 
     for row in ifs:
-        el_id, condition, scheme = row
+        el_id, condition = row
         example_id = get_example_id(el_id)
 
         if prior_row[1] != condition:  # New control. Insert it.
@@ -3146,7 +3108,7 @@ def store_ifs() -> None:  # example_id: int) -> None:  # into control_block_trac
         cursor.execute("UPDATE conditions SET control_id=? WHERE el_id=?", (control_id, el_id))"""
 
 
-def get_last_el_id_maybes() -> Tuple[List[str], List[int]]:  #example_id: int
+def get_last_el_id_maybes() -> Tuple[List[str], List[int]]:
     """
     After determining which cbt_id's (trace blocks) have an unknown endpoint to their scope, create and run a query
     whose every row has a last_el_id_maybe value for all of them.
@@ -3226,18 +3188,12 @@ def add_control_info_to_example_lines() -> None:
       WHERE ctlei.first_el_id<example_lines.el_id AND 
             ctlei.last_el_id>=example_lines.el_id 
     ORDER BY ctlei.last_el_id, ctlei.first_el_id DESC)""")
-    # cursor.execute("SELECT * FROM example_lines")
-    # rows = cursor.fetchall()
-    # for row in rows:
-    #     el_id = row[0]
-    #     cursor.execute("SELECT control_id FROM cbt_temp_last_el_ids ctlei WHERE last_el_id>? ORDER BY last_el_id",
-    #                    (el_id,))
 
 
 def update_for_loops_table() -> None:
     """
     Update the for_loops table with last_el_id info now that that's available from the cbt table.
-    This function requires that the c.b.t. and cbt_temp_last_el_ids tables have already had their FOR loop info filled in.
+    (This function requires that the c.b.t. and cbt_temp_last_el_ids tables have already had their FOR loop info filled in.)
     :return None:
     """
     # For each FOR control in the target function.
@@ -3290,14 +3246,14 @@ def remove_examples_loop(code_list: List[str]) -> List[str]:
     return code_list_out
 
 
-def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
+def get_function(file_arg: str) -> Tuple[str, str, int]:
     """
-    Attempt to find an example-satisfying function then report success or failure in two stages.
+    Attempt to find an example-satisfying function then report success or failure. In two stages:
     Stage 1 searches for a function that passes all examples as part of the same (__example__) FOR loop.
-    Stage 2 renames that TestX.py (to TestX.tmp) before creating another without the artificial FOR loop and with a
+    Stage 2 renames that TestX.py to TestX.tmp then creates another, without the artificial FOR loop and with a
     unit test per user example.
     :param file_arg:
-    :return SUCCESS or not SUCCESS:
+    :return code, tests, success
     """
     function_count = 0  # The # of generated functions
 
@@ -3425,11 +3381,8 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             class_signature = "class " + class_name + "(unittest.TestCase):"
             test = test.replace('<class signature>', class_signature, 1)
 
-            # for line in generate_tests(function_name + "_stf").splitlines(True):  # First for the sequential function.
-            #     test += "    " + line  # Indent each line, as each test is part of a class.
-            # ********* GENERATE TESTS ******** and add them to test.
-            #example_id = if_cbt_ids[i][2] if if_cbt_ids else 0
-            # Create a Stage 2 Test file that (drops the for __example__ loop and) breaks out the unit tests.
+            # ********* GENERATE TESTS ******** And add them to `test`.
+            # Create a Stage 2 Test file that drops the for __example__ loop and breaks out the unit tests.
             tests = test
             for line in generate_tests(function_name).splitlines(True):  # Single unit test.
                 test += "    " + line
@@ -3470,9 +3423,9 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
                 cursor.execute("SELECT COUNT(*) FROM cbt_temp_last_el_ids")
                 print("After if_endings_trial rollback: ctlei count(*)", cursor.fetchone()[0])
 
-        # Unless it's the very last trial, ROLLBACK
+        # Unless it's the very last trial, ROLLBACK.
         if for_maybes_row == for_maybes[len(for_maybes) - 1]:  # Last trial
-            db.commit() # To enable analysis.
+            db.commit()  # To enable analysis.
         else:
             cursor.execute("SELECT COUNT(*) FROM cbt_temp_last_el_ids")
             print("Before for loop rollback: ctlei count(*)", cursor.fetchone()[0])
@@ -3488,8 +3441,8 @@ def reverse_trace(file: str) -> str:
     Exemplar's top level function attempts to reverse engineer a function from a "trace".
     Pull input/output/assertion lines from the .exem, work up their implications in database, then generate_code() and
     generate_tests() until all tests pass.
-    :database: SELECTs sequential_function. Indirectly, all tables are involved.
-    :param file: An .exem filename of trace examples
+    :database: Indirectly, all tables are involved.
+    :param file: An .exem file of user (ie, code trace) examples
     :return code: A \n-delimited string
     """
     # global pid, db, cursor

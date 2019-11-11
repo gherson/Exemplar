@@ -1,6 +1,18 @@
 """
 "A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller natural numbers."
-Considering the case of # 2, it fits the definition of prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+Eg, 2 is prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+
+<1008
+>False
+
+<1009
+>True
+
+<2
+i1==input
+input>1
+input==2
+>True
 
 todo Det what to do about the (i1-1)>2 conditions because can't rely on user to give them.
 
@@ -8,42 +20,33 @@ todo Det what to do about the (i1-1)>2 conditions because can't rely on user to 
     :param line:  String to denude of possible line comment.
     :return:
 """
-<2
-i1==2
->True
-
-<3
-i1 % 2 != 0, 2==2
->True
+# Input of 3 wouldn't work because it'd show only 1 iteration of the loop, while Exemplar needs >1.
 
 <4
-i1 % 3 != 0, 3>2,
-i1 % 2 == 0
+i1==input
+input>1
+i == input - 1  # FOR loop and divisor setup. i==3
+input % i != 0  # input isn't divided evenly.
+i==input - 2    # Next iteration. i==2
+input % i == 0  # input IS divided evenly.
 >False
 
 <5
-i1 % 4 != 0, 4>2,
-i1 % 3 != 0, 3>2,
-i1 % 2 != 0, 2==2
+i1==input
+input>1
+i==input - 1  # FOR loop and divisor setup. i==4
+input % i != 0  # input isn't divided evenly.
+i==input - 2    # Next iteration. i==3
+input % i != 0  # input isn't divided evenly.
+i==input - 3    # Next iteration. i==2
+input % i != 0  # input isn't divided evenly.
+i == 2          # An end condition is reached.
 >True
-
-<6
-i1 % 5 != 0, 5>2,
-i1 % 4 != 0, 4>2,
-i1 % 3 != 0, 3>2,
-i1 % 2 == 0
->False
 
 <0
-i1 < 1
->input < 1 is illegal
+i1 <= 1
+>False
 
 <1
-i1 == 1
+i1 <= 1
 >False
-
-<1008
->False
-
-<1009
->True
