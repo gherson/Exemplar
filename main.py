@@ -32,7 +32,7 @@ def begin():
 
 @app.route('/demo/<string:demo>', methods=['POST'])
 def demo(demo):
-    return generate(file=demo + ".exem")  # Pull guess3.exem.
+    return generate(file=demo + ".exem")  # Pull an exem.
 
 
 @app.route('/generate', methods=['POST'])
@@ -174,10 +174,10 @@ var examples = new Array();\n"""
 
     head_html += "</script></head>\n"
 
-    demos_html = """<br/><a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png">Reference Guide</a><p/><i>Sorry, demos are Under Construction</i><br/>Or, click a button for another demonstration. 
+    demos_html = """<br/><a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png">Graphic explanation</a><br/>Or, click a button for another demonstration. 
     (There may be a &lt;5sec pause while tests are run in the console.)\n
-    <table><tr>"""
-    demos = ['prime_number', 'leap_year', 'guess2', 'fizz_buzz']
+    <table><tr>"""  # TABLE opens
+    demos = ['prime_number', 'leap_year', 'guess4', 'fizz_buzz']
     for demo in demos:
         demos_html += "<td><form method='POST' action='/demo/" + demo + \
                       "'>\n<input type='submit' value='" + demo + "'/></form></td>\n"
@@ -190,15 +190,15 @@ var examples = new Array();\n"""
     body_top = """<body onload="exem_table(examples);">
     <h1>Exemplar</h1> <h2>code generation from examples</h2>\n
     <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
-    calculation, variable naming and substitution, can be demonstrated with little abstraction or structure 
-    and still be understood and matched by a code generator. 
-    <br/>gherson 2019-04-18 </i>\n
+    calculation, variable naming and substitution, can be successfully demonstrated for a code generator with little to 
+    no abstraction or structure. 
+    <br/>gherson 2019-11-09 </i>\n
     <p><b>Instructions</b>: 
     <ul><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
     sequences demonstrating desired behavior on the left.</li>\n
     <li>Assertions ("truth") may be line or comma separated.</li>\n
     <li>To name your input, immediately follow it with assertion <code><i>yourname</i>==i1</code></li>\n
-    <li>Separate your example traces with a blank line. (Currently only longest example is used.)</li>\n
+    <li>Separate your examples (use cases) with a blank line.</li>\n
     <li>Then press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
     </ul>\n"""
 

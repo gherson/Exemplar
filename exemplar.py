@@ -1,3 +1,4 @@
+# License GPL. Email copyright 2019 holder gherson-@-snet dot-net for other terms.
 import sys
 import sqlite3  # See reset_db()
 import re
@@ -5,8 +6,6 @@ from inspect import currentframe, getframeinfo  # For line #
 import importlib  # To import and run the test file we create.
 import unittest
 from typing import List, Tuple, Dict, Any
-from collections import OrderedDict
-import copy
 import factoradic  # Credit https://pypi.org/project/factoradic/ Author: Robert Smallshire
 import math
 
@@ -64,9 +63,7 @@ def assertion_triple(truth_line: str) -> Tuple[any]:
     :param truth_line:
     :return: The left operand, rel op, and right operand in truth_line (or 3 Nones)
     """
-    # assertions = list_conditions(truth_line)
-    # for assertion in assertions:
-    # Qualify truth_line as a single relational comparison, or return Nones.
+    # Qualify truth_line to be a simple relational comparison, or return Nones.
     t = truth_line
     if "==" not in t and "!=" not in t and '<' not in t and '>' not in t:
         return None, None, None  # None relational
@@ -75,11 +72,11 @@ def assertion_triple(truth_line: str) -> Tuple[any]:
     # if '%' in t or '*' in t or '+' in t or '/' in t or '-' in t:
     #     return None, None, None  # Also compound
 
-    assertion = truth_line.translate(str.maketrans({'"': "'"}))  # " -> ' for consistency. todo ignore escaped "s
+    assertion = truth_line.translate(str.maketrans({'"': "'"}))  # Single quotes for consistency. todo ignore escaped "s
     # Create the relation triple: left_operand, relational_operator, right_operand.
     left_operand, relational_operator, right_operand = '', '', ''
-    for char in assertion:
-        if char in " \t\r\n":
+    for char in assertion:  # Separate assertion into 3 parts, the left, relop, and right.
+        if char in " \t\r\n":  # Ignore whitespace.
             continue
         elif char in "=<>!":
             relational_operator += char
@@ -89,7 +86,7 @@ def assertion_triple(truth_line: str) -> Tuple[any]:
             else:
                 left_operand += char
     if relational_operator == '==' and left_operand.isidentifier() and not re.match('i[0-9]+', left_operand):
-        # Except for i[0-9]+ (input variable) names, put identifier in the equivalence on *right* for consistency.
+        # Except for i[0-9]+ (input variable) names, put identifier in an equivalence on *right* for consistency.
         temporary = left_operand
         left_operand = right_operand
         right_operand = temporary
@@ -97,6 +94,7 @@ def assertion_triple(truth_line: str) -> Tuple[any]:
 
 
 if DEBUG and __name__ == "__main__":
+    assert ('input-1', '==', 'i') == assertion_triple("input-1==i")
     assert ('i1%400', '==', '0') == assertion_triple("i1%400==0")
     assert ('10', '==', 'guess') == assertion_triple("guess==10"), "We instead got " + str(
         assertion_triple("guess==10"))
@@ -1754,8 +1752,8 @@ def IF_order_search(code: List[int], an_IF: List[int],
         print("Permutation selected:", IF_permutation)
     IF_function = get_IF_test_function(code, IF_permutation)
     trial = 0  # Count of permutations trialed.
-    for start in an_IF:
-        while trial < maximum_trial:  # Order an_IF successfully, or bust.
+    while trial < maximum_trial:  # Order an_IF successfully, or bust.
+        for start in an_IF:
             indents = int((len(code[start]) - len(code[start].lstrip())) / 4)
             expected_condition, is_elif, prior_values = IFs[indents][start]
             locals_dict = {}  # Needed to retrieve actual_condition
@@ -1772,14 +1770,13 @@ def IF_order_search(code: List[int], an_IF: List[int],
             else:
                 actual_condition = triple[0] + triple[1] + triple[2]  # 'g' + '>' + 's' => 'g>s'
             success = (expected_condition == actual_condition)
-            if success:
-                break  # to next an_IF branch.
-            else:
+            if not success:
                 trial += 1
-                if trial == maximum_trial:
-                    break
                 IF_permutation = get_IF_permutation(an_IF, trial)
                 IF_function = get_IF_test_function(code, IF_permutation)
+                break
+        if success:
+            break  # IF_function succeeded with all an_IF's branches.
     assert success, IF_function[0:min(len(IF_function), 80)] + "... cannot be ordered successfully"
 
     # Apply found branch order to reordered_code using IF and the conditions it points to.
@@ -1814,7 +1811,7 @@ def IF_order_search(code: List[int], an_IF: List[int],
         reordered_code[keys[i]] = tc  # Adjustment made.
 
         # Copy each if/elif *consequent* into position in reordered_code, as well,
-        # by first deleting the unwanted consequent,
+        # by first deleting the unwanted consequent (deleting targeted lines allows unconditionally appending new),
         last_key_of_block = get_last_line_of_indent(code, keys[i] + 1, any_change=False)  # Assumes condition is 1 line.
         target_body_length = 1 + last_key_of_block - (keys[i] + 1)
         del reordered_code[keys[i]+1 : keys[i]+1+target_body_length]
@@ -1946,8 +1943,10 @@ def generate_code() -> List[str]:
 
             if type_string(line) == 'str':
                 print_line = "print('" + line + "')"
+                return_text = "#return '"
             else:
                 print_line = "print(" + line + ')'
+                return_text = "#return "
 
             # Add the print() to the code if it's new to current control.
             print_line = indents * "    " + print_line
@@ -1956,11 +1955,11 @@ def generate_code() -> List[str]:
                 # Add return if `line` is not a string > 10 chars and it's not in a (non-__example__) loop
                 # (todo) and its the last output and its datatype is consistent across cohort.
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
-                    code.append((indents * "    ") + "#return " + line)  # ('#return ' -> 'return ' in Stage 2.)
+                    code.append((indents * "    ") + return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
                     key += 1
             else:  # Sanity check
                 assert code[key] == print_line, "'" + code[key] + "'  *is not*  '" + print_line + "'"
-                if key < len(code) and code[key].find("#return ") > -1:
+                if key < len(code) and code[key].find(return_text) > -1:
                     key += 1  # To get past proto-return statement.
 
         else:  # truth/assertions/reasons/conditions
@@ -2070,6 +2069,9 @@ def generate_code() -> List[str]:
                             line = line.replace("⋅and⋅", " and ")
                             line = line.replace("⋅or⋅", " or ")
 
+                        # IFs[indents][key] is a list of (condition, is_elif, [prior_values.copy()]) so
+                        # IF_dict[key] is a list of (condition, is_elif, [prior_values.copy()])
+                        # where key means line in `code`.
                         IF_dict = IFs[indents]  # IF_dict's keys (1st line of an if/elif control) index IF conditions.
                         for if_key in IF_dict:  # Eg, for key in {8: ('guess>secret', False, [{'name',...}]), 10: ...}
                             # (Searching for the exact if/elif control in `code` got too hairy.)  IF = get_via_closest_prior_key(IFs[indents], key, code, 'if')  # IF is a list of if/elif branches.
@@ -2468,7 +2470,7 @@ def formal_params() -> str:
     return result.rstrip(", ")
 
 
-def most_repeats_in_an_example(assertion=None, assertion_scheme=None):
+def most_repeats_in_an_example(assertion=None, assertion_scheme=None) -> Tuple:
     """
     Whether we have a given assertion or assertion scheme, find the example that has the most of them.
     :param assertion: condition of interest
@@ -2632,26 +2634,29 @@ def get_condition_type(el_id: int, condition=None) -> str:
             return row[0]
         else:
             return None
-    else:
-        condition_type = 'if'  # Determine if/for/assign ('if' is the default).
+    else:  # Determine if/for/assign
+        condition_type = 'if'  # Default
 
         left, operator, right = assertion_triple(condition)
-        if left is None:  # Then `condition` is compound or hasn't a relational operator (eg, 'True').
-            condition_type = 'if'
-
-        # Math operations not leading to an immediate output substitution are deemed 'if' conditions.
-        elif ('%' in left or '*' in left or '+' in left or '/' in left or '-' in left) and not \
-            ((assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
-            get_line_item(el_id, 1, 'line_type') == 'out')):
-            condition_type = 'if'
 
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
         # **** FOR_SUSPECTS ****
-        elif right == "__example__":  # Special case: repeats only inter-example because it delimits them.
+        if right == "__example__":  # Special case: repeats only inter-example because it delimits them.
             condition_type = "for"
         # Eg, 3 == guess_count
-        elif left.isdigit() and "==" in condition and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
+        # elif left.isdigit() and   Doesn't work for prime_number.exem.
+        elif "==" in condition and most_repeats_in_an_example(assertion_scheme=condition)[0] > 1:
             condition_type = "for"
+
+        elif left is None:  # Then `condition` is compound or hasn't a relational operator (eg, 'True').
+            condition_type = 'if'
+
+        # Math operations not leading to an immediate output substitution are deemed 'if' conditions. (This should be
+        # narrower or at least kept after the 'for' qualifications.)
+        elif ('%' in left or '*' in left or '+' in left or '/' in left or '-' in left) and not \
+            (assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
+            get_line_item(el_id, 1, 'line_type') == 'out'):
+            condition_type = 'if'
 
         # **** ASSIGN ***** Eg, 'myVar==i1', 'i2 == myVar', '3==count + 1' (for swapping out '3' in next line.)
         #                                                  previous line is input:
@@ -2829,7 +2834,8 @@ def store_fors() -> None:
 
                 iteration_el_id, iteration_condition = row
                 constant, operator, variable = assertion_triple(iteration_condition)  # Eg: 5, ==, guess_count
-                constant = int(constant)  # Needed for comparison with other (integer) constants.
+                if type(constant) == int:
+                    constant = int(constant)  # Needed for comparison with other (integer) constants.
                 # Determine loop variable endpoint:
                 if abs(constant) > max_constant:
                     max_constant = constant
@@ -2860,7 +2866,11 @@ def store_fors() -> None:
                         "FOR loop increment " + str(constant - prior_value) + " found where " + str(loop_increment) + \
                         " was expected, at condition: " + iteration_condition
                     iteration_preamble = get_unconditionals_post_control(iteration_el_id)
-                    assert are_preambles_consistent(loop_preamble, iteration_preamble)
+                    # Below commented out due to prime_number.exem causing:
+                    #   "preambles inconsistent between l.p. '['in', 'assign', 'if']' and i.p. '['in', 'if']'"
+                    # assert are_preambles_consistent(loop_preamble, iteration_preamble), \
+                    #     "preambles inconsistent between l.p. '" + str(loop_preamble) + "' and i.p. '" + \
+                    #     str(iteration_preamble) + "'"
 
                 if constant == first_value:  # Back to square one. (Never true for the __example__ loop.)
                     local_iteration = 0
@@ -3076,7 +3086,7 @@ def store_ifs() -> None:  # example_id: int) -> None:  # into control_block_trac
     """
     # First, pull all example_id's IF conditions (as detected by fill_conditions_table()).
     cursor.execute("""SELECT el_id, condition, scheme FROM conditions WHERE condition_type = 'if' --AND example_id=?
-    ORDER BY scheme, el_id""")
+    ORDER BY condition, el_id""")
     ifs = cursor.fetchall()
     control_count = 0  #{'if': 0}
     prior_row = [None, None, None]
@@ -3085,7 +3095,7 @@ def store_ifs() -> None:  # example_id: int) -> None:  # into control_block_trac
         el_id, condition, scheme = row
         example_id = get_example_id(el_id)
 
-        if prior_row[2] != scheme:  # New control. Insert it. (Having to assume that IF schemes are unique is bad fixme)
+        if prior_row[1] != condition:  # New control. Insert it.
             control_id = 'if' + str(example_id) + ':' + str(
                 control_count)  # ['if'])  'if'+example_id of first occurrence
             control_count += 1
@@ -3447,10 +3457,10 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
                 if len(test_results.errors) == 0 and len(test_results.failures) == 0:
                     print("Stage 2 success")
                     # ************ RETURN ************
-                    return SUCCESS
+                    return code, tests, SUCCESS
                 else:
                     print("Unexpected failure in Stage 2")
-                    return not SUCCESS  # Used by repl.it
+                    return code, tests, not SUCCESS  # Used by repl.it
 
             # Failure. Unless it's the very last trial, ROLLBACK TO if_endings_trial.
             if (if_maybes_row != if_maybes[len(if_maybes) - 1]) or for_maybes_row != for_maybes[len(for_maybes) - 1]:
@@ -3470,7 +3480,7 @@ def get_function(file_arg: str) -> int:  #, example_id: int) -> int:
             cursor.execute("SELECT COUNT(*) FROM cbt_temp_last_el_ids")
             print("After for loop rollback: ctlei count(*)", cursor.fetchone()[0])
     print(function_count, "functions generated, none successful")
-    return not SUCCESS  # Used by repl.it (N.B. return above as well)
+    return code, tests, not SUCCESS  # Used by repl.it (N.B. return above as well)
 
 
 def reverse_trace(file: str) -> str:
@@ -3502,7 +3512,9 @@ def reverse_trace(file: str) -> str:
     # *************************** FORs *************************
     store_fors()  # Put for-loop info into controls and cbt tables, including all last_el_id_maybe possibilities.
 
-    get_function(file)  # Determine for-loop endpoints, etc.
+    code, test_file_contents, success = get_function(file)  # Determine for-loop endpoints, etc.
+
+    return code, test_file_contents  # Used by repl.it
 
 
 sys.path.append(exemplar_path())  # For run_tests(). (imports don't take absolute paths.)

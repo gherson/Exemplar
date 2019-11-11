@@ -2,27 +2,33 @@
 * Enable modeling of arbitrary function calls:
 
 ```
->getDate()   # Needs a space after '>' to be interpreted as print()'s argument rather than as a call out.
+>getDate()   # This syntax is consistent with a function call and so that's how it's interpreted.
 <2019-04-25  # Since previous line is a function call, this line is interpreted as its return value.
 ```    
      
-* Enable JSON representation of objects throughout the examples 
-* Reproduce Python’s split function; a Turing Machine; an algorithm requiring inner loops; finding the difference in 
-time between any two given date-time objects; a problem requiring input of at least three arguments (i1, i2, and i3); 
-alphabetizing an input list's elements; examples that include a literal “i1” in the output and ‘reason’
-* Replace brute force search for successful Python block endpoint with one guided by machine learning that found
- correlations between that goal and database state. 2019-04-23
+* Enable JSON representation of literals  
+* Enable more examples, such as: Python’s split function, a Turing Machine, an algorithm requiring inner loops, finding 
+the difference in time between any two given date-time objects, a problem requiring input of three arguments (i1, i2,  
+and i3), alphabetizing an input list's elements, examples that include a literal “i1” in the output 
+* Replace brute force search for successful Python block endpoint with one guided by machine learning (that found
+ correlations between that goal and database state). 2019-04-23
 
 # Done
-* Single-example solving, supporting IF and FOR. 2019-04-18
-* Multiple example solving 2019-09-04
 * If/elif branch ordering 2019-11-04
+* Multiple example solving 2019-09-04
+* Single-example solving, supporting IF and FOR 2019-04-18
+* Automatic unit testing (1 test per example) 2019-01-29
+* Multiple inputs and outputs allowed per user example 2019-01-27
 
 # Log of work
+* 2019-11-10: Working on prime_number.exem and normalizing all conditions. 1.75h + 15:45 - 16:55 + 17:55 - 
+* 2019-11-09: Got E working on repl.it again. fizz_buzz.exem now also working. Changed store_IFs to better recognize 
+condition novelty. 5h 
+* 2019-11-05: Working on repl.it. 2.5h 
 * 2019-11-04: Got leap_year.exem and if/elif automatic ordering working. Latter is by brute force search completely 
 independent of that for block endpoints, so a dimension is not added to the algorithmic complexity of either. 5.75h
-* 2019-11-03: Had to improve input data typing for guess4.exem working with new IF handling. Then tested, refactored, 
-and improved. Got up to fixing if_order_search() to move 'if' consequents in addition to conditions. 9h
+* 2019-11-03: Had to improve input data typing for guess4.exem to deal with new IF handling. Then tested, refactored, 
+and improved. Got up to: fixing if_order_search() to move 'if' consequents (in addition to conditions). 9h
 * 2019-11-02: My notes say I got up to fixing expected vs actual condition, then data typing input. 10.75h
 * 2019-11-01: Up to testing a factoradics approach to counting the possible permutations of if/elif order. 9h
 * 2019-10-31: Finished building a data structure that tracks hopefully all the IF information needed to order the elif 
@@ -38,17 +44,16 @@ to tell Exemplar to pose IF x<3 before ELIF x<5 (by returning x < 3 in this case
  logical abilities can help answer my questions of which IF conditions are mutually exclusive vs. have relationships
  that are specializations, intersections, or are orthogonal. 9.5h
 * 2019-10-22: guess5.exem working with redone generate_code(). Co-located IFs now ELIFs after first IF. 3h
-* 2019-10-21: 10 - 14:30. 16 - 18pm, 20:15 - 25:30 = 4.5 +2 + 5. 6hrs total.
-Committed changes after guess4.exem working. Studied ACM Transactions on Programming Languages and Systems' author 
-guidelines.  Cleaning up notes.
+* 2019-10-21: 10 - 14:30. 16 - 18pm, 20:15 - 25:30 = 4.5 +2 + 5. 6hrs total. Committed changes after guess4.exem 
+working. Studied ACM Transactions on Programming Languages and Systems' author guidelines.  Cleaning up notes.
 * 2019-10-21 Done: making maximal use of trace info. guess4.exem working again. Prior 5 days: 5+6+2+9.5+11.5= 34h
 * 2019-10-16 Began committing planned code changes that allow generate_code() to systematically distinguish new and 
 corroborate old info from the user examples as they're turned into Python code. Prior 4 days: 6+4+11+11.5= 32.5h
 * 2019-10-07 Continuing. 8h
 * 2019-10-06 More planning, then began changes to generate_code(). 8h.
 * 2019-10-05 Planning how to make generate_code() systematic rather than ad hoc.  5h 
-* 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Solution: 
-consecutive IFs originating from different examples or iteration represent an if/else, not adjacent IFs.  10h  
+* 2019-09-30 Continued work on how to recognize if/else situations (and by extension, solving leap_year.exem). Realized
+a solution: consecutive IFs originating from different examples or iteration represent an if/else, not adjacent IFs. 10h  
 * 2019-09-22 Good progress in getting leap_year.exem correctly interpreted again now that examples are not simply input,
 assertions, and output, in that order. Created Boolean function is_loop_open(code), enabled a bool datatype interpretation 
 of example data, and the generated function now both prints and returns last output where that appears desirable. 9h 
@@ -59,8 +64,8 @@ for compound conditions. 4h
 * 2019-09-16 Rewrote fill_conditions_table() to allow for compound conditions. Generalized get_el_id() into 
 get_line_item(). 4h
 * 2019-09-15 Began enabling leap_years.exem, which has compound conditions in the assertions and is return-oriented 
-(with a long IF structure) rather than interactive with the user as in the guess() functions. Created are_preambles_consistent() 
-for store_fors(). 4h
+(with a long IF structure) rather than interactive with the user as in the guess() functions. Created 
+are_preambles_consistent() for store_fors(). 4h
 * 2019-09-09 Completed work started yesterday. Also, clearing the "environment" (prior_values) between the processing of
  __example__ iterations. 4h
 * 2019-09-08 At the point unneeded, removing __example__ loop and the all-in-one unit test (in favor of many). 2h
@@ -71,7 +76,7 @@ guess5.exem). As such, both examples of guess4.exem are used to create its solut
 * 2019-08-21 Unify single quoting handling. Exemplar.py's internal unit tests now all passing. 2h
 * 2019-08-20 "Finished" reading the paper to pickup terms etc for starting my own. 1h
 * 2019-08-19 Reading "Program synthesis: challenges and opportunities" by David and Kroenig 2017. 2h
-* 2019-08-18 Organizing my research notes and browsing papers to determine journal to target for my research paper. 2h
+* 2019-08-18 Organizing my research notes. Browsing papers to determine journal to target for my research paper. 2h
 * 2019-08-17 Function synthesis from guess5.exem working correctly. 2h 
 * 2019-08-16 Debugging generate_code()'s attempts to insert "break" iff a FOR loop ends prematurely. Bug fix in 
 update_for_loops_table(). Wrote get_1st_line_of_iteration(last_el_id). 10h
@@ -87,9 +92,10 @@ exemplar.for_loop_conflict(). 2h
 * 2019-08-06 Initially recalled only goal of project. Seeing it anew I am energized for the battle rejoined. 2.5h
 * 2019-05-19 *CS7646 ML4T's usurpation of my time begins in earnest.* 
 * 2019-05-18 Finished studying DRAKON and conclude that it improves on flowcharting but is not a *r*evolution. 2h
-* 2019-05-17 Studying DRAKON algorithmic visual programming and modeling language for its ideas. 3h
+* 2019-05-17 Studying DRAKON algorithmic visual programming and modeling language to plumb its ideas. 3h
 * 2019-05-11 Worked on how to present Exemplar. Created get_control_conflicts(). 5.5h
-* 2019-05-10 Created for_loops table and update_for_loops_table() to exclude mid-loops as ending points for controls opened pre-loop. 5h
+* 2019-05-10 Created for_loops table and update_for_loops_table() to exclude mid-loops as ending points for controls 
+opened pre-loop. 5h
 * 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 6h
 * 2019-05-08 Improving store_ifs() and create_maybe_rows(). 3.5h
 * 2019-05-07 Re-enabling integration tests. 2.5h
@@ -103,13 +109,13 @@ IF from FOR endpoints and applying min() and max() to their clei.el_last_id's, r
 * 2019-05-01 Enabled the favicon. TG and I improved the Copy button. 3h
 * 2019-04-30 Organized log, notes. Re: the web UI, TG and I created a favicon. 1.5h
 * 2019-04-29 Possibly coinciding with a PyCharm upgrade, Linux VM became slow, so I moved development back to Windows. 
-(VirtualBox also prevented laptop from sleeping and frequently crashed it when lid was closed.) Still struggling with 
-getting Exemplar to consider all valid control block endings for guess4.exem's User Loses example. 7.75h
+(VirtualBox also prevented laptop from sleeping and frequently crashed it when lid was closed.) Still struggling to 
+get Exemplar to consider all valid control block endings for guess4.exem's User Loses example. 7.75h
 * 2019-04-28 Lots more work on deducing the possible control block endpoints implied by the exem traces. Got unittest to 
 forget old target code and check only the up to date target code. 9.75h
 * 2019-04-27 Fixed store_ifs() so IFs not added to CBT when there's a duplicate IF in the open loop started most recently. 6.25h
-* 2019-04-26 Same as on 4/25, eg, JavaScript function generate_name(). 6h
-* 2019-04-25 Worked on UI with TG, eg, resizeIt(). Then I worked to enable guess4's User Loses example. 3.5h
+* 2019-04-26 Same work area as on 4/25, eg, JavaScript function generate_name(). 6h
+* 2019-04-25 Worked on UI with TG on, eg, resizeIt(). Then I worked to enable guess4's User Loses example. 3.5h
 * 2019-04-24 Worked on UI with TG. Documented plan to allow arbitrary function calls. 2h
 * 2019-04-23 Thought about how ML may aid Exemplar. Finished organizing my development notes. 4.5h 
 * 2019-04-22 Discussed recent changes to Exemplar with student TG and directed his automatic function naming efforts. 
@@ -121,14 +127,15 @@ Finished reading AlphaGo paper. 3.5h
 * 2019-04-17 Exemplar quickly generates a function that passes the unit test implied by guess4.exem's longest example. 
 Controls are now example-dependent instead of problem-wide. Many bug fixes. 10.25h
 * 2019-04-16 To simplify code generation, I've focused Exemplar on one example (the longest) of the given exem. 5.25h
-* 2019-04-15 Created get_unconditional_post_control(). 8.5h
+* 2019-04-15 Created get_unconditional_post_control() to help narrow the search for code block endpoint. 8.5h
 * 2019-04-14 To simplify generate_code() and to call it once not twice, the sequential target function (STF) was obviated
 by, e.g., replacing function likely_data_type() with function cast_inputs().  Added function condition_type() to fine-tune
 last_el_id calculation, i.e., reject 'assign' conditions as last_el_id's. 6.75h
 * 2019-04-13 Nesting transactions so E can most efficiently explore a 2nd tier of possibilities: IF block endpoints. 6.5h
 * 2019-04-12 Continuing manual testing. Changing indent (block creation) regime. Confirmed that db transactions can nest. 4.5h
 * 2019-04-11 Stepping through guess4 to confirm operation. 1h
-* 2019-04-10 Forgoing os.fork()'ing trials in favor of ROLLBACK. 6h
+* 2019-04-10 Forgoing os.fork()'ing trials in favor of database ROLLBACK because after a fork(), PyCharm will only show 
+the original process and worse, the database becomes trial-specific. 6h
 * 2019-04-09 Because store_ifs() and store_code() modify the database while trialing last_el_id values, fork()ing added 
 to reverse_trace() ahead of those. Read Sumit Gulwani's "Program Synthesis" to page "25". 5h
 * 2019-04-08 Commenting store_fors() then reworking store_ifs() in its image. 3h
@@ -188,7 +195,7 @@ assignment instead of as an assertion. 1h
 I enabled a generate-and-test approach in E which will involve looping until it has generated a function, with control structures,
  that passes all unit tests and that accounts for every user assertion. Got <https://repl.it/@gherson/Exemplar> working again. 6.25h
 * 2019-02-25 Automatic casting of sequential target function (STF)'s inputs allows the STF in TestGuess4.py to pass its unit test. 3.5h
-* 2019-02-24 Studying Silver et al's 2018 AlphaGo paper in Science. In Exemplar, the sequential version of the target 
+* 2019-02-24 Studying Silver et al's 2018 AlphaGo paper. In Exemplar, the sequential version of the target 
 function and its unit tests are added to the generated test class. 5h
 * 2019-02-23 Discouraging that the problems I'm fixing with guess4's interpretation are the same that I'd fixed in 
 guess3. So I'm thinking about how to use the target function's sequential version, whose generation is much more 
