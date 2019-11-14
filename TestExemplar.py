@@ -61,7 +61,7 @@ class TestExemplar(unittest.TestCase):
 
     def test_schematize1(self):
         expected = "i1 % (len(i1)-_) <= 0c"
-        self.assertEqual(expected, exemplar.scheme('i1 % (len(i1)-13) <= 0c'))
+        self.assertEqual(expected, exemplar.get_scheme('i1 % (len(i1)-13) <= 0c'))
 
     def test_parse_trace1(self):
         exemplar.reset_db()  # Empty the database.

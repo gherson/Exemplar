@@ -1,3 +1,4 @@
+# License GPL. Email copyright 2019 holder gherson-@-snet dot-net for other terms.
 # main.py is repl.it's starting point for projects of type 'Python'.
 import exemplar as e
 import html as h  # To avoid weird "AttributeError: 'function' object has no attribute 'escape'" error.
@@ -214,7 +215,7 @@ var examples = new Array();\n"""
     <th><font color="green">output</font></th></tr></table></td>\n
     <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n
     <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
-    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit test</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
+    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit tests</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
     resizeIt('code_generated'); // Initial on load
     resizeIt('test_file_contents'); // Initial on load
     generate_name(); // Provide default function name

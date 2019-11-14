@@ -2,51 +2,46 @@
 "A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller natural numbers."
 Eg, 2 is prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
 
+todo Re-enable i/o-only examples such as these two:
 <1008
 >False
 
 <1009
 >True
 
+This example based on input of 2 is redundant, as it shows only 1 iteration while Exemplar needs >1 to create a loop.
 <2
-i1==input
-input>1
-input==2
+i1==inp
+inp>1
+j==2
+j==inp
 >True
 
-todo Det what to do about the (i1-1)>2 conditions because can't rely on user to give them.
-
-@title Describe the target function for its docstring this way or:
-    :param line:  String to denude of possible line comment.
-    :return:
 """
-# Input of 3 wouldn't work because it'd show only 1 iteration of the loop, while Exemplar needs >1.
 
 <4
-i1==input
-input>1
-i == input - 1  # FOR loop and divisor setup. i==3
-input % i != 0  # input isn't divided evenly.
-i==input - 2    # Next iteration. i==2
-input % i == 0  # input IS divided evenly.
+i1==inp
+inp > 1
+j == 2  # FOR loop (and divisor) set up but no iterations because
+inp % j == 0  # input is divided evenly.
 >False
 
 <5
-i1==input
-input>1
-i==input - 1  # FOR loop and divisor setup. i==4
-input % i != 0  # input isn't divided evenly.
-i==input - 2    # Next iteration. i==3
-input % i != 0  # input isn't divided evenly.
-i==input - 3    # Next iteration. i==2
-input % i != 0  # input isn't divided evenly.
-i == 2          # An end condition is reached.
+i1==inp
+inp > 1
+j==2
+j==3
+j==4
+j==5
+j==inp
 >True
 
 <0
-i1 <= 1
+i1==inp
+inp <= 1
 >False
 
 <1
-i1 <= 1
+i1==inp
+inp <= 1
 >False

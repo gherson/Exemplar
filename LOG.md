@@ -26,17 +26,19 @@ and leap_year.exem). 2018-03-25
 
 
 # Log of work
-Next: 
-Show how common problems can be modelled with Exemplar.
-Enable assertion-less user examples (testbed: leap_year.exem) then rewrite  elif True  statements as  else.
+Next: Show how common problems can be modelled with Exemplar.
+Enable assertion-less user examples as specs for unit tests only (testbed: prime_number.exem).
 
+* 2019-11-14: Cleaning up notes. Do last minute improvements before creating an official screencast. 12:10 - 
+* 2019-11-13: Finished store_fors() overhaul. Got prime_number.exem working. 9.5h 
+* 2019-11-12: store_fors() overhaul. 5h
 * 2019-11-11: To handle more complex assertions (needed by prime_number.exem), SymPy will today replace current 
-assertion normalization, eg, assertion_triple(). Start w/loop increment. 9:50 - 
+assertion normalization, eg, assertion_triple(). Start w/loop increment. 10.5h  
 * 2019-11-10: Worked on prime_number.exem until deciding to recruit SymPy's help in determining loop increment
 and normalizing (all) assertions. Then browsed SymPy documentation and all in use exemplar.py code. 8.5h 
 * 2019-11-09: Got E working on repl.it again. fizz_buzz.exem now also working. Changed store_IFs() to better recognize 
 condition novelty. 5h 
-* 2019-11-05: Working on repl.it. 2.5h 
+* 2019-11-05: Work reviving Exemplar on Repl.it. 2.5h 
 * 2019-11-04: Got leap_year.exem and if/elif automatic ordering working. Latter is by brute force search completely 
 independent of that for block endpoints, so a dimension is not added to the algorithmic complexity of either. 5.75h
 * 2019-11-03: Had to improve input data typing for guess4.exem to deal with new IF handling. Then tested, refactored, 
