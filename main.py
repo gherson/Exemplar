@@ -1,4 +1,3 @@
-# License GPL. Email copyright 2019 holder gherson-@-snet dot-net for other terms.
 # main.py is repl.it's starting point for projects of type 'Python'.
 import exemplar as e
 import html as h  # To avoid weird "AttributeError: 'function' object has no attribute 'escape'" error.
@@ -65,6 +64,11 @@ def html(examples_list, code, test_file_contents):
     <head><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><meta charset="UTF-8">
     <link rel="icon" type="image/png" href="https://cultivatedbigcustomization--gherson.repl.co/truth.png">
     <title>Exemplar</title>
+    <style>
+td, th {
+    border: 1px solid black;
+}
+</style>
 <script src="http://www.google.com/jsapi"></script>
 <script>google.load('prototype', '1.6.0.2');</script>
 <script>
@@ -175,8 +179,7 @@ var examples = new Array();\n"""
 
     head_html += "</script></head>\n"
 
-    demos_html = """<br/><a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png">Graphic explanation</a><br/>Or, click a button for another demonstration. 
-    (There may be a &lt;5sec pause while tests are run in the console.)\n
+    demos_html = """<br/>Other demonstrations:\n
     <table><tr>"""  # TABLE opens
     demos = ['prime_number', 'leap_year', 'guess4', 'fizz_buzz']
     for demo in demos:
@@ -188,20 +191,17 @@ var examples = new Array();\n"""
 
     # print("example:", examples)  # Took a few restarts to appear (in console).
 
-    body_top = """<body onload="exem_table(examples);">
-    <h1>Exemplar</h1> <h2>code generation from examples</h2>\n
-    <i>Proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
-    calculation, variable naming and substitution, can be successfully demonstrated for a code generator with little to 
-    no abstraction or structure. 
-    <br/>gherson 2019-11-09 </i>\n
-    <p><b>Instructions</b>: 
-    <ul><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>↲
-    sequences demonstrating desired behavior on the left.</li>\n
-    <li>Assertions ("truth") may be line or comma separated.</li>\n
+    body_top = """<body onload="exem_table(examples);"><center>
+    <b>Exemplar</b>: Programming via code trace\n
+    </center><table><tr><td width="50%">
+    <b>Instructions</b>: 
+    <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>sequences demonstrating desired behavior on the left.  Assertions ("truth") may be line or comma separated.</li>\n
     <li>To name your input, immediately follow it with assertion <code><i>yourname</i>==i1</code></li>\n
     <li>Separate your examples (use cases) with a blank line.</li>\n
-    <li>Then press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
-    </ul>\n"""
+    <li>Press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
+    </ol> &nbsp; &nbsp; <a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png" target="_blank">Concordance visualization</a><br/><br/></td>\n
+    <td>This is a working proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
+    calculation, variable naming and substitution, can be successfully demonstrated for a code generator with little to no abstraction or structure. <br/>Exemplar is already useful for creating unit tests and simple functions. gherson 2019-11-09<br/>""" + demos_html + "</td></tr></table>\n"
 
     # Show the raw examples, the examples tabulated, the code generated, and finally, a choice of demos.
     # The HTML structure is a table: the 1st row is headings and the second row cells are form, table, and textarea, respectively. 4/18/19
@@ -211,11 +211,11 @@ var examples = new Array();\n"""
     <form name="examples_f" id="examples_f" method="POST" action="/generate">\n
     Editable function name<br/>\n
     <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
-        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black; width: 400px; overflow: auto"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top"><table id="examples_t" cellpadding="1" border="1"><tr><th><font color="blue">input</font></th><th>truth</th>
+        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black; width: 400px; overflow: auto"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top" style="text-align:center"><table id="examples_t" cellpadding="1"><tr><th><font color="blue">input</font></th><th>truth</th>
     <th><font color="green">output</font></th></tr></table></td>\n
     <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n
     <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
-    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit tests</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + demos_html + key + """<script>
+    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit tests</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + key + """<script>
     resizeIt('code_generated'); // Initial on load
     resizeIt('test_file_contents'); // Initial on load
     generate_name(); // Provide default function name

@@ -45,7 +45,7 @@ def leap_year():
     elif i1 % 4 == 0 and i1 % 100 != 0:
         print(True)
         return True 
-    elif True:
+    else:  # == elif True:
         print(False)
         return False 
 
@@ -57,61 +57,61 @@ class TestLeapYear(unittest.TestCase):
         actual_io_trace = ''
         self.maxDiff = None
     
-    def test_leap_year1(self):
+    def test_leap_year0(self):
         global global_input
         global_input = ['399']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=0), actual_io_trace)
     
-    def test_leap_year2(self):
+    def test_leap_year1(self):
         global global_input
         global_input = ['400']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=1), actual_io_trace)
     
-    def test_leap_year3(self):
+    def test_leap_year2(self):
         global global_input
         global_input = ['2012']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=2), actual_io_trace)
     
-    def test_leap_year4(self):
+    def test_leap_year3(self):
         global global_input
         global_input = ['2000']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=3), actual_io_trace)
     
-    def test_leap_year5(self):
+    def test_leap_year4(self):
         global global_input
         global_input = ['2013']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=4), actual_io_trace)
     
-    def test_leap_year6(self):
+    def test_leap_year5(self):
         global global_input
         global_input = ['2014']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=5), actual_io_trace)
     
-    def test_leap_year7(self):
+    def test_leap_year6(self):
         global global_input
         global_input = ['2015']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=6), actual_io_trace)
     
-    def test_leap_year8(self):
+    def test_leap_year7(self):
         global global_input
         global_input = ['2016']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=7), actual_io_trace)
     
-    def test_leap_year9(self):
+    def test_leap_year8(self):
         global global_input
         global_input = ['2020']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('leap_year.exem', example_id=8), actual_io_trace)
     
-    def test_leap_year10(self):
+    def test_leap_year9(self):
         global global_input
         global_input = ['2400']  # From an example of the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.

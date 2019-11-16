@@ -1,6 +1,9 @@
 """
-"A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller natural numbers."
-Eg, 2 is prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+"A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller
+natural numbers." Eg, 2 is prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+
+This problem matches better to a (unavailable) WHILE loop solution. In the meantime, replace the induced code's
+end of FOR range, currently 6, with "inp". 11/14/19
 
 todo Re-enable i/o-only examples such as these two:
 <1008

@@ -9,7 +9,8 @@ from typing import List, Tuple, Dict, Any
 import factoradic  # Credit https://pypi.org/project/factoradic/ Author: Robert Smallshire
 import math
 import sympy  # See SymPy LICENSE.txt
-from sympy.parsing.sympy_parser import *
+# from sympy.parsing.sympy_parser import *
+from threading import Lock
 
 DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing to always on.
@@ -19,7 +20,7 @@ SUCCESS = True
 # (For speed, replace the db filename with ':memory:') (isolation_level=None for auto-commit.)
 db = sqlite3.connect('exemplar.db', isolation_level=None, check_same_thread=False)  # 3rd arg is for repl.it
 # For Row objects instead of tuples. Use row[0] or row['column_name'] (The objects are opaque to the debugger.)
-#db.row_factory = sqlite3.Row
+# db.row_factory = sqlite3.Row
 cursor = db.cursor()
 
 """
@@ -739,7 +740,9 @@ def debug_db() -> None:
     Run the integration/database tests if DEBUG_DB or (DEBUG and it's been >1 hour).
     :return: None
     """
+    Lock().acquire(True)  # Insufficient to avoid "sqlite3.ProgrammingError: Recursive use of cursors not allowed" on repl.it.
     cursor.execute("""CREATE TABLE IF NOT EXISTS history (prior_db_test_run INTEGER NOT NULL)""")
+    # Causes "RuntimeError: release unlocked lock" locally and on repl.it:  Lock().release()
 
     global DEBUG_DB
     if False:  # DEBUG:
@@ -1440,7 +1443,10 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
         #  "r'\bfoo\b' matches 'foo', 'foo.', '(foo)', 'bar foo baz' but not 'foobar' or 'foo3'." -- bit.ly/2EWdcBL
         match = re.search(r'\b' + str(prior_values[variable_name]) + r'\b', line)
         if match:  # position > -1:
-            new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
+            if match.start() > 0:
+                new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
+            else:
+                new_line = "str(" + variable_name + ')'
 
             # Add remainder of line, if any.
             remainder_of_line = line[match.start() + len(match.group(0)):]
@@ -1698,7 +1704,8 @@ if __name__ == '__main__':
 
 def get_IF_test_function(code: List[int], an_IF: List[int]) -> str:
     """
-    Translate a list of keys pointing to if/elif branches in `code` into a (test) IF function incorporating them, for return.
+    Translate a list of keys pointing to if/elif branches in `code` into a (test) IF function incorporating them,
+    for return.
     :param code:
     :param IF: List of keys into `code`, pointing to if/elif branches.
     :return: IF_function
@@ -1797,10 +1804,12 @@ def IF_order_search(code: List[int], an_IF: List[int],
         elif i > 0:  # Both source and target conditions belong to 'elif' branches.
             pos = code[branch].find("    elif ")  # Start of the last indent before the condition to be copied,
             tc = tc[0:pos + 9] + code[branch][pos + 9:]  # to this ('elif') location.
+        if tc[-11:] == " elif True:":
+            tc = tc.replace(" elif True:", " else:  # == elif True:")  # To show users why they should assert True.
         reordered_code[keys[i]] = tc  # Adjustment made.
 
         # Copy each if/elif *consequent* into position in reordered_code, as well,
-        # by first deleting the unwanted consequent.
+        # by first deleting the unwanted consequent.e
         last_key_of_block = get_last_line_of_indent(code, keys[i] + 1, any_change=False)  # Assumes condition is 1 line.
         target_body_length = 1 + last_key_of_block - (keys[i] + 1)
         del reordered_code[keys[i]+1 : keys[i]+1+target_body_length]  # Deleting targeted lines allows unconditionally
@@ -1813,6 +1822,8 @@ def IF_order_search(code: List[int], an_IF: List[int],
     return reordered_code
 
 
+# Todo To regression test the IF ordering functions, use the demo examples as integration tests (to avoid manual
+# set up of the complex IFs data structure).
 def order_IFs(code: List[str], IFs: Dict[int, Dict[int, Tuple[str, int, List[Dict[str, Any]]]]]) -> List[str]:
     """
     Order the IFs' branches correctly by first grouping those branches that belong together in a single IF control aka
@@ -1927,9 +1938,10 @@ def generate_code() -> List[str]:
         elif line_type == 'out':  # An OUTPUT ie a print().
             # Replace any constants in 'line' that should instead be soft-coded (we'll know from a match on
             # prior input value or equality assertion).
-            line = replace_hard_code(prior_values, line)
+            temp = line
+            line = replace_hard_code(prior_values, temp)
 
-            if type_string(line) == 'str':
+            if (temp == line or "' + str(" in line) and type_string(line) == 'str':  # Quotes needed.
                 print_line = "print('" + line + "')"
                 return_text = "#return '"
             else:
@@ -2016,7 +2028,7 @@ def generate_code() -> List[str]:
                         # If an IF is open, and the most recently added IF is *not* of same indent, example, & iteration
                         elif is_open(code[:-1], 'if') and prior_IF_added != latest_IF_added:
                             # as last, "if" -> "elif".
-                            code[len(code) - 1] = code[len(code) - 1].replace("if ", "elif ", 1)
+                            code[-1] = code[-1].replace("if ", "elif ", 1)
                             is_elif = True  # Mark ELIF
 
                         assert code_key not in IFs[indents]  # I believe this should always be true.
@@ -2296,7 +2308,7 @@ def generate_tests(function_name: str, together: int = 1) -> str:
     cursor.execute(query + "ORDER BY example_id")
     all_examples = cursor.fetchall()
     test_code = ""
-    i = 1  # For appending to the test name.
+    i = 0  # For appending to the test name. A 0 start is for consistency with the example_ids.
     for row in all_examples:
         example_id = row[0] if not together else -1
         # Create one test per example.
@@ -3051,7 +3063,7 @@ def store_ifs() -> None:  # into control_block_traces table to track their block
     """
     # First, pull all example_id's IF conditions (as detected by fill_conditions_table()).
     cursor.execute("""SELECT el_id, condition, example_id FROM conditions 
-                       WHERE condition_type = 'if' ORDER BY scheme, el_id""")
+                       WHERE condition_type = 'if' ORDER BY condition, el_id""")  # Must order by condition; see below.
     ifs = cursor.fetchall()
     control_count = 0
     prior_row = [None, None, None]
@@ -3418,7 +3430,7 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
                     return code, tests, not SUCCESS  # Used by repl.it
 
             # Failure. Unless it's the very last trial, ROLLBACK TO if_endings_trial.
-            if (if_maybes_row != if_maybes[len(if_maybes) - 1]) or for_maybes_row != for_maybes[len(for_maybes) - 1]:
+            if (if_maybes_row != if_maybes[-1]) or for_maybes_row != for_maybes[-1]:
                 cursor.execute("SELECT COUNT(*) FROM cbt_temp_last_el_ids")
                 print("Before if_endings_trial rollback: ctlei count(*)", cursor.fetchone()[0])
                 cursor.execute("ROLLBACK TO if_endings_trial")  # ROLLBACK
@@ -3426,7 +3438,7 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
                 print("After if_endings_trial rollback: ctlei count(*)", cursor.fetchone()[0])
 
         # Unless it's the very last trial, ROLLBACK.
-        if for_maybes_row == for_maybes[len(for_maybes) - 1]:  # Last trial
+        if for_maybes_row == for_maybes[-1]:  # Last trial
             db.commit()  # To enable analysis.
         else:
             cursor.execute("SELECT COUNT(*) FROM cbt_temp_last_el_ids")

@@ -38,7 +38,7 @@ def get_expected_io(exem: str, example_id: int = -1) -> str:
 
 # The generated function under test.
 def fizz_buzz():
-    i1 = int(input("i1:"))  # Eg, 1
+    i1 = int(input("i1:"))  # Eg, 15
     if i1 % 3 == 0 and i1 % 5 == 0:
         print('FizzBuzz')
         return 'FizzBuzz'
@@ -48,9 +48,9 @@ def fizz_buzz():
     elif i1%5==0:
         print('Buzz')
         return 'Buzz'
-    elif True:
-        print('i1')
-        return 'i1'
+    else:  # == elif True:
+        print(str(i1))
+        return str(i1) 
 
 
 class TestFizzBuzz(unittest.TestCase):
@@ -62,67 +62,67 @@ class TestFizzBuzz(unittest.TestCase):
     
     def test_fizz_buzz1(self):
         global global_input
-        global_input = ['1']  # From an example of the .exem
+        global_input = ['15']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=0), actual_io_trace)
     
     def test_fizz_buzz2(self):
         global global_input
-        global_input = ['2']  # From an example of the .exem
+        global_input = ['1']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=1), actual_io_trace)
     
     def test_fizz_buzz3(self):
         global global_input
-        global_input = ['3']  # From an example of the .exem
+        global_input = ['2']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=2), actual_io_trace)
     
     def test_fizz_buzz4(self):
         global global_input
-        global_input = ['4']  # From an example of the .exem
+        global_input = ['3']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=3), actual_io_trace)
     
     def test_fizz_buzz5(self):
         global global_input
-        global_input = ['5']  # From an example of the .exem
+        global_input = ['4']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=4), actual_io_trace)
     
     def test_fizz_buzz6(self):
         global global_input
-        global_input = ['6']  # From an example of the .exem
+        global_input = ['5']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=5), actual_io_trace)
     
     def test_fizz_buzz7(self):
         global global_input
-        global_input = ['7']  # From an example of the .exem
+        global_input = ['6']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=6), actual_io_trace)
     
     def test_fizz_buzz8(self):
         global global_input
-        global_input = ['8']  # From an example of the .exem
+        global_input = ['7']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=7), actual_io_trace)
     
     def test_fizz_buzz9(self):
         global global_input
-        global_input = ['9']  # From an example of the .exem
+        global_input = ['8']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=8), actual_io_trace)
     
     def test_fizz_buzz10(self):
         global global_input
-        global_input = ['10']  # From an example of the .exem
+        global_input = ['9']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=9), actual_io_trace)
     
     def test_fizz_buzz11(self):
         global global_input
-        global_input = ['15']  # From an example of the .exem
+        global_input = ['10']  # From an example of the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
         self.assertEqual(get_expected_io('fizz_buzz.exem', example_id=10), actual_io_trace)
     
