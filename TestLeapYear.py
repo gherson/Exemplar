@@ -36,7 +36,7 @@ def get_expected_io(exem: str, example_id: int = -1) -> str:
     return '\n'.join(return_exem_io_lines) + '\n'
 
 
-# The generated function under test.
+# The generated function under Stage 2 (a test per example) testing.
 def leap_year():
     i1 = int(input("i1:"))  # Eg, 399
     if i1%400==0:

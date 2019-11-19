@@ -26,11 +26,14 @@ and leap_year.exem). 2018-03-25
 
 
 # Log of work
-Next: Show how common problems can be modelled with Exemplar.
-Enable assertion-less user examples as specs for unit tests only (testbed: prime_number.exem).
-Do last minute improvements before creating an official screencast.
+Next: Enable assertion-less user examples as specs for unit tests only (testbed: prime_number.exem).
+Do "last minute" improvements before creating an official screencast.
 
-* 2019-11-16: 5:25 - 6:45   Allow assertion-less user examples. Set up integration testing. 
+* 2019-11-19: 7:10 -  
+* 2019-11-18: Troubleshooting the bugs exposed by the re-ordering of the traces (to put longest examples first for 
+assertion-less examples). 9.75h   
+* 2019-11-17: adjustments to store_if(), still trying to allow assertion-less examples. 5.75hr
+* 2019-11-16: Working to allow assertion-less user examples, after work on re-enabling integration testing. 9h  
 * 2019-11-15: A few improvements, such as Elif True->Else, and fixed a couple of issues with fizz_buzz.exem. 
 Asked repl.it for help re: a database error. 6.25h 
 * 2019-11-14: Improved repl.it UI and organized notes. 3.5h.
@@ -115,7 +118,7 @@ exemplar.for_loop_conflict(). 2h
 * 2019-05-10 Created for_loops table and update_for_loops_table() to exclude mid-loops as ending points for controls 
 opened pre-loop. 5h
 * 2019-05-09 Created get_functions() and finished re-enabling the integration tests. 6h
-* 2019-05-08 Improving store_ifs() and create_maybe_rows(). 3.5h
+* 2019-05-08 Improving store_ifs() and fill_cbt_with_maybe_rows(). 3.5h
 * 2019-05-07 Re-enabling integration tests. 2.5h
 * 2019-05-06 Debugging add_control_info_to_example_lines(). 4.25h
 * 2019-05-05 Planning addition of columns control_id and controller to table example_lines. 2.25h

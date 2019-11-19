@@ -6,12 +6,12 @@ class TestExemplarIntegration(unittest.TestCase):
     @classmethod
     def setUp(cls):
         global mock_cursor
-        mock_cursor = MockCursor.MockCursor()  # The advantage of MockCursor is that no database is required.
+        mock_cursor = MockCursor.MockCursor()  # No database required.
 
         """ Under maintenance
         exemplar.reset_db()  # Unshared, in-memory database.
 
-        # Replicates the_trace after loading prime_number.exem via readlines():
+        # Replicates the example_lines table as it exists after loading prime_number.exem via readlines():
         examples = [  # commas required!
             '2\n', 'True\n', 'i1 == 2c\n', '\n',
             '3\n', 'True\n', 'i1 % (i1-1) != 0c, (i1-1)==2c\n', '\n',
@@ -28,15 +28,16 @@ class TestExemplarIntegration(unittest.TestCase):
     """
 
     def test_process_examples1(self):
-        mock_cursor.mocking(1)  # exemplar.cursor is now mocked.
-        example_lines = ["<Albert"]  # Processing this input should cause the following calls for INSERTion.
-        exemplar.store_examples(example_lines)
+        mock_cursor.mocking(True)  # exemplar.cursor is now mocked.
+        example_lines = ["<Albert"]  # Processing this input should cause the following calls for INSERT.
+        exemplar.store_examples(example_lines)  # When this function writes to cursor, it is held in mock_cursor.actual
+        # and should look like this:
         expected = [("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
                      (5, 0, '__example__==0', 'truth')),
                     ("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
                      (10, 0, 'Albert', 'in'))]
         assert expected == exemplar.cursor.get_actual(), "Got " + str(exemplar.cursor.get_actual())
-        mock_cursor.mocking(0)  # Restore (unmock) cursor.
+        mock_cursor.mocking(False)  # Restore (unmock) cursor.
 
     def test_process_examples_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
