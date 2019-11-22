@@ -5,13 +5,6 @@ natural numbers." Eg, 2 is prime because it is >1 and cannot be formed by multip
 This problem matches better to a (unavailable) WHILE loop solution. In the meantime, replace the induced code's
 end of FOR range, currently 6, with "inp". 11/14/19
 
-todo Re-enable i/o-only examples such as these two:
-<1008
->False
-
-<1009
->True
-
 This example based on input of 2 is redundant, as it shows only 1 iteration while Exemplar needs >1 to create a loop.
 <2
 i1==inp
@@ -20,31 +13,36 @@ j==2
 j==inp
 >True
 
+Without a WHILE in Exemplar, this example requires the j loop to continue to 1009, way past the actual 5 termination value.
+<1009
+>True
 """
+<1008
+>False
 
 <4
 i1==inp
 inp > 1
-j == 2  # FOR loop (and divisor) set up but no iterations because
+j == 2        # FOR loop (and divisor) set up but no iterations because
 inp % j == 0  # input is divided evenly.
 >False
 
 <5
-i1==inp
-inp > 1
-j==2
+i1==inp  # Renaming i1 is a good practice.
+inp > 1  # Since it is >1,
+j==2     # j is incremented
 j==3
 j==4
 j==5
-j==inp
->True
+j==inp   # until it reaches the value of inp.
+>True    # At which point we know inp is prime.
 
 <0
 i1==inp
-inp <= 1
->False
+inp <= 1  # Because inp is <=1, we
+>False    # return False.
 
 <1
-i1==inp
+i1==inp   # Ditto.
 inp <= 1
 >False

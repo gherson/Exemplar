@@ -1,10 +1,14 @@
-# guess4. Adapted from http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
+"""
+guess4. Adapted from http://inventwithpython.com/invent4thed/chapter3.html 2/1/2019
+
+This shows how user interaction and program calls can be modelled.
+"""
 
 # User wins.
 >Hello! What is your name?
 <Albert
 name==i1         # simple assignment (SA)
-<4               # A random #
+<4               # A random #; after E, a knowledgeable user will replace this input with a random.randint(1, 20) call.
 secret==i1       # SA
 >Well, Albert, I am thinking of a number between 1 and 20.
 guess_count==0   # iteration

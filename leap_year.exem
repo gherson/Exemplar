@@ -5,27 +5,27 @@ returns true iff
 or
 * the year is divisible by 400 (eg, 2000, 2400, 2800)
 """
-<399
+<399  # 399 is not a leap year because all the other conditions are not met: elif True == else
 True
->False
+>False # Meaning, not a leap year.
 
-<400
+<400  # 400 is a leap year because:
 i1 % 400 == 0
 >True
 
-<2012
+<2012  # Similarly, this make 2012 a leap year:
 i1 % 4 == 0 and i1 % 100 != 0
 >True
 
-<2000
+<2000  # This is a leap year for a different reason:
 i1 % 400 == 0
 >True
 
-<2013
+<2013  # Another "none of the above", so 2013 /isn't/ a leap year.
 True
 >False
 
-<2014
+<2014  # Ditto.
 True
 >False
 
@@ -34,13 +34,11 @@ True
 >False
 
 <2016
-i1 % 4 == 0 and i1 % 100 != 0
+i1 % 4 == 0 and i1 % 100 != 0  # This truth is what qualifies 2016 as a leap year.
 >True
 
-<2020
-i1 % 4 == 0 and i1 % 100 != 0
+<2020  # Assertion-less examples are ignored re: function synthesis and drive unit test creation only.
 >True
 
 <2400
-i1 % 400 == 0
 >True

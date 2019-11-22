@@ -195,8 +195,9 @@ var examples = new Array();\n"""
     <b>Exemplar</b>: Programming via code trace\n
     </center><table><tr><td width="50%">
     <b>Instructions</b>: 
-    <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i>sequences demonstrating desired behavior on the left.  Assertions ("truth") may be line or comma separated.</li>\n
-    <li>To name your input, immediately follow it with assertion <code><i>yourname</i>==i1</code></li>\n
+    <ol><li>Enter &lt;<font color='blue'><i>input</i></font>↲&gt;<font color='green'><i>output</i></font>↲<i>assertions</i> sequences demonstrating desired behavior on the left.  Assertions ("truth") may be line or comma separated.</li>\n
+    <li>To name your input (for references in the Truth column only), immediately follow that input with line  <code><i>yourname</i>==i1</code></li>\n
+    <li>Only trace those conditions leading to a consequence. E.g., omit <code>some_trigger==False</code></li>\n
     <li>Separate your examples (use cases) with a blank line.</li>\n
     <li>Press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
     </ol> &nbsp; &nbsp; <a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png" target="_blank">Concordance visualization</a><br/><br/></td>\n
@@ -208,14 +209,18 @@ var examples = new Array();\n"""
     # return "<!DOCTYPE html><html lang='en'><body>" + str(len(clean_examples_list)) + "</body></html>"
     return head_html + body_top + '''<table cellpadding="7"><tr><th width="25%">Editable examples</th><th width="33%">Examples tabulated</th><th>Code generated &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </th></tr>\n
     <tr><td valign="top">
-    <form name="examples_f" id="examples_f" method="POST" action="/generate">\n
-    Editable function name<br/>\n
-    <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
-        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black; width: 400px; overflow: auto"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n<td valign="top" style="text-align:center"><table id="examples_t" cellpadding="1"><tr><th><font color="blue">input</font></th><th>truth</th>
-    <th><font color="green">output</font></th></tr></table></td>\n
+        <form name="examples_f" id="examples_f" method="POST" action="/generate">Editable function name<br/>\n
+        <input type="text" id="function_name" name="function_name" value="NameYourFunctionHere"/><input type="hidden" name="examples_i"/>
+        <div name="examples_edit" id="examples_edit" contenteditable="true" style="border: thin solid black; width: 400px; overflow: auto"><pre>''' + python_colorize(examples_list) + '''</pre></div><input type="submit" value="Submit" onclick="copyDivToInput(this.form)"/> </form><br/></td>\n
+    <td valign="top" align="center" style="text-align:center">
+        <table id="examples_t" cellpadding="1"><tr><th><font color="blue">input</font></th><th>truth</th>
+        <th><font color="green">output</font></th></tr></table></td>\n
     <td valign="top"><textarea name="code_generated" id="code_generated" rows="10" cols="60" readonly = "readonly">''' + code + '''</textarea><br/>\n
-    <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
-    <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button><b><center>Code generated with unit tests</center></b><textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr></table>\n''' + key + """<script>
+        <button id="code_button" onmousedown="copyFunction('code_generated', 'code_button')" onmouseup="mouseUp('code_button')">Copy</button><br/><br/>\n
+        <button id="test_file_button" onmousedown="copyFunction('test_file_contents', 'test_file_button')" onmouseup="mouseUp('test_file_button')">Copy</button>
+        <b><center>Code generated with unit tests</center></b>
+        <textarea name="test_file_contents" id="test_file_contents" rows="10" cols="60" readonly = "readonly">''' + test_file_contents + '''</textarea><br/></td></tr>\n
+    </table>\n''' + key + """<script>
     resizeIt('code_generated'); // Initial on load
     resizeIt('test_file_contents'); // Initial on load
     generate_name(); // Provide default function name

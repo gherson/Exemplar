@@ -23,19 +23,6 @@ def input(variable_name: str = "") -> str:
     return result
 
 
-# Return the i/o statements of the named .exem file (for comparison with actual_io_trace).
-def get_expected_io(exem: str, example_id: int = -1) -> str:
-    return_exem_io_lines = []
-    example_reached = 0
-    for line in exemplar.clean(exemplar.from_file(exem)):
-        if not line.strip():  # line's empty,
-            example_reached += 1  # increment example count
-        if ((line.startswith('<') or line.startswith('>')) and
-                (example_id==example_reached or example_id==-1)):  # `line` is an i/o line of {correct or any} example?
-            return_exem_io_lines.append(line)                      # Then note it for return.
-    return '\n'.join(return_exem_io_lines) + '\n'
-
-
 # The generated function under Stage 1 (monolithic) testing.
 #<function under test>
 

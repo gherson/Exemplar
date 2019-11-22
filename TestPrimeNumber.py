@@ -23,25 +23,12 @@ def input(variable_name: str = "") -> str:
     return result
 
 
-# Return the i/o statements of the named .exem file (for comparison with actual_io_trace).
-def get_expected_io(exem: str, example_id: int = -1) -> str:
-    return_exem_io_lines = []
-    example_reached = 0
-    for line in exemplar.clean(exemplar.from_file(exem)):
-        if not line.strip():  # line's empty,
-            example_reached += 1  # increment example count
-        if ((line.startswith('<') or line.startswith('>')) and
-                (example_id==example_reached or example_id==-1)):  # `line` is an i/o line of {correct or any} example?
-            return_exem_io_lines.append(line)                      # Then note it for return.
-    return '\n'.join(return_exem_io_lines) + '\n'
-
-
-# The generated function under test.
+# The generated function under Stage 2 (i.e., a test per example) testing.
 def prime_number():
-    inp = int(input("inp:"))  # Eg, 4
+    inp = int(input("inp:"))  # Eg, 5
     if inp>1:
         for j in range(2, 6, 1):
-            if inp==j:
+            if j==inp:
                 print(True)
             elif inp%j==0:
                 print(False)
@@ -57,30 +44,46 @@ class TestPrimeNumber(unittest.TestCase):
         global actual_io_trace
         actual_io_trace = ''
         self.maxDiff = None
-    
-    def test_prime_number1(self):
-        global global_input
-        global_input = ['4']  # From an example of the .exem
-        prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual(get_expected_io('prime_number.exem', example_id=0), actual_io_trace)
-    
-    def test_prime_number2(self):
+
+    def test_prime_number10(self):
         global global_input
         global_input = ['5']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual(get_expected_io('prime_number.exem', example_id=1), actual_io_trace)
-    
-    def test_prime_number3(self):
+        self.assertEqual('''<5
+>True
+''', actual_io_trace)
+
+    def test_prime_number17(self):
+        global global_input
+        global_input = ['4']  # From an example of the .exem
+        prime_number()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<4
+>False
+''', actual_io_trace)
+
+    def test_prime_number22(self):
         global global_input
         global_input = ['0']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual(get_expected_io('prime_number.exem', example_id=2), actual_io_trace)
-    
-    def test_prime_number4(self):
+        self.assertEqual('''<0
+>False
+''', actual_io_trace)
+
+    def test_prime_number27(self):
         global global_input
         global_input = ['1']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual(get_expected_io('prime_number.exem', example_id=3), actual_io_trace)
+        self.assertEqual('''<1
+>False
+''', actual_io_trace)
+
+    def test_prime_number29(self):
+        global global_input
+        global_input = ['1008']  # From an example of the .exem
+        prime_number()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<1008
+>False
+''', actual_io_trace)
 
 
 if __name__ == '__main__':

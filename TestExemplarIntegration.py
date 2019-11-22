@@ -2,6 +2,9 @@ import unittest, exemplar, MockCursor
 
 
 class TestExemplarIntegration(unittest.TestCase):
+    """
+    These unit tests are outdated.  (See TestExemplar.py. 2019-11-21)
+    """
 
     @classmethod
     def setUp(cls):
@@ -24,13 +27,13 @@ class TestExemplarIntegration(unittest.TestCase):
             '1\n', 'False\n', 'i1 == 1c \n', '\n',
             '1008\n', 'False\n', '\n',
             '1009\n', 'True\n', '\n']
-        exemplar.store_examples(examples)  # Inserts into the examples and termination tables.
-    """
+        exemplar.fill_example_lines(examples)  # Inserts into the examples and termination tables.
+        """
 
     def test_process_examples1(self):
         mock_cursor.mocking(True)  # exemplar.cursor is now mocked.
         example_lines = ["<Albert"]  # Processing this input should cause the following calls for INSERT.
-        exemplar.store_examples(example_lines)  # When this function writes to cursor, it is held in mock_cursor.actual
+        exemplar.fill_example_lines(example_lines)  # When this function writes to cursor, it is held in mock_cursor.actual
         # and should look like this:
         expected = [("INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)",
                      (5, 0, '__example__==0', 'truth')),
@@ -42,7 +45,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_process_examples_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         expected = """[all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)
@@ -67,7 +70,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_process_examples_guess3(self):
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         expected = """[all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)
@@ -103,7 +106,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_process_examples_guess4(self):
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         expected = """[all example_lines:
 (el_id, example_id, line, line_type, control_id, controller)
@@ -185,7 +188,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # Processing this input should cause the following calls for INSERTion.
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = """[all conditions:
@@ -198,7 +201,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # Processing this input should cause the following calls for INSERTion.
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = """[all conditions:
@@ -223,7 +226,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # Processing this input should cause the following calls for INSERTion.
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = """[all conditions:
@@ -269,7 +272,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_get_el_id_guess4(self):
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = 120
@@ -282,7 +285,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_get_unconditional_post_control_guess4(self):
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = ["out", "in", "assign"]  # in/out/assign/for
@@ -291,7 +294,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_conditions_load_for_loops_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -304,7 +307,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_conditions_load_for_loops_guess3(self):
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -329,7 +332,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_cbt_load_for_loops_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -341,7 +344,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_cbt_load_for_loops_guess3(self):
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -357,7 +360,7 @@ class TestExemplarIntegration(unittest.TestCase):
         # Processing this input should cause the following insert calls.
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -383,7 +386,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def delme_test_control_conflict_guess5(self):
         example_lines = exemplar.from_file("guess5.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         expected = """"""
@@ -394,7 +397,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_fill_cbt_jokes(self):  # One FOR, no IFs, so expected == test_load_for_loops_jokes()'s expected1
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -409,7 +412,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_fill_cbt_guess3(self):
         example_lines = exemplar.from_file("guess3.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -431,7 +434,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_fill_cbt_guess4(self):
         example_lines = exemplar.from_file("guess4.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         # print(exemplar.dump_table("example_lines"))
         exemplar.fill_conditions_table()
@@ -469,7 +472,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def test_add_control_info_to_example_lines_jokes(self):
         example_lines = exemplar.from_file("jokes.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -499,7 +502,7 @@ class TestExemplarIntegration(unittest.TestCase):
     def renamed_test_add_control_info_to_example_lines_guess5(self):
         example_lines = exemplar.from_file("guess5.exem")
         exemplar.reset_db()
-        exemplar.store_examples(example_lines)
+        exemplar.fill_example_lines(example_lines)
         exemplar.remove_all_c_labels()
         exemplar.fill_conditions_table()
         exemplar.store_fors()
@@ -587,7 +590,7 @@ class TestExemplarIntegration(unittest.TestCase):
 
         exemplar.reset_db()  # Empty the database.
         # Simulating a 3-example .exem file with c labels in 2 rows, viz., 1 'output' field and 2 'reason' fields.
-        exemplar.store_examples(["1\n", "False\n", "i1 == 1\n", "\n",
+        exemplar.fill_example_lines(["1\n", "False\n", "i1 == 1\n", "\n",
                                    "2\n", "i1 == 2c\n", "i1 == 2c\n", "\n",
                                    "3\n", "True\n", "i1 % (i1-1) != 0c, (i1-1)==2c\n", "\n"])
         # Selecting the c label rows by what they should have after c label removal.
@@ -634,7 +637,7 @@ class TestExemplarIntegration(unittest.TestCase):
 
         def test_gen_tests2(self):
             exemplar.reset_db()  # Empty the database.
-            exemplar.store_examples(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
+            exemplar.fill_example_lines(["2\n", "True\n", "i1 == 2c\n", "\n"])  # Simulating a 1-example .exem file.
             expected = """def test_testing1(self):
         self.assertEqual(True, testing(2))
 

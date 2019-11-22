@@ -1,30 +1,30 @@
 """
-Comment here
+Assertions name variables and provide the reasons for the action shown in their examples.
 """
 
 <15
-i1 % 3 == 0 and i1 % 5 == 0
+i1 % 3 == 0 and i1 % 5 == 0  # This is why the below should be returned.
 >FizzBuzz
 
-<1
-True
->1
+<1    # 1 doesn't make any of our IF conditions true, so instead it will make
+True  # only an ELSE true.
+>1    # In these cases, return the input.
 
-<2
+<2    # Ditto.
 True
 >2
 
-<3
-i1 % 3 == 0
->Fizz
+<3           # 3 makes
+i1 % 3 == 0  # this condition true, and so
+>Fizz        # this is returned.
 
-<4
-True
->4
+<4    # Alternatively, this, like 1 and 2, make none of our IF conditions true,
+True  # so it passes down an ELSE path that
+>4    # returns the input.
 
-<5
-i1 % 5 == 0
->Buzz
+<5           # 5 makes
+i1 % 5 == 0  # this condition true, and so
+>Buzz        # this is returned.  Et cetera for the below...
 
 <6
 i1 % 3 == 0

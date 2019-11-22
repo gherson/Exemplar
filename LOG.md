@@ -1,4 +1,6 @@
 # Roadmap
+* Enable WHILE loops
+* Move from repl.it to an independent website
 * Enable modeling of arbitrary function calls:
 
 ```
@@ -10,31 +12,38 @@
 * Enable more examples, such as: Python’s split function, a Turing Machine, an algorithm requiring inner loops, finding 
 the difference in time between any two given date-time objects, a problem requiring input of three arguments (i1, i2,  
 and i3), alphabetizing an input list's elements, examples that include a literal “i1” in the output 
-* Replace brute force search for successful Python block endpoint with one guided by machine learning (that found
+* Replace brute force search for successful Python block endpoint with one guided by machine learning (that finds
  correlations between that goal and database state). 2019-04-23
 
 # Done
-* If/elif branch order (by generate and test). 2019-11-04
+* All unit tests created stand alone (no dependency on an .exem file). 2019-11-20 
+* Assertion-less user examples (and thus easy additional unit test creation) enabled. 2019-11-20
+* If/elif branch order automatically found, by (a separate) generate and test search. 2019-11-04
 * Multiple example solving (by treating the examples as iterations of a temporary FOR loop). 2019-09-04
-* Single-example solving supporting IF and FOR loops (endpoints found by generate and test). 2019-04-18
+* Single-example solving, supporting IF and FOR loops, with block endpoints found by generate and test. 2019-04-18
 * Automatic unit tests (1 test per user example) created and run. 2019-01-29
 * The user example format changes from a single input/output/assertions triple to an unbounded # of <input, >output, and 
-assertion lines (to exemplify, e.g., user interaction and state). 2019-01-26 
+assertion lines, in order to exemplify, e.g., user interaction and state. 2019-01-26 
 * While loop generation (since removed) and unlimited assertions (correctly handling prime_number.exem). 2018-10-20  
-* Single if/elif/else generated from user examples of 0 or 1 assertions (correctly handling fizz_buzz.exem, guess2.exem, 
-and leap_year.exem). 2018-03-25
+* Single if/elif/else generated from simple user examples of 0 or 1 assertions, correctly handling fizz_buzz.exem, 
+guess2.exem, and leap_year.exem. 2018-03-25
 
 
 # Log of work
 Next: Enable assertion-less user examples as specs for unit tests only (testbed: prime_number.exem).
 Do "last minute" improvements before creating an official screencast.
 
-* 2019-11-19: 7:10 -  
+* 2019-11-21: 4h15 + 21:25 - Unified condition formatting, with deflate(). TestExemplar.py confirms all demonstration 
+problems remain solved. 
+* 2019-11-20: Finished changes to generate_test(). E can now accept assertion-less user examples to create unit tests. 
+Also, the unit tests generated no longer require their source .exem file at run time. 6.25h 
+* 2019-11-19: Committed code. Fixed generate_code() bugs exposed by user example re-ordering, then began changing 
+generate_tests() to pull expected i/o from database rather than .exem file. 5.5h  
 * 2019-11-18: Troubleshooting the bugs exposed by the re-ordering of the traces (to put longest examples first for 
 assertion-less examples). 9.75h   
 * 2019-11-17: adjustments to store_if(), still trying to allow assertion-less examples. 5.75hr
 * 2019-11-16: Working to allow assertion-less user examples, after work on re-enabling integration testing. 9h  
-* 2019-11-15: A few improvements, such as Elif True->Else, and fixed a couple of issues with fizz_buzz.exem. 
+* 2019-11-15: A few improvements, such as  elif True->else, and fixed a couple of issues with fizz_buzz.exem. 
 Asked repl.it for help re: a database error. 6.25h 
 * 2019-11-14: Improved repl.it UI and organized notes. 3.5h.
 * 2019-11-13: Finished store_fors() overhaul. Got prime_number.exem working. 9.5h 
