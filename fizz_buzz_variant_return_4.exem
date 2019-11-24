@@ -1,0 +1,49 @@
+"""
+Assertions name variables and provide the reasons for the action shown in their examples.
+"""
+
+<15
+i1 % 3 == 0 and i1 % 5 == 0  
+>FizzBuzz
+
+<1    # 1 doesn't make any of our IF conditions true, so instead it will make
+True  # only an ELSE true.
+>4    # In these cases, return "4".
+
+<2    # Ditto.
+True
+>4
+
+<3           
+i1 % 3 == 0  
+>Fizz        
+
+<4    
+True  
+>4      # Unlike in fizz_buzz.exem, this 4 is to be taken literally.
+
+<5           
+i1 % 5 == 0  
+>Buzz        
+
+<6
+i1 % 3 == 0
+>Fizz
+
+<7
+>4
+
+<8
+True
+>4
+
+<9
+>Fizz
+
+<10
+i1 % 5 == 0
+>Buzz
+
+<30
+i1 % 3 == 0 and i1 % 5 == 0
+>FizzBuzz

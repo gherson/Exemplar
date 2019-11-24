@@ -1,6 +1,6 @@
 """
 "A prime number (or a prime) is a natural number greater than 1 that cannot be formed by multiplying two smaller
-natural numbers." Eg, 2 is prime because it is >1 and cannot be formed by multiplying two smaller natural #s.
+natural numbers." Eg, 2 is prime because it is >1 and cannot be formed by multiplying two /smaller/ positive ints.
 
 This problem matches better to a (unavailable) WHILE loop solution. In the meantime, replace the induced code's
 end of FOR range, currently 6, with "inp". 11/14/19
@@ -16,26 +16,10 @@ j==inp
 Without a WHILE in Exemplar, this example requires the j loop to continue to 1009, way past the actual 5 termination value.
 <1009
 >True
+
 """
 <1008
 >False
-
-<4
-i1==inp
-inp > 1
-j == 2        # FOR loop (and divisor) set up but no iterations because
-inp % j == 0  # input is divided evenly.
->False
-
-<5
-i1==inp  # Renaming i1 is a good practice.
-inp > 1  # Since it is >1,
-j==2     # j is incremented
-j==3
-j==4
-j==5
-j==inp   # until it reaches the value of inp.
->True    # At which point we know inp is prime.
 
 <0
 i1==inp
@@ -46,3 +30,24 @@ inp <= 1  # Because inp is <=1, we
 i1==inp   # Ditto.
 inp <= 1
 >False
+
+<3  # A stub only considered for testing, not function synthesis.
+>True
+
+<4
+i1==inp       # Renaming i1 is a good (often necessary) practice.
+inp > 1
+j == 2        # FOR loop (and divisor) set up but no iterations in this example because
+inp % j == 0  # inp divides evenly.
+>False        # And so we have an answer, not prime.
+
+<5
+i1==inp
+inp > 1  # Since inp is > 1, the following (j) loop is reached.
+j==2
+# inp % j != 0, the earlier condition NOTed, is *not* traced here because that truth does not trigger a divergent path.
+j==3     # j is simply incremented,
+j==4
+j==5
+j==inp   # until it reaches the value of inp,
+>True    # at which point we conclude that inp is prime.

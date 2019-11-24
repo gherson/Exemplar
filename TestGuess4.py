@@ -26,12 +26,13 @@ def input(variable_name: str = "") -> str:
 # The generated function under Stage 2 (i.e., a test per example) testing.
 def guess4():
     print('Hello! What is your name?')
-    name = input("name:")  # Eg, John
-    secret = int(input("secret:"))  # Eg, 3
+    name = input("name:")  # Eg, Albert
+    print('secret = random.randint(1,20)')
+    secret = int(input("secret:"))  # Eg, 4
     print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
     for guess_count in range(0, 6, 1):
         print('Take a guess.')
-        guess = int(input("guess:"))  # Eg, 11
+        guess = int(input("guess:"))  # Eg, 10
         if guess>secret:
             print('Your guess is too high.')
         elif guess<secret:
@@ -50,12 +51,33 @@ class TestGuess4(unittest.TestCase):
         actual_io_trace = ''
         self.maxDiff = None
 
-    def test_guess445(self):
+    def test_guess427(self):
+        global global_input
+        global_input = ['Albert', '4', '10', '2', '4']  # From an example of the .exem
+        guess4()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''>Hello! What is your name?
+<Albert
+>secret = random.randint(1,20)
+<4
+>Well, Albert, I am thinking of a number between 1 and 20.
+>Take a guess.
+<10
+>Your guess is too high.
+>Take a guess.
+<2
+>Your guess is too low.
+>Take a guess.
+<4
+>Good job, Albert! You guessed my number in 3 guesses!
+''', actual_io_trace)
+
+    def test_guess472(self):
         global global_input
         global_input = ['John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
         guess4()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''>Hello! What is your name?
 <John
+>secret = random.randint(1,20)
 <3
 >Well, John, I am thinking of a number between 1 and 20.
 >Take a guess.
@@ -77,25 +99,6 @@ class TestGuess4(unittest.TestCase):
 <8
 >Your guess is too high.
 >Nope. The number I was thinking of was 3.
-''', actual_io_trace)
-
-    def test_guess470(self):
-        global global_input
-        global_input = ['Albert', '4', '10', '2', '4']  # From an example of the .exem
-        guess4()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''>Hello! What is your name?
-<Albert
-<4
->Well, Albert, I am thinking of a number between 1 and 20.
->Take a guess.
-<10
->Your guess is too high.
->Take a guess.
-<2
->Your guess is too low.
->Take a guess.
-<4
->Good job, Albert! You guessed my number in 3 guesses!
 ''', actual_io_trace)
 
 

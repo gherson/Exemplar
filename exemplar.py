@@ -28,11 +28,12 @@ reverse_trace(file) reverse engineers a function from the examples in a given .e
 
 Glossary:
 code == Python code generated.
-control_id == id of a control structure. Could be for0:0 from 'for' + example_id + ':' + control_count['for']
+control_id == id of a control structure. Could be for1:3 from 'for' + example_id + ':' + control_count['for']
 example == An imagined trace of a complete input/output interaction with a function to be generated, with added 
 assertion/hints, provided by the user.
 exem == The user's trace examples collected in a file of extension .exem.
 line == An example_lines.line.
+loop == all the iterations in one end-to-end execution of a particular loop block
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
 trace == record of a function execution, imagined in our case
@@ -435,7 +436,7 @@ def insert_example_line(el_id: int, example_id: int, line: str) -> int:
     :param el_id:
     :param example_id:
     :param line: a line or comma separated value from exem, with only leading < or > removed.
-    :return: line_id incremented by five for each INSERT (# of conditions in a 'line' of 'truth').
+    :return: line_id incremented by five for each INSERT (== # of conditions if `line` is of line_type 'truth').
     """
     if line.startswith('<'):
         line_type = 'in'
@@ -446,12 +447,12 @@ def insert_example_line(el_id: int, example_id: int, line: str) -> int:
 
     if line_type == 'in' or line_type == 'out':
         line = line[1:]  # Skip less/greater than symbol.
-        cursor.execute('''INSERT INTO temp.example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
+        cursor.execute('''INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
                        (el_id, example_id, remove_c_labels(line), line_type))
         el_id += 5
     else:
         for assertion in list_conditions(line):
-            cursor.execute('''INSERT INTO temp.example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
+            cursor.execute('''INSERT INTO example_lines (el_id, example_id, line, line_type) VALUES (?,?,?,?)''',
                            (el_id, example_id, deflate(remove_c_labels(assertion)), line_type))
             el_id += 5
     # cursor.execute('''SELECT * FROM example_lines''')
@@ -467,54 +468,60 @@ def fill_example_lines(example_lines: List) -> None:
     """
     global first_io_only_example
     first_io_only_example = None
-    example_id = 0
+    example_id, el_id_count = 0, 0
     line_id = 5  # += 5 each insert call
     previous_line_blank = True  # If there was a previous line, it'd be blank.
 
     example_lines = clean(example_lines)
-    # example_lines.insert(0, "__example__==0")  # `line` 0
+    example_lines.insert(0, "__example__==0")  # `line` 0
     for line in example_lines:
 
         if previous_line_blank:  # Then starting on a new example.
             assert line, "This line must be part of an example, not be blank."
-            line_id = insert_example_line(line_id, example_id, line)  # Store `line` in temp.example_lines
+            line_id = insert_example_line(line_id, example_id, line)  # Store `line` in example_lines
             previous_line_blank = False
 
         else:  # Previous line not blank, so current line can either continue the example or be blank.
             if not line:  # Current line is blank, signifying a new example.
+                if el_id_count > 0:
+                    cursor.execute("INSERT INTO examples VALUES (?,?)", (example_id, el_id_count))
+                    el_id_count = 0
                 example_id += 1
-                # line_id = insert_example_line(line_id, example_id, "__example__==" + str(example_id))
+                line_id = insert_example_line(line_id, example_id, "__example__==" + str(example_id))
                 previous_line_blank = True
             else:  # Example continues.
                 line_id = insert_example_line(line_id, example_id, line)  # ***** INSERT_EXAMPLE_LINE *****
+        el_id_count += 1
+    if el_id_count > 0:
+        cursor.execute("INSERT INTO examples VALUES (?,?)", (example_id, el_id_count))
 
-    # The above records were inserted into temp.example_lines. Here we insert from that table...
-    execute = cursor.execute  # To shorten next line.
-    execute("SELECT example_id, count(*) cnt FROM temp.example_lines GROUP BY example_id ORDER BY cnt DESC, example_id")
-    original_example_ids = cursor.fetchall()  # Eg, [(0, 3), (1, 3), (4, 5), (5, 5), (2, 7), (3, 10)]
-    # ...into main.example_lines, with the only difference being their order; we want example_id (and thus el_id)
-    # sorted such that the smallest examples are last. That is to put the assertion-less examples at the end. (This
-    # assumes that the assertion-less user examples are all 2 lines (an input and an output) long.)
-    el_id, example_id = 5, 0
-    for row in original_example_ids:
-        old_example_id, cnt = row
-        if cnt == 2 and first_io_only_example is None:  # first_io_only_example is global.
-            first_io_only_example = example_id  # This is where generate_code() should stop (exclusive).
-        cursor.execute("INSERT INTO main.example_lines (el_id, example_id, line, line_type) VALUES (" + str(el_id) +
-                       ", " + str(example_id) + ", '__example__==" + str(example_id) + "', 'truth')")
-        el_id += 5  # Using multiples of 5 in case inserting a line without re-numbering becomes desirable.
-        cursor.execute("SELECT line, line_type FROM temp.example_lines WHERE example_id=?", (old_example_id,))
-        lines_of_example = cursor.fetchall()
-        for row in lines_of_example:
-            cursor.execute("INSERT INTO main.example_lines (el_id, example_id, line, line_type) VALUES (" +
-                           str(el_id) + ', ' + str(example_id) + ", ?, ?)", (row[0], row[1]))
-            el_id += 5
-        example_id += 1
-    cursor.execute("DROP TABLE temp.example_lines")
-    # cursor.execute("""CREATE TABLE example_lines AS SELECT * FROM temp.example_lines WHERE example_id IN
-    # (SELECT example_id FROM example_lines GROUP BY example_id HAVING count(*) <= 3)""")
-    if first_io_only_example is None:  # Then there are no assertion-less examples.
-        first_io_only_example = example_id + 1  # So that generate_code() pulls all examples.
+    # # The above records were inserted into temp.example_lines. Here we insert from that table...
+    # execute = cursor.execute  # To shorten next line.
+    # execute("SELECT example_id, count(*) cnt FROM temp.example_lines GROUP BY example_id ORDER BY cnt DESC, example_id")
+    # original_example_ids = cursor.fetchall()  # Eg, [(0, 3), (1, 3), (4, 5), (5, 5), (2, 7), (3, 10)]
+    # # ...into main.example_lines, with the only difference being their order; we want example_id (and thus el_id)
+    # # sorted such that the smallest examples are last. That is to put the assertion-less examples at the end. (This
+    # # assumes that the assertion-less user examples are all 2 lines (an input and an output) long.)
+    # el_id, example_id = 5, 0
+    # for row in original_example_ids:
+    #     old_example_id, cnt = row
+    #     if cnt == 2 and first_io_only_example is None:  # first_io_only_example is global.
+    #         first_io_only_example = example_id  # This is where generate_code() should stop (exclusive).
+    #     cursor.execute("INSERT INTO main.example_lines (el_id, example_id, line, line_type) VALUES (" + str(el_id) +
+    #                    ", " + str(example_id) + ", '__example__==" + str(example_id) + "', 'truth')")
+    #     el_id += 5  # Using multiples of 5 in case inserting a line without re-numbering becomes desirable.
+    #     cursor.execute("SELECT line, line_type FROM temp.example_lines WHERE example_id=?", (old_example_id,))
+    #     lines_of_example = cursor.fetchall()
+    #     for row in lines_of_example:
+    #         cursor.execute("INSERT INTO main.example_lines (el_id, example_id, line, line_type) VALUES (" +
+    #                        str(el_id) + ', ' + str(example_id) + ", ?, ?)", (row[0], row[1]))
+    #         el_id += 5
+    #     example_id += 1
+    # cursor.execute("DROP TABLE temp.example_lines")
+    # # cursor.execute("""CREATE TABLE example_lines AS SELECT * FROM temp.example_lines WHERE example_id IN
+    # # (SELECT example_id FROM example_lines GROUP BY example_id HAVING count(*) <= 3)""")
+    # if first_io_only_example is None:  # Then there are no assertion-less examples.
+    #     first_io_only_example = example_id + 1  # So that generate_code() pulls all examples.
 
 
 # also need to mark each condition as indicating the *start* of a loop or iteration, because an iterative condition
@@ -637,6 +644,7 @@ def remove_all_c_labels() -> None:
         line = remove_c_labels(row[1])
         query = "UPDATE example_lines SET line = ? WHERE el_id = ?"
         cursor.execute(query, (line, el_id))
+
 
 
 def unused_build_reason_evals() -> None:
@@ -846,6 +854,7 @@ def reset_db() -> None:
     # cursor.execute("""CREATE UNIQUE INDEX spt ON selections(python, target_line)""")
 
     # This table is to note contiguous FOR blocks (iteration traces) so as to constrain the possible last_el_id's.
+    # The rows are 1:1 with whole loop executions (including those broken off with BREAK).
     # Controls can nest but not straddle (since an outer scope must enclose /all/ of any local block scopes that open
     # within it, an entire FOR loop must end before those controls w/an earlier first_el_id).
     cursor.execute('''DROP TABLE IF EXISTS for_loops''')
@@ -921,7 +930,8 @@ def reset_db() -> None:
     # approved INTEGER NOT NULL DEFAULT 0)""")  # Python code is user confirmed?
 
     # Many to 1 with trace lines, as comma-delimited assertions are broken out.
-    cursor.execute('''CREATE TEMP TABLE example_lines ( -- temp schema until E can order by example size.
+    cursor.execute("""DROP TABLE IF EXISTS example_lines""")
+    cursor.execute('''CREATE TABLE example_lines ( 
                         el_id INTEGER PRIMARY KEY, -- will follow line order of given exem
                         example_id INTEGER NOT NULL,
                         line TEXT NOT NULL, -- normalized where line_type='truth'
@@ -930,33 +940,11 @@ def reset_db() -> None:
                         controller TEXT -- the control_id most directly controlling this line, ie, the nearest, earlier 
                         -- control_id whose block hasn't ended. (Unused 10/4/19)
                         )''')
-    cursor.execute('''DROP TABLE IF EXISTS main.example_lines''')
-    cursor.execute('''CREATE TABLE example_lines ( -- Same schema as above.
-                        el_id INTEGER PRIMARY KEY, 
-                        example_id INTEGER NOT NULL,
-                        line TEXT NOT NULL,
-                        line_type TEXT NOT NULL,   
-                        control_id TEXT, 
-                        controller TEXT 
-                        )''')
 
-    # # # of `reason`s * # of inputs == # of records. To show how every `reason` evaluates across every example input.
-    # # For if/elif/else generation.
-    # cursor.execute('''DROP TABLE IF EXISTS reason_evals''')
-    # cursor.execute('''CREATE TABLE reason_evals(
-    #                     inp TEXT NOT NULL,
-    #                     reason TEXT NOT NULL,
-    #                     reason_explains_io INTEGER NOT NULL, -- 1 iff this inp has this reason in examples (unused)
-    #                     reason_value INTEGER NOT NULL)''')
-    # cursor.execute('''CREATE UNIQUE INDEX reir ON reason_evals(inp, reason)''')
-    #
-    # # # of 'reason's * (# of 'reason's - 1) == # of records.  To show
-    # # for every `reason`, those (single condition) reasons that can be listed above it in an elif.
-    # cursor.execute('''DROP TABLE IF EXISTS pretests''')
-    # cursor.execute('''CREATE TABLE pretests(
-    #                     pretest TEXT NOT NULL,
-    #                     condition TEXT NOT NULL)''')
-    # cursor.execute('''CREATE UNIQUE INDEX ppc ON pretests(pretest, condition)''')
+    cursor.execute("""DROP TABLE IF EXISTS examples""")
+    cursor.execute('''CREATE TABLE examples ( 
+                        example_id INTEGER PRIMARY KEY, -- will follow order of appearance in given exem
+                        el_id_count INTEGER NOT NULL)''')
 
 
 # Unused but may be better than the simpler approach in assertion_triple(). 2/20/19
@@ -1500,6 +1488,11 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     return line
 
 
+def get_one(field: str, table: str, filter: str) -> Any:
+    cursor.execute("SELECT ? FROM ? WHERE ?", (field, table, filter))
+    return cursor.fetchone()[0]
+
+
 def get_example_id(el_id: int) -> int:
     cursor.execute("SELECT example_id FROM example_lines WHERE el_id=?", (el_id,))
     return cursor.fetchone()[0]
@@ -1926,10 +1919,11 @@ def generate_code() -> List[str]:
     # Loop over all example_lines, also pulling their condition info where it exists. (Keep this select list in sync
     # with next_row indices below.)
     sql = """SELECT el.el_id, el.example_id, el.line, el.line_type, c.condition, c.condition_type, c.control_id 
-    FROM example_lines el 
+    FROM example_lines el
+    NATURAL JOIN examples e  
     LEFT JOIN conditions c ON el.el_id = c.el_id
-    WHERE el.example_id<? ORDER BY el.el_id"""
-    cursor.execute(sql, (first_io_only_example,))  # Excluding (the for-testing-only) assertion-less examples.
+    WHERE e.el_id_count > 3 ORDER BY el.el_id"""
+    cursor.execute(sql)  # Filtering out the 3 el_id_count, i.e., assertion-less, examples that are for testing only.
     selection = cursor.fetchall()
     if len(selection) == 0:
         print("*Zero* example lines found.")
@@ -1999,22 +1993,28 @@ def generate_code() -> List[str]:
             original_line = line
             line = replace_hard_code(prior_values, line)
 
-            if (original_line == line or "' + str(" in line) and type_string(line) == 'str':  # Quotes needed.
-                print_line = "print('" + line + "')"
-                return_text = "#return '"
+            if (original_line == line or "' + str(" in line) \
+                    and type_string(line) == 'str':  # Quotes needed.
+                print_line = (indents * "    ") + "print('" + line + "')"
+                print_original_line = (indents * "    ") + "print('" + original_line + "')"
+                return_text = (indents * "    ") + "#return '"
             else:
-                print_line = "print(" + line + ')'
-                return_text = "#return "
+                print_line = (indents * "    ") + "print(" + line + ')'
+                print_original_line = (indents * "    ") + "print(" + original_line + ')'
+                return_text = (indents * "    ") + "#return "
+
+            if code_key < len(code) and code[code_key] == print_original_line:  # The sanity check works w/o replacement.
+                line = original_line                   # "If it ain't broke, don't fix it."
+                print_line = print_original_line
 
             # Add the print() to the code if it's new to current control.
-            print_line = indents * "    " + print_line
             if add_io_to_code:
                 code.insert(code_key, print_line)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
                 code_key += 1
                 # Add return if `line` is not a string > 10 chars and it's not in a loop (__example__ loop excepted)
                 # (todo) and its the last output and its datatype is consistent across cohort.
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
-                    code.insert(code_key, (indents * "    ") + return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
+                    code.insert(code_key, return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
                     code_key += 1  # Extra increment to get past proto-return statement.
             else:  # Sanity check
                 assert code[code_key] == print_line, "'" + code[code_key] + "'  *is not*  '" + print_line + "'"
@@ -2362,8 +2362,8 @@ def generate_tests(function_name: str, together: int = True) -> str:
         # Immediately after each example, and on the last row.
         if i == 0:
             prior_example_id = example_id
-        elif (not together and example_id != prior_example_id) or i == (len(all_rows) - 1):  # Then new example (or other
-            #                                                                                  trigger) reached.
+        elif (not together and example_id != prior_example_id) or i == (len(all_rows) - 1):  # Then new example (or
+            #                                                                                  other trigger) reached.
             # Creating one test per example or one test, period.
             print("example_id is", example_id)
             test_code += "\n    def test_" + function_name + str(i) + "(self):\n"
@@ -2468,7 +2468,8 @@ def formal_params() -> str:
     :return: formal parameters declaration, eg, i1: str, i2: int
     """
     result = ''
-    sql = "SELECT example_id, line, line_type FROM example_lines ORDER BY el_id"  # All example lines, in order.
+    sql = """SELECT e.example_id, line, line_type FROM example_lines 
+             NATURAL JOIN examples e WHERE e.el_id_count>3 ORDER BY el_id"""
     cursor.execute(sql)
     rows = cursor.fetchall()
     previous_example_id = ''
@@ -2550,7 +2551,8 @@ def fill_conditions_table() -> None:
     """
     # Step 1: Dump example_lines into conditions table.
     all_conditions = []
-    cursor.execute("SELECT el_id, example_id, line FROM example_lines WHERE line_type = 'truth'")
+    cursor.execute("""SELECT el_id, e.example_id, line FROM example_lines 
+                      NATURAL JOIN examples e WHERE e.el_id_count>3 AND line_type = 'truth'""")
     example_lines = cursor.fetchall()
 
     for example_line in example_lines:
@@ -2628,11 +2630,6 @@ def run_tests(class_name: str) -> str:
     test_results = unittest.TextTestRunner().run(suite)
     print(len(test_results.errors), "errors and", len(test_results.failures), "failures")
     return test_results
-
-
-def get_final_el_id() -> int:
-    cursor.execute("""SELECT max(el_id) FROM example_lines""")
-    return cursor.fetchone()[0]
 
 
 def get_last_el_id(first_el_id: int, condition_type: str) -> int:
@@ -2807,7 +2804,7 @@ def insert_cbt_with_iteration(loop_variable: str, last_el_id_of_iteration: int, 
                        (last_el_id_min, one_endpoint, last_el_id_max, last_rowid))
 
 
-def get_line_item(start_el_id: int, distance: int, item = 'el_id') -> int:
+def get_line_item(start_el_id: int, distance: int, item: int ='el_id') -> int:
     """
     get_line_item(15, 1) means return the closest el_id value to 15 that is >15.
     get_line_item(15, -2) means return the 2nd closest el_id value to 15 that is <15.
@@ -2823,14 +2820,16 @@ def get_line_item(start_el_id: int, distance: int, item = 'el_id') -> int:
     else:
         direction = 'ASC'
         sign = '>'
-    cursor.execute("SELECT " + item + " FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " + direction +
-                   " LIMIT ?", (start_el_id, abs(distance)))
+    cursor.execute("SELECT " + item + ", example_id FROM example_lines WHERE el_id " + sign + " ? ORDER BY el_id " +
+                   direction + " LIMIT ?", (start_el_id, abs(distance)))
     rows = cursor.fetchall()
     # No longer enforced: assert rows, "No rows found with start_el_id " + str(start_el_id) + " and distance " +
     # str(distance)
+    starting_example_id = rows[0][1]
     return_el_id = None
     for row in rows:
-        return_el_id = row[0]
+        return_el_id, example_id = row
+    assert starting_example_id == example_id, "Starting example id " + starting_example_id + " != final " + example_id
     return return_el_id
 
 
@@ -2847,6 +2846,21 @@ def are_preambles_consistent(loop_preamble: List[str], iteration_preamble: List[
         return loop_preamble[0:length] == iteration_preamble[0:length]
     else:
         return loop_preamble == iteration_preamble
+
+
+def get_example_ids(domain="all"):
+    if domain == "truthy":  # These examples include assertions aka "truth" and filter out the assertion-less
+        # examples that are for testing only.
+        sql = "SELECT example_id FROM examples WHERE el_id_count > 3 ORDER BY example_id"  # 3 due to __example__==x row
+    elif domain == "all":
+        sql = "SELECT example_id FROM examples ORDER BY example_id"
+    else:
+        assert False, "domain " + domain + " is invalid."
+    cursor.execute(sql)
+    example_ids = list()
+    for row in cursor.fetchall():
+        example_ids.append(row[0])
+    return example_ids
 
 
 def store_fors() -> None:
@@ -2938,13 +2952,20 @@ def store_fors() -> None:
 
             periods.append(iteration_count - periods[-1])  # Append the # of iterations since latest loop start.
             #fixme assert max(periods) == (to_point - first_value + 1) / loop_increment
-            cursor.execute("UPDATE for_loops SET period=? WHERE control_id=?", (max(periods), control_id))
+            pass_in = (max(periods), control_id)
+            row_count = cursor.execute("UPDATE for_loops SET period=? WHERE control_id=?", pass_in).rowcount
+            assert row_count >= 1, "With passed-in values of " + ', '.join(str(value) for value in pass_in) + \
+                ", the UPDATE rowcount is " + str(row_count) + ", not >=1"
 
-            # Create the control record. Eg, 'for guess_count in range(0, 6, 1)'
-            extended_to_point = sympy.to_dnf(to_point + loop_increment)  # Due to endpoint's exclusivity.
-            # Eg, python = "for __example__ in range(0, 2, 1):"
-            python = "for " + loop_variable + " in range(" + first_value + ', ' + str(extended_to_point) + ', ' + \
-                     str(loop_increment) + '):'
+            if loop_variable=='__example__':  # The __example__ loop is special.
+                # eg, python = "for __example__ in [2,4,5]:"
+                python = "for __example__ in [" + ','.join(str(id) for id in get_example_ids('truthy')) + "]:"
+            else:
+                # Create the control record. Eg, 'for guess_count in range(0, 6, 1)'
+                extended_to_point = sympy.to_dnf(to_point + loop_increment)  # Due to endpoint's exclusivity.
+                # Eg, python = "for j in range(0, 2, 1):"
+                python = "for " + loop_variable + " in range(" + first_value + ', ' + str(extended_to_point) + ', ' + \
+                         str(loop_increment) + '):'
             cursor.execute("INSERT INTO controls (control_id, example_id, python, first_el_id) VALUES (?,?,?,?)",
                            (control_id, first_example_id, python, first_el_id))
 
@@ -2957,7 +2978,7 @@ def store_fors() -> None:
             how_last = 1  # Local last, ie, the last iteration before an outer loop restarts this loop.
 
             cursor.execute("INSERT INTO for_loops (control_id, example_id, first_el_id, increment) VALUES "
-                "(?, ?, ?, ?)", (control_id, example_id, local_first_el_id, str(loop_increment)))
+                           "(?, ?, ?, ?)", (control_id, example_id, local_first_el_id, str(loop_increment)))
             # (last_el_id for the record will be filled in by update_for_loops_table().)
             periods.append(iteration_count - periods[-1])  # Append latest period.
         elif next_left is not None:  # We know exactly where this iteration ends:
@@ -3095,8 +3116,9 @@ def fill_cbt_with_maybe_rows(first_el_id: int, min_el_id: int, max_el_id: int, d
 
     # cursor.execute("""SELECT el_id FROM example_lines el LEFT JOIN conditions c USING (el_id)
     # WHERE el.el_id>=? AND el.el_id<=? AND (c.condition_type!='assign' OR c.condition_type IS NULL)""", (first, last))
-    cursor.execute("""SELECT el_id FROM example_lines el WHERE el.el_id>=? AND el.el_id<=? AND el.line_type!='truth'""",
-                   (min_el_id, max_el_id))
+    cursor.execute("""SELECT el_id FROM example_lines el
+                      NATURAL JOIN examples e WHERE e.el_id_count>3 AND el.el_id>=? AND el.el_id<=? 
+                      AND el.line_type!='truth'""", (min_el_id, max_el_id))
     """The last_el_id can't be an assignment because that doesn't result in code, which causes a syntax error 
     when there is no code indented under a control. Example:
         guess_count + 1 == 3
@@ -3129,8 +3151,8 @@ def store_ifs() -> None:  # into control_block_traces table to track their block
     :return None:
     """
     # First, pull all example_id's IF conditions (as detected by fill_conditions_table()).
-    cursor.execute("""SELECT el_id, condition, example_id FROM conditions 
-                       WHERE condition_type = 'if' ORDER BY condition, el_id""")  # Must order by condition; see below.
+    cursor.execute("""SELECT el_id, condition, c.example_id FROM conditions c
+                       WHERE condition_type = 'if' ORDER BY condition, el_id""")  # Order by condition
     ifs = cursor.fetchall()
     control_count = 0
     prior_row = [None, None, None]
@@ -3264,48 +3286,69 @@ def add_control_info_to_example_lines() -> None:
     cursor.execute("""UPDATE example_lines SET control_id =
     (SELECT c.control_id FROM conditions c WHERE c.el_id=example_lines.el_id)""")
 
-    cursor.execute("""UPDATE example_lines SET controller =
+    row_count = cursor.execute("""UPDATE example_lines SET controller =
     (SELECT ctlei.control_id FROM cbt_temp_last_el_ids ctlei 
       WHERE ctlei.first_el_id<example_lines.el_id AND 
             ctlei.last_el_id>=example_lines.el_id 
-    ORDER BY ctlei.last_el_id, ctlei.first_el_id DESC)""")
+    ORDER BY ctlei.last_el_id, ctlei.first_el_id DESC)""").rowcount
+    assert row_count >= 1, "The UPDATE of example_lines.controller rowcount is " + str(row_count) + ", not >=1"
+
+
+def set_for_loops_last_el_id(last_el_id: int, control_id: int, first_el_id: int) -> None:
+    """
+    The name says it all: set the given for_loop's last_el_id. (Control_id and first_el_id uniquely identify a FOR loop)
+    :param last_el_id:
+    :param control_id:
+    :param first_el_id:
+    :return: None
+    """
+    pass_in = last_el_id, control_id, first_el_id
+    row_count = cursor.execute("UPDATE for_loops SET last_el_id=? WHERE control_id=? AND first_el_id=?",
+                               pass_in).rowcount
+    assert row_count == 1, "With passed-in values of " + ', '.join(str(value) for value in pass_in) + \
+                           ", the UPDATE rowcount is " + str(row_count) + ", not 1"
 
 
 def update_for_loops_table() -> None:
     """
-    Update the for_loops table with last_el_id info now that that's available from the cbt table.
-    (This function requires that the c.b.t. and cbt_temp_last_el_ids tables have already had their FOR loop info filled in.)
+    The for_loops table is 1:1 with whole loop executions (including those broken off with BREAK).
+    Update the for_loops table with last_el_id info (now that the needed info is in the cbt and ctlei tables).
     :return None:
     """
-    # For each FOR control in the target function.
+    # For each FOR control...
     cursor.execute("""SELECT control_id FROM control_block_traces WHERE substr(control_id,1,3)='for' 
     GROUP BY control_id ORDER BY control_id""")
     control_ids = cursor.fetchall()
+    __example__loop = True  # These loops are always 1st, and have to be handled specially due to stub examples.
     for control_id in control_ids:
         control_id = control_id[0]
 
-        # For each enactment of the current FOR loop (control_id), note its first_el_id or last_el_id if it's a
-        # first or last iteration, respectively. Then insert together into for_loops.
+        # Pull all of a control's info (ie, iterations) from the ctlei table so that
+        # for each enactment of the current FOR control (ie, each loop), we can note its first_el_id or last_el_id
+        # if it's a first or last iteration, respectively. Then insert together into for_loops.
         cursor.execute("""SELECT example_id, first_el_id, last_el_id FROM cbt_temp_last_el_ids WHERE control_id=? 
         ORDER BY first_el_id""", (control_id,))
         iterations = cursor.fetchall()
+        assert len(iterations) > 0, "No iterations found for control_id " + control_id
         prior = []
         # For each cbt of current control_id
         for row in iterations:
-            example_id, first_el_id, last_el_id = row
-            # `row` represents a new loop enactment if the prior row doesn't link up to it via last_el_id==first_el_id.
-            if not prior:
-                loop_first_el_id = first_el_id
-            elif get_line_item(prior[2], 1) != first_el_id:
-                # prior was the last of its kind. Insert it.
-                cursor.execute("UPDATE for_loops SET last_el_id=? WHERE control_id=? AND first_el_id=?",
-                               (prior[2], control_id, loop_first_el_id))
-                loop_first_el_id = first_el_id
-            prior = row  # prior[0, 1, 2] == prior["example_id", "first_el_id", "last_el_id"], respectively
-        assert len(iterations) > 0, "No iterations found for control_id " + control_id
-        # Update last FOR loop as well.
-        cursor.execute("UPDATE for_loops SET last_el_id=? WHERE control_id=? AND first_el_id=?",
-                       (prior[2], control_id, loop_first_el_id))
+            example_id, first_el_id_of_iteration, last_el_id = row
+            if not prior:  # Then this is the first row.
+                first_el_id_of_loop = first_el_id_of_iteration
+
+            # `row` represents a new loop enactment if the prior row doesn't link up to it via last_el_id==first_el_id:
+            elif not __example__loop and get_line_item(prior[2], 1) != first_el_id_of_iteration:  # No link up;
+                # `prior` represented the last iteration of its loop. So update for_loops with prior's last_el_id:
+                set_for_loops_last_el_id(prior[2], control_id, first_el_id_of_loop)  # prior["last_el_id"]
+                first_el_id_of_loop = first_el_id_of_iteration
+
+            prior = row
+
+        # Update the last loop's last_el_id as well.
+        set_for_loops_last_el_id(prior[2], control_id, first_el_id_of_loop)  # prior["last_el_id"]
+
+        __example__loop = False  # Controls subsequent to the first are not of the __example__ loops.
 
 
 def remove_examples_loop(code_list: List[str]) -> List[str]:
@@ -3321,7 +3364,7 @@ def remove_examples_loop(code_list: List[str]) -> List[str]:
     for line in code_list:
         if not line:
             continue  # Remove blank lines.
-        if not FOR_found and line.strip()[:28] == "for __example__ in range(0, ":
+        if not FOR_found and line.strip()[:20] == "for __example__ in [":
             FOR_found = True
         elif FOR_found:
             code_list_out.append(line[4:])  # Dedent
@@ -3369,7 +3412,8 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
 
         cursor.execute("BEGIN")  # Turn off autocommit mode, so these changes can be discarded if any test fails.
         # See what endpoint values (eg, 105 and 325 (to 130 and 355) for guess4) allow all tests to pass.
-        # Rollback should obviate cursor.execute("DELETE FROM cbt_temp_last_el_ids")  # Each trial run gets its own rows.
+        # Rollback obviates cursor.execute("DELETE FROM cbt_temp_last_el_ids")
+        # Each trial run gets its own rows.
 
         # Next, instantiate a possible endpoint universe, one for-loop iteration (cbt_id) at a time.
         if cbt_ids:
@@ -3380,10 +3424,9 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
                 VALUES (?,?,?,?,?)""", (cbt_ids[i][0], cbt_ids[i][1], cbt_ids[i][2], cbt_ids[i][3], for_maybes_row[i]))
                 #               cbt.control_id, cbt.cbt_id,  cbt.example_id
         # At this point there are endpoints postulated for all for-loop iterations. Stuff them into:
-        update_for_loops_table()  # Needed for for0:0, at least.
-        # Any overlapping for-loops? Then go to the next for_maybes_row.
-        rows = get_control_conflicts("for_loops")
-        if rows:
+        update_for_loops_table()
+        rows = get_control_conflicts("for_loops")  # Any overlapping for-loops?
+        if rows:  # Then this for_maybes_row is untenable; continue to next.
             for row in rows:
                 print("Conflict row fields control_id, example_id, first_el_id, last_el_id:", end=" ")
                 for field in row:
@@ -3451,6 +3494,13 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
 
             #                              ***********************
             code_list = generate_code()  # **** GENERATE CODE ****
+
+            # When generating code we use only the examples with assertions while test generation uses all examples.
+            # We now replace the __example__ loop to reflect this.
+            truthy_range = "    for __example__ in [" + ','.join(str(id) for id in get_example_ids("truthy")) + "]:"
+            example_loop = code_list.index(truthy_range)  # 0 for eg, "    for __example__ in [1,2,3,4]:"
+            all_range = "    for __example__ in [" + ','.join(str(id) for id in get_example_ids()) + "]:"
+            code_list[example_loop] = all_range
 
             code0 = signature + '\n'.join(code_list)  # Includes __example__ loop.
             code = signature + '\n'.join(remove_examples_loop(code_list))  # Rewrite Stage 1 as Stage 2 code,

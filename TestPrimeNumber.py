@@ -25,17 +25,17 @@ def input(variable_name: str = "") -> str:
 
 # The generated function under Stage 2 (i.e., a test per example) testing.
 def prime_number():
-    inp = int(input("inp:"))  # Eg, 5
-    if inp>1:
+    inp = int(input("inp:"))  # Eg, 0
+    if inp<=1:
+        print(False)
+        return False 
+    elif inp>1:
         for j in range(2, 6, 1):
             if j==inp:
                 print(True)
             elif inp%j==0:
                 print(False)
                 break
-    elif inp<=1:
-        print(False)
-        return False 
 
 
 class TestPrimeNumber(unittest.TestCase):
@@ -45,23 +45,15 @@ class TestPrimeNumber(unittest.TestCase):
         actual_io_trace = ''
         self.maxDiff = None
 
-    def test_prime_number10(self):
+    def test_prime_number3(self):
         global global_input
-        global_input = ['5']  # From an example of the .exem
+        global_input = ['1008']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''<5
->True
-''', actual_io_trace)
-
-    def test_prime_number17(self):
-        global global_input
-        global_input = ['4']  # From an example of the .exem
-        prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''<4
+        self.assertEqual('''<1008
 >False
 ''', actual_io_trace)
 
-    def test_prime_number22(self):
+    def test_prime_number8(self):
         global global_input
         global_input = ['0']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
@@ -69,7 +61,7 @@ class TestPrimeNumber(unittest.TestCase):
 >False
 ''', actual_io_trace)
 
-    def test_prime_number27(self):
+    def test_prime_number13(self):
         global global_input
         global_input = ['1']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
@@ -77,12 +69,28 @@ class TestPrimeNumber(unittest.TestCase):
 >False
 ''', actual_io_trace)
 
-    def test_prime_number29(self):
+    def test_prime_number16(self):
         global global_input
-        global_input = ['1008']  # From an example of the .exem
+        global_input = ['3']  # From an example of the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''<1008
+        self.assertEqual('''<3
+>True
+''', actual_io_trace)
+
+    def test_prime_number23(self):
+        global global_input
+        global_input = ['4']  # From an example of the .exem
+        prime_number()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<4
 >False
+''', actual_io_trace)
+
+    def test_prime_number32(self):
+        global global_input
+        global_input = ['5']  # From an example of the .exem
+        prime_number()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<5
+>True
 ''', actual_io_trace)
 
 

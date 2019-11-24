@@ -200,7 +200,7 @@ var examples = new Array();\n"""
     <li>Only trace those conditions leading to a consequence. E.g., omit <code>some_trigger==False</code></li>\n
     <li>Separate your examples (use cases) with a blank line.</li>\n
     <li>Press Submit below to have Exemplar attempt to generate conforming Python code on the right.</li>\n  
-    </ol> &nbsp; &nbsp; <a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png" target="_blank">Concordance visualization</a><br/><br/></td>\n
+    </ol> &nbsp; &nbsp; <a href="https://cultivatedbigcustomization--gherson.repl.co/example%20correlations.png" target="_blank">Example correlations</a>  from trace to code<br/><br/></td>\n
     <td>This is a working proof of concept that the essential elements of a general algorithm, i.e., input, output, control structure, 
     calculation, variable naming and substitution, can be successfully demonstrated for a code generator with little to no abstraction or structure. <br/>Exemplar is already useful for creating unit tests and simple functions. gherson 2019-11-09<br/>""" + demos_html + "</td></tr></table>\n"
 
