@@ -31,10 +31,13 @@ guess2.exem, and leap_year.exem. 2018-03-25
 
 # Log of work
 Next: "Last minute" improvements before creating an official screencast: 
-will now add arguments to the generated function if easy
+Will add arguments to the generated function if easy.
 
-* 2019-11-23: 15:10 - 18:40 + 19:25 - Continued to troubleshoot assertion-less examples failing when in the middle of
- other examples, until resolved. SQL Updates now assert the expected # of updated lines where that was deemed useful.
+* 2019-11-25: 8:40 - 
+* 2019-11-24: Got sleep_in.exem and monkey_trouble.exem working. Inputs can now be named without asserting the name 
+equal to i1. Now asking the user (and saving answer) before making a variable substitution in an output line. 11.25h
+* 2019-11-23: Continued to troubleshoot assertion-less examples failing when in the middle of other examples. Now 
+resolved. SQL Updates now assert the expected # of updated lines where useful. Single example solutions enabled. 6.5h
 * 2019-11-22: To get fizz_buzz_variant_return_4.exem working, output substitution now only occurs if tests fail 
 without it. E is back to allowing the user to choose example order, because that allows the user some control of 
 the order of lines in the generated function. To that end, there is a new "examples" table, to hold el_id_count. 9.5h  

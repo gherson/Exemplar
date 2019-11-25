@@ -46,7 +46,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year4(self):
         global global_input
-        global_input = ['399']  # From an example of the .exem
+        global_input = ['399']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<399
 >False
@@ -54,7 +54,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year8(self):
         global global_input
-        global_input = ['400']  # From an example of the .exem
+        global_input = ['400']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<400
 >True
@@ -62,7 +62,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year12(self):
         global global_input
-        global_input = ['2012']  # From an example of the .exem
+        global_input = ['2012']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2012
 >True
@@ -70,7 +70,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year16(self):
         global global_input
-        global_input = ['2000']  # From an example of the .exem
+        global_input = ['2000']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2000
 >True
@@ -78,7 +78,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year20(self):
         global global_input
-        global_input = ['2013']  # From an example of the .exem
+        global_input = ['2013']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2013
 >False
@@ -86,7 +86,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year24(self):
         global global_input
-        global_input = ['2014']  # From an example of the .exem
+        global_input = ['2014']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2014
 >False
@@ -94,7 +94,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year28(self):
         global global_input
-        global_input = ['2015']  # From an example of the .exem
+        global_input = ['2015']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2015
 >False
@@ -102,7 +102,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year32(self):
         global global_input
-        global_input = ['2016']  # From an example of the .exem
+        global_input = ['2016']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2016
 >True
@@ -110,7 +110,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year35(self):
         global global_input
-        global_input = ['2020']  # From an example of the .exem
+        global_input = ['2020']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2020
 >True
@@ -118,7 +118,7 @@ class TestLeapYear(unittest.TestCase):
 
     def test_leap_year37(self):
         global global_input
-        global_input = ['2400']  # From an example of the .exem
+        global_input = ['2400']  # From the .exem
         leap_year()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2400
 >True

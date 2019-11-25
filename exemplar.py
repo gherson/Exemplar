@@ -11,6 +11,7 @@ import math
 import sympy  # See SymPy LICENSE.txt
 # from sympy.parsing.sympy_parser import *
 from threading import Lock
+import keyword
 
 DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing to always on.
@@ -28,15 +29,15 @@ reverse_trace(file) reverse engineers a function from the examples in a given .e
 
 Glossary:
 code == Python code generated.
-control_id == id of a control structure. Could be for1:3 from 'for' + example_id + ':' + control_count['for']
+control_id == A control structure's id, could be for1:3 from 'for' + example_id + ':' + control_count['for']
 example == An imagined trace of a complete input/output interaction with a function to be generated, with added 
-assertion/hints, provided by the user.
-exem == The user's trace examples collected in a file of extension .exem.
+assertions/hints, provided by the user.
+exem == The user's traced example interactions collected in a file of extension .exem.
 line == An example_lines.line.
-loop == all the iterations in one end-to-end execution of a particular loop block
+loop == All the iterations in one end-to-end execution of a particular loop block.
 loop top == An example line that represents the re/starting of a loop. The first such top is the loop 'start'.
 pretest == A 'reason' that serves as an IF or ELIF condition above other ELIF/s (in a single if/elif/else).
-trace == record of a function execution, imagined in our case
+trace == Record of a function execution, imagined in our case.
 
 Prefixes:
 are_ == Boolean function
@@ -105,7 +106,7 @@ if DEBUG and __name__ == "__main__":
                                                                          str(assertion_triple("3==count + 1"))
 
 
-def positions_outside_strings(string: str, characters: str) -> List[int]:
+def positions_of_given_chars_outside_of_quotations(string: str, characters: str) -> List[int]:
     """
     Find and return the positions of the given characters, unescaped and outside of embedded strings, in the given string.
     :database: not involved.
@@ -139,7 +140,7 @@ def positions_outside_strings(string: str, characters: str) -> List[int]:
 
 
 if DEBUG and __name__ == '__main__':
-    assert [47, 51, 53, 54], positions_outside_strings("'# These ttt will be ignored' including \this but not tthese", 't')
+    assert [47, 51, 53, 54], positions_of_given_chars_outside_of_quotations("'# These ttt will be ignored' including \this but not tthese", 't')
 
 
 def denude(line: str) -> str:
@@ -150,7 +151,7 @@ def denude(line: str) -> str:
     :param line:  String to denude.
     :return:
     """
-    hash_positions = positions_outside_strings(line, '#')
+    hash_positions = positions_of_given_chars_outside_of_quotations(line, '#')
     if not hash_positions:  # Hash not found.
         return line.strip()
     else:
@@ -212,6 +213,7 @@ def clean(examples: List[str]) -> List[str]:
             result.append(line)  # Retain both examples and their delimiters, blank lines.
     if not line:
         result.pop(len(result) - 1)  # Remove last, blank line.
+    assert result[-1], "result's last line is unexpectedly blank"
     return result
 
 
@@ -293,7 +295,7 @@ def unused_get_last_condition(reason: str) -> str:
     :param reason:
     :return the last condition in reason:
     """
-    commas = positions_outside_strings(reason, ',')
+    commas = positions_of_given_chars_outside_of_quotations(reason, ',')
     if not commas:  # `reason` does not have multiple conditions.
         return reason
     return reason[commas[-1] + 1:].strip()  # return last condition.
@@ -334,25 +336,25 @@ def unused_replace_increment(condition: str) -> str:
 
 # Squeeze out all insignificant whitespace.
 def deflate(condition):
-    # Protect the whitespace around "and" and "or".
-    condition = condition.replace(" and ", "⋅and⋅")
-    condition = condition.replace(" or ", "⋅or⋅")
-    # Remove unquoted whitespace.
-    possibly_shortened = ''
-    for i in range(len(condition)):
-        if i not in positions_outside_strings(condition, ' \n\t\r'):  # Then condition[i] is not unquoted whitespace,
-            possibly_shortened += condition[i]  # so preserve it.
-    condition = possibly_shortened  # Latest whitespace character (blank, \n, \t, or \r) removed.
-    condition = condition.replace("⋅and⋅", " and ")
-    condition = condition.replace("⋅or⋅", " or ")
-
+    # Settled on 2-pronged approach of using word splitting if condition is not a simple relation.
+    return_value = ''
     triple = assertion_triple(condition)  # Standardize simple assertions.
     if triple[0] is not None:
-        condition = triple[0] + triple[1] + triple[2]
-    return condition
+        return_value = triple[0] + triple[1] + triple[2]
+    else:
+        for word in condition.split():
+            if word in ('and', 'or'):
+                return_value += ' ' + word + ' '
+            elif word in ('not', '(not'):
+                return_value += word + ' '
+            else:
+                return_value += word
+    return return_value
 
 
 if __name__ == '__main__':
+    value = '(a_smile and b_smile) or (not a_smile and not b_smile)'
+    assert value == deflate(value), value + " expected, actual: " + deflate(value)
     assert 'i1%4==0 and i1%100!=0' == deflate('i1 % 4 == 0 and i1 % 100 != 0')
 
 
@@ -412,7 +414,7 @@ def list_conditions(reason: str) -> List[str]:
     :param reason: str
     :return list of conditions, e.g., ["i1 % (i1-1) != 0c","(i1-1)==2c"]:
     """
-    commas = positions_outside_strings(reason, ',')
+    commas = positions_of_given_chars_outside_of_quotations(reason, ',')
     result = []
     start = 0
     for comma in commas:
@@ -462,38 +464,42 @@ def insert_example_line(el_id: int, example_id: int, line: str) -> int:
 
 def fill_example_lines(example_lines: List) -> None:
     """
-    Fill example_lines table with the raw trace (taken from .exem file).
+    Fill example_lines table with the raw trace (taken from .exem file). Also fill examples table with counts of lines
+    and assertion ("truth") lines.
     :database: indirectly INSERTs example_lines.
     :param example_lines: all the lines from exem.
     """
     global first_io_only_example
     first_io_only_example = None
-    example_id, el_id_count = 0, 0
+    example_id, el_id_count, truth_count = -1, 0, 0
     line_id = 5  # += 5 each insert call
-    previous_line_blank = True  # If there was a previous line, it'd be blank.
+    previous_line_blank = False
 
-    example_lines = clean(example_lines)
-    example_lines.insert(0, "__example__==0")  # `line` 0
+    example_lines = [''] + clean(example_lines)
     for line in example_lines:
 
         if previous_line_blank:  # Then starting on a new example.
             assert line, "This line must be part of an example, not be blank."
-            line_id = insert_example_line(line_id, example_id, line)  # Store `line` in example_lines
+            line_id = insert_example_line(line_id, example_id, line)  # ***** INSERT_EXAMPLE_LINE *****
             previous_line_blank = False
 
+        # Below, every `line`, even blanks, trigger an immediate insertion into example_lines.
         else:  # Previous line not blank, so current line can either continue the example or be blank.
             if not line:  # Current line is blank, signifying a new example.
                 if el_id_count > 0:
-                    cursor.execute("INSERT INTO examples VALUES (?,?)", (example_id, el_id_count))
-                    el_id_count = 0
+                    cursor.execute("INSERT INTO examples VALUES (?,?,?)", (example_id, el_id_count, truth_count))
+                    el_id_count, truth_count = 0, 0
                 example_id += 1
-                line_id = insert_example_line(line_id, example_id, "__example__==" + str(example_id))
+                loop_heading = "__example__==" + str(example_id)  # Isn't counted in truth_count.
+                line_id = insert_example_line(line_id, example_id, loop_heading)  # ***** INSERT_EXAMPLE_LINE *****
                 previous_line_blank = True
             else:  # Example continues.
                 line_id = insert_example_line(line_id, example_id, line)  # ***** INSERT_EXAMPLE_LINE *****
         el_id_count += 1
-    if el_id_count > 0:
-        cursor.execute("INSERT INTO examples VALUES (?,?)", (example_id, el_id_count))
+        if len(line) > 0 and line[0] not in "<>":
+            truth_count += 1
+    if el_id_count > 0:  # Store final example.
+        cursor.execute("INSERT INTO examples VALUES (?,?,?)", (example_id, el_id_count, truth_count))
 
     # # The above records were inserted into temp.example_lines. Here we insert from that table...
     # execute = cursor.execute  # To shorten next line.
@@ -943,8 +949,9 @@ def reset_db() -> None:
 
     cursor.execute("""DROP TABLE IF EXISTS examples""")
     cursor.execute('''CREATE TABLE examples ( 
-                        example_id INTEGER PRIMARY KEY, -- will follow order of appearance in given exem
-                        el_id_count INTEGER NOT NULL)''')
+                        example_id INTEGER PRIMARY KEY, -- will follow order of appearance in given exem.
+                        el_id_count INTEGER NOT NULL, -- The # of el_id lines in the example.
+                        truth_count INTEGER NOT NULL)''')  # The # of assertions in the example.
 
 
 # Unused but may be better than the simpler approach in assertion_triple(). 2/20/19
@@ -1247,6 +1254,9 @@ def get_variable_name(truth_line: str, input_variable: str = 'i[0-9]+') -> str:
         :param input_variable: 'i[0-9]+' by default.
     :return: what truth_line says is a name equal to input_variable, or '' if no match.
     """
+    if truth_line.isidentifier() and not keyword.iskeyword(truth_line):  # Eg, 'true' not 'True'.
+        return truth_line
+
     condition = assertion_triple(truth_line)  # (a non-input variable name, if any, will be in condition[2].)
     # If relation "hints" at a variable name, return that name.
     if condition[1] == '==' and "Equivalence relation" and \
@@ -1258,6 +1268,9 @@ def get_variable_name(truth_line: str, input_variable: str = 'i[0-9]+') -> str:
 
 
 if DEBUG and __name__ == "__main__":
+    assert 'guess' == get_variable_name('guess')
+    assert 'true' == get_variable_name('true')
+    assert '' == get_variable_name('True')
     assert 'guess' == get_variable_name('guess==i1')
     assert '' == get_variable_name('     guess==1')
     assert 'guess' == get_variable_name('guess==i1', 'i1')
@@ -1849,8 +1862,6 @@ def IF_order_search(code: List[int], an_IF: List[int],
     return reordered_code
 
 
-# Todo To regression test the IF ordering functions, use the demo examples as integration tests (to avoid manual
-# set up of the complex IFs data structure).
 def order_IFs(code: List[str], IFs: Dict[int, Dict[int, Tuple[str, int, List[Dict[str, Any]]]]]) -> List[str]:
     """
     Order the IFs' branches correctly by first grouping those branches that belong together in a single IF control aka
@@ -1900,11 +1911,49 @@ def get_if_key(line: str, IF_dict: List[Tuple[str, int, List[Dict[str, Any]]]]):
     return if_key if found else max(IF_dict)
 
 
-def generate_code() -> List[str]:
+def get_answer(choices: List[str], function_name: str) -> int:
+    """
+    Resolve an ambiguity by first checking `function_name`.qa then asking the user if an answer is not found.
+    :param choices: a question element is followed by choices
+    :param function_name: serves as the filename to create, with '.qa' extension
+    :return:
+    """
+    i = 0
+    for choice in choices:
+        if not i:  # First element of `choices` is the start of `question`, eg, "After line 'x', which do you want?"
+            question = choice + '\n'
+        else:
+            question += str(i) + ') ' + choice + '\n'
+        i += 1
+
+    # See if question already has an answer. (File used instead of database for ease of user access.)
+    qa_filename = function_name + '.qa'
+    text = from_file(qa_filename, must_exist=False)
+    if text is None:
+        text = list()
+        print("File", qa_filename, "not found; will be created next.")
+    else:
+        try:
+            index = text.index(choices[0] + '\n')
+            return text[index + 1]  # question.count('\n')]  # ******** RETURNING FOUND ANSWER *********
+        except ValueError as e:
+            print("Needed question and answer not yet extant in", qa_filename)
+
+    answer = 0
+    while type(answer) is not int or not 0 < answer < i:  # Until valid user response.
+        answer = input(question)
+        if answer.isdigit():
+            answer = int(answer)
+    # Save question and user's answer to .qa file.
+    to_file(qa_filename, choices[0] + '\n' + str(answer) + "\n\n" + "".join(text))
+    return answer
+
+
+def generate_code(function_name: str) -> List[str]:
     """
     Information gathering steps done, now the info in tables selection, conditions, controls, control_trace_blocks,
     and last_el_ids are collated into exem-conforming Python code.
-    Each example_lines record is considered in turn, in example_id major order. Specifically, their
+    Each example_lines record is considered in turn, in example_id major order. More specifically, their
     implied code is added to `code` if not already there, and sanity checked against it otherwise.
     Subsequent appearances can be from multiple examples or loop iterations. Additionally, 'assign'ments are
     captured in a lookup table used for variable mention in the output (prints).
@@ -1922,8 +1971,8 @@ def generate_code() -> List[str]:
     FROM example_lines el
     NATURAL JOIN examples e  
     LEFT JOIN conditions c ON el.el_id = c.el_id
-    WHERE e.el_id_count > 3 ORDER BY el.el_id"""
-    cursor.execute(sql)  # Filtering out the 3 el_id_count, i.e., assertion-less, examples that are for testing only.
+    WHERE e.truth_count > 0 ORDER BY el.el_id"""
+    cursor.execute(sql)  # Filtering out the zero truth_count, i.e., assertion-less, examples that are for testing only.
     selection = cursor.fetchall()
     if len(selection) == 0:
         print("*Zero* example lines found.")
@@ -1959,22 +2008,21 @@ def generate_code() -> List[str]:
         # Code an INPUT. (Example data to be hinted in tests and comments.)
         if line_type == 'in':
 
-            # Use our default variable name, then see if another was assigned. todo Increment 'i1' when required.
+            # Use our default variable name, then see if another was assigned.
             variable_name = "i1"  # "v" + str(el_id)
             if i+1 < len(selection):  # Unless at last 'line', look ahead.
                 next_row = selection[i+1]  # el_id, line, line_type, ...
                 # If the next row is truth and has an equality "naming" 'line's value, make that name the variable name.
-                if next_row[5] == 'assign' and \
-                        get_variable_name(next_row[2], 'i1'):  # Eg, ('guess==i1', 'i1') => guess
-                    variable_name = get_variable_name(next_row[2], 'i1')  # Eg, 'guess'
+                if next_row[5] == 'assign':  # next_row[5] is condition_type     and get_variable_name(next_row[2], 'i1'):  # Eg, ('guess==i1', 'i1') => guess
+                    variable_name = get_variable_name(next_row[2], 'i1')  # next_row[2] is line. Eg, 'guess'
 
             assignment = indents * "    " + variable_name + ' = input("' + variable_name + ':")' + "  # Eg, " + line
             if add_io_to_code:
                 code.insert(code_key, assignment)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
             else:  # Sanity check.
                 pos = assignment.find("  # Eg, ")  # Exclude " # Eg, [...]" comment from the following comparison.
-                assert code[code_key][0:pos+1] == assignment[0:pos+1], "'" + code[code_key][0:pos+1] + \
-                                                                       "'  *is not*  '" + assignment[0:pos+1] + "'"
+                assert assignment[0:pos+1] == code[code_key][0:pos+1], "'" + assignment[0:pos+1] + \
+                                                                       "'  *is not*  '" + code[code_key][0:pos+1] + "'"
             code_key += 1
 
             if line:  # line's possibly empty (due to no example input).
@@ -1988,7 +2036,7 @@ def generate_code() -> List[str]:
                     variable_types[variable_name] = 'float'
 
         elif line_type == 'out':  # An OUTPUT ie a print().
-            # Replace any constants in 'line' that should instead be soft-coded (we'll know from a match on
+            # Replace any constants in 'line' that maybe should instead be soft-coded (as suggested by a match on
             # prior input value or equality assertion).
             original_line = line
             line = replace_hard_code(prior_values, line)
@@ -2003,12 +2051,16 @@ def generate_code() -> List[str]:
                 print_original_line = (indents * "    ") + "print(" + original_line + ')'
                 return_text = (indents * "    ") + "#return "
 
-            if code_key < len(code) and code[code_key] == print_original_line:  # The sanity check works w/o replacement.
-                line = original_line                   # "If it ain't broke, don't fix it."
+            if code_key < len(code) and code[code_key] == print_original_line:  # The sanity check works w/o replacement
+                line = original_line  # "If it ain't broke, don't fix it."
                 print_line = print_original_line
 
-            # Add the print() to the code if it's new to current control.
             if add_io_to_code:
+                if original_line != line:  # Then ask the user to resolve ambiguity (and save answer).
+                    choices = "After line '" + code[code_key-1] + "', which do you want?", \
+                              print_original_line, print_line
+                    print_line = choices[int(get_answer(choices, function_name))]
+
                 code.insert(code_key, print_line)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
                 code_key += 1
                 # Add return if `line` is not a string > 10 chars and it's not in a loop (__example__ loop excepted)
@@ -2017,7 +2069,7 @@ def generate_code() -> List[str]:
                     code.insert(code_key, return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
                     code_key += 1  # Extra increment to get past proto-return statement.
             else:  # Sanity check
-                assert code[code_key] == print_line, "'" + code[code_key] + "'  *is not*  '" + print_line + "'"
+                assert print_line == code[code_key], "'" + print_line + "'  *is not*  '" + code[code_key] + "'"
                 code_key += 1
                 if code_key < len(code) and code[code_key].find(return_text) > -1:
                     code_key += 1
@@ -2026,14 +2078,14 @@ def generate_code() -> List[str]:
 
             left_operand, operator, right_operand = assertion_triple(line)  # (Order of operands not entirely intuitive)
             if condition_type == "assign":
-                if not left_operand.isidentifier():  # Special case. left_operand is, eg, 'guess_count+1'
-                    # Eg, prior_values['guess_count'] = 3 allows swapping in guess_count for 3 in a later print:
-                    # guess_count==*3* + "You guessed in *3* guesses!" => "You guessed in " + guess_count + " guesses!".
+                if left_operand is not None and not left_operand.isidentifier():  # Usually assignment is handled as
+                    # part of input but this is a special case: left_operand is, eg, 'guess_count+1'
+                    # Eg, prior_values['guess_count+1'] = 3 allows swapping in guess_count for 3 in a later print:
+                    # "You guessed in *3* guesses!" => "You guessed in " + str(guess_count+1) + " guesses!".
                     if right_operand.isdigit():
                         right_operand = int(right_operand)
                     prior_values[left_operand] = right_operand  # prior_values['guess_count + 1'] = 3
-                # No code added (though in the regular case  if next_row[5] == 'assign'  happens, see above) so:
-                # code_key -= 1
+
             else:  # for or if
                 if condition_type == 'for':  # Needed for below latest_IF_added, which is used when adding IFs:
                     local_iteration = get_block_record(first_el_id=el_id)[8]  # "0 based local count"
@@ -2092,7 +2144,8 @@ def generate_code() -> List[str]:
 
                     indents += 1  # Whether IF or FOR, a new block was opened.
 
-                else:  # Sanity checks, eg, getting code_key into matching `code`. This is based on each example
+                else:  # Sanity checks, ie, calculate an expectation and compare with what's been built in, eg, `code`.
+                    # These expectations are based on each example
                     # necessarily re-treading the same target code, with the exception that IF conditions can
                     # continually be introduced (as examples finally make these (the related IF condition) true).
                     last_el_id = get_last_el_id(el_id, condition_type)
@@ -2108,7 +2161,7 @@ def generate_code() -> List[str]:
                         #             *** ^^^ ***
 
                         # indents = int((len(code[code_key]) - len(code[code_key].lstrip())) / 4) + 4
-                        assert loop_variable == right_operand, "'" + loop_variable + "'  *is not*  '" + right_operand + "'"
+                        assert right_operand == loop_variable, "'" + right_operand + "'  *is not*  '" + loop_variable + "'"
 
                     else:  # IF
                         print("Appending last_el_id", last_el_id, "for non-added IF line", line)
@@ -2117,8 +2170,8 @@ def generate_code() -> List[str]:
                         # IFs[indents] is a dict of code_key to a list of (condition, is_elif, [prior_values)]) tuples.
                         code_key = get_if_key(line, IFs[indents])
                         # Asserting found because store_ifs() is supposed to give every unique IF a start_el_id.
-                        assert IFs[indents][code_key][0] == line, \
-                            "\nExpected: " + IFs[indents][code_key][0] + "\nActual: " + line
+                        assert line == IFs[indents][code_key][0], \
+                            "\nExpected: " + line + "\nActual: " + IFs[indents][code_key][0]
                         latest_IF = code_key
 
                         IFs[indents][code_key][2].append(prior_values.copy())  # For downstream elif order testing.
@@ -2370,7 +2423,7 @@ def generate_tests(function_name: str, together: int = True) -> str:
             test_code += "        global global_input\n"  # example_id
             if i == (len(all_rows) - 1):
                 prior_example_id = example_id  # A polite fiction for the next line.
-            test_code += "        global_input = ['" + "', '".join(inputs(-1 if together else prior_example_id)) + "']  # From an example of the .exem\n"  # Eg, ['Albert','4','10','2','4']
+            test_code += "        global_input = ['" + "', '".join(inputs(-1 if together else prior_example_id)) + "']  # From the .exem\n"  # Eg, ['Albert','4','10','2','4']
             test_code += " "*8 + function_name + "()  # The function under test is used to write to actual_io_trace.\n"  # TODO need formal params!!
             #                                       Return the named .exem (stripped of comments):
 
@@ -2426,7 +2479,7 @@ if DEBUG and __name__ == "__main__":
     assert 'Get_This_Value' == underscore_to_camelcase('get__this__value')
 
 
-def from_file(filename: str) -> List[str]:
+def from_file(filename: str, must_exist: int = True) -> List[str]:
     """
     Return the named file's contents.
     :param filename:
@@ -2436,8 +2489,11 @@ def from_file(filename: str) -> List[str]:
     try:
         handle = open(exemplar_path() + filename, "r")  # Eg, hello_world.exem
     except FileNotFoundError as err:
-        print(err)
-        sys.exit()
+        if must_exist:
+            print(err)
+            sys.exit()
+        else:
+            return None
     lines = handle.readlines()
     handle.close()
     return lines
@@ -2445,6 +2501,8 @@ def from_file(filename: str) -> List[str]:
 
 def to_file(filename: str, text: str) -> None:
     """
+    `filename` is overwritten if it exists.
+    Eg, to_file(class_name + ".tmp", test)
     :param filename:
     :param text:
     :return:
@@ -2452,7 +2510,7 @@ def to_file(filename: str, text: str) -> None:
     # prefix = "./" if sys.platform != "win32" else ''
     try:
         handle = open(exemplar_path() + filename, 'w')  # Eg, TestHelloWorld.py.
-    except FileNotFoundError as err:  # Any other error catchable?
+    except IOError as err:
         print(err)
         sys.exit()
     handle.write(text)
@@ -2469,7 +2527,7 @@ def formal_params() -> str:
     """
     result = ''
     sql = """SELECT e.example_id, line, line_type FROM example_lines 
-             NATURAL JOIN examples e WHERE e.el_id_count>3 ORDER BY el_id"""
+             NATURAL JOIN examples e WHERE e.truth_count>0 ORDER BY el_id"""
     cursor.execute(sql)
     rows = cursor.fetchall()
     previous_example_id = ''
@@ -2552,7 +2610,7 @@ def fill_conditions_table() -> None:
     # Step 1: Dump example_lines into conditions table.
     all_conditions = []
     cursor.execute("""SELECT el_id, e.example_id, line FROM example_lines 
-                      NATURAL JOIN examples e WHERE e.el_id_count>3 AND line_type = 'truth'""")
+                      NATURAL JOIN examples e WHERE e.truth_count>0 AND line_type = 'truth'""")
     example_lines = cursor.fetchall()
 
     for example_line in example_lines:
@@ -2573,7 +2631,7 @@ def fill_conditions_table() -> None:
     for row in rows:
         el_id, example_id, condition, row_scheme = row
 
-        condition_type = get_condition_type(el_id, condition)  # GET_CONDITIONS_TYPE()
+        condition_type = get_condition_type(el_id, condition)  # ******* get_CONDITIONS_TYPE() *******
 
         cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
 
@@ -2634,7 +2692,6 @@ def run_tests(class_name: str) -> str:
 
 def get_last_el_id(first_el_id: int, condition_type: str) -> int:
     """
-    Pull from table for_loops for a FOR loop so that the /last/ of that loop's blocks is used.
     :param first_el_id:
     :param condition_type: 'for'|'if'
     :return: the last_el_id of the associated control
@@ -2645,6 +2702,7 @@ def get_last_el_id(first_el_id: int, condition_type: str) -> int:
     if condition_type == 'if':
         cursor.execute("""SELECT last_el_id FROM cbt_temp_last_el_ids WHERE first_el_id=?""", (first_el_id,))
     else:
+        # For a FOR loop, pull from for_loops so that the /last/ of that loop's blocks is used.
         cursor.execute("SELECT max(last_el_id) FROM for_loops WHERE control_id=? AND first_el_id<=? AND last_el_id>?",
                        (control_id, first_el_id, first_el_id))
     last_el_id = cursor.fetchone()[0]
@@ -2693,8 +2751,11 @@ def get_condition_type(el_id: int, condition=None) -> str:
                 (most_repeats_in_an_example(assertion_scheme=condition)[0] - most_repeats_in_an_example(assertion=condition)[0]) > 1:
             condition_type = "for"
 
-        elif left is None:  # Then `condition` is compound or hasn't a relational operator (eg, 'True').
-            condition_type = 'if'
+        elif left is None:  # Then `condition` is just an identifier, or...
+            if condition.isidentifier() and not keyword.iskeyword(condition):  # Eg, "true" but not "True".
+                condition_type = "assign"
+            else:           # ...is compound (ANDed, NOTed and/or ORed).
+                condition_type = 'if'
 
         # Math operations not leading to an immediate output substitution are deemed 'if' conditions. (This should be
         # narrower or at least kept after the 'for' qualifications.)
@@ -2709,11 +2770,14 @@ def get_condition_type(el_id: int, condition=None) -> str:
                                     or  # condition's literal is in next line, and that's an output:
                                     (assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
                                     get_line_item(el_id, 1, 'line_type') == 'out')):
-            condition_type = "assign"  # (In future, backtrack to 'if' when this condition_type fails. todo)
+            condition_type = "assign"  # (Backtrack to 'if' when this condition_type fails. todo)
+
+        # else:
+        #     assert True, condition + " unrecognized"
         return condition_type
 
 
-""" requires a mock database:
+""" requires mocking a database:
 if DEBUG and __name__ == '__main__':
     assert "assign" == get_condition_type("myVar==i1")
     assert "assign" == get_condition_type("i2 == myVar")
@@ -2759,7 +2823,7 @@ def get_unconditionals_post_control(first_el_id: int) -> List[str]:
 def insert_cbt_with_iteration(loop_variable: str, last_el_id_of_iteration: int, last_or_not: int, control_id: str,
                               first_el_id: int, iteration: int, local_iteration: int) -> None:
     """
-    Into control_block_traces insert record of given iteration (then update it with what is known of its endpoint).
+    Into control_block_traces, insert record of given iteration (then update it with what is known of its endpoint).
     :database: INSERTs control_block_traces.
     :param loop_variable: '__example__' or not
     :param last_el_id_of_iteration:
@@ -2849,9 +2913,14 @@ def are_preambles_consistent(loop_preamble: List[str], iteration_preamble: List[
 
 
 def get_example_ids(domain="all"):
+    """
+
+    :param domain:
+    :return:
+    """
     if domain == "truthy":  # These examples include assertions aka "truth" and filter out the assertion-less
         # examples that are for testing only.
-        sql = "SELECT example_id FROM examples WHERE el_id_count > 3 ORDER BY example_id"  # 3 due to __example__==x row
+        sql = "SELECT example_id FROM examples WHERE truth_count > 0 ORDER BY example_id"  # 3 due to __example__==x row
     elif domain == "all":
         sql = "SELECT example_id FROM examples ORDER BY example_id"
     else:
@@ -2900,8 +2969,8 @@ def store_fors() -> None:
             total_iterations_of_scheme = cursor.fetchone()[0]
 
         # For each iteration of `scheme`.
-        # The big picture is that we're gathering info (ie, assigning to variables) for db updates,
-        # eg, the insert_cbt_with_iteration() call at end.
+        # The big picture is that we're gathering info (ie, assigning to variables) for db updates, especially the
+        # insert_cbt_with_iteration() call at bottom.
 
         left, operator, variable = assertion_triple(condition)  # Eg: 5, ==, guess_count
         left = sympy.sympify(left)  # Needed for comparison with other Sympy symbols.
@@ -2941,9 +3010,13 @@ def store_fors() -> None:
             local_iteration = 0  # __example__ loop.)
             local_first_el_id = el_id  # This allows >1 for_loops table inserts with a single control_id.
 
-        if iteration_count == total_iterations_of_scheme and loop_increment:
+        if iteration_count == total_iterations_of_scheme:
             # `scheme` is exhausted.
             how_last = 2  # Globally last iteration of scheme.
+
+            if not loop_increment:  # There's only 1 user example.
+                loop_increment = 1
+
             # Store last loop instance.
             cursor.execute("INSERT INTO for_loops (control_id, example_id, first_el_id, increment) VALUES (?,?,?,?)",
                            (control_id, 0, local_first_el_id, str(loop_increment))
@@ -2958,8 +3031,8 @@ def store_fors() -> None:
                 ", the UPDATE rowcount is " + str(row_count) + ", not >=1"
 
             if loop_variable=='__example__':  # The __example__ loop is special.
-                # eg, python = "for __example__ in [2,4,5]:"
-                python = "for __example__ in [" + ','.join(str(id) for id in get_example_ids('truthy')) + "]:"
+                # eg, python = "for __example__ in [0,1,2,3,4,5]:"
+                python = "for __example__ in [" + ','.join(str(id) for id in get_example_ids('all')) + "]:"
             else:
                 # Create the control record. Eg, 'for guess_count in range(0, 6, 1)'
                 extended_to_point = sympy.to_dnf(to_point + loop_increment)  # Due to endpoint's exclusivity.
@@ -3081,7 +3154,7 @@ def unused_is_IF_likely_same(el_id1: int, el_id2: int) -> int:
         return get_unconditionals_post_control(el_id1) == get_unconditionals_post_control(el_id2)
 
 
-def get_control_conflicts(table="cbt_temp_last_el_ids") -> int:  # todo verify while default table is used
+def get_control_conflicts(table="cbt_temp_last_el_ids") -> int:
     """
     Any control A that straddles a control B's last_el_id_maybe, i.e., starts between control B's first_el_id and
     last_el_id_maybe and ends after last_el_id_maybe, invalidates that last_el_id_maybe, because controls can't overlap.
@@ -3117,7 +3190,7 @@ def fill_cbt_with_maybe_rows(first_el_id: int, min_el_id: int, max_el_id: int, d
     # cursor.execute("""SELECT el_id FROM example_lines el LEFT JOIN conditions c USING (el_id)
     # WHERE el.el_id>=? AND el.el_id<=? AND (c.condition_type!='assign' OR c.condition_type IS NULL)""", (first, last))
     cursor.execute("""SELECT el_id FROM example_lines el
-                      NATURAL JOIN examples e WHERE e.el_id_count>3 AND el.el_id>=? AND el.el_id<=? 
+                      NATURAL JOIN examples e WHERE e.truth_count>0 AND el.el_id>=? AND el.el_id<=? 
                       AND el.line_type!='truth'""", (min_el_id, max_el_id))
     """The last_el_id can't be an assignment because that doesn't result in code, which causes a syntax error 
     when there is no code indented under a control. Example:
@@ -3296,7 +3369,7 @@ def add_control_info_to_example_lines() -> None:
 
 def set_for_loops_last_el_id(last_el_id: int, control_id: int, first_el_id: int) -> None:
     """
-    The name says it all: set the given for_loop's last_el_id. (Control_id and first_el_id uniquely identify a FOR loop)
+    The name says it: set the given for_loop's last_el_id. (Control_id and first_el_id uniquely identify a FOR loop)
     :param last_el_id:
     :param control_id:
     :param first_el_id:
@@ -3311,7 +3384,7 @@ def set_for_loops_last_el_id(last_el_id: int, control_id: int, first_el_id: int)
 
 def update_for_loops_table() -> None:
     """
-    The for_loops table is 1:1 with whole loop executions (including those broken off with BREAK).
+    The for_loops table is 1:1 with each loop's unbroken executions (up until BREAK or a full completion).
     Update the for_loops table with last_el_id info (now that the needed info is in the cbt and ctlei tables).
     :return None:
     """
@@ -3348,16 +3421,16 @@ def update_for_loops_table() -> None:
         # Update the last loop's last_el_id as well.
         set_for_loops_last_el_id(prior[2], control_id, first_el_id_of_loop)  # prior["last_el_id"]
 
-        __example__loop = False  # Controls subsequent to the first are not of the __example__ loops.
+        __example__loop = False  # Controls subsequent to the first FOR are not of the __example__ loops.
 
 
 def remove_examples_loop(code_list: List[str]) -> List[str]:
     """
     Exemplar creates a temporary __example__ loop so that it can be solved like a regular FOR loop. This function
     removes it once it is no longer needed.
-    Specifically, copy lines to output (FOR_found 0) until "for __example__ in range(0, " reached (FOR_found 1), then dedent.
+    Specifically, copy lines to output until "for __example__ in [, " reached (FOR_found=True), then dedent.
     :param code_list: python code
-    :return: python code without the __example__ loop
+    :return: python code without the __example__ loop top.
     """
     code_list_out = []
     FOR_found = False
@@ -3392,13 +3465,13 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
     # (for cbt_id's whose last_el_id is not null, there should be only one cbt record (and its last_el_id_maybe
     # should be null)).
 
-    # With the pre-determinable databased, gather all the last_el_id (block scope ending) possibilities to iterate
+    # With the pre-determinable in the ctlei, gather all the last_el_id (block scope ending) possibilities to iterate
     # through them.
     cbt_ids, for_maybes = get_last_el_id_maybes()  # ********* get_last_el_id_maybes of for-loops ********
     if not for_maybes:
         for_maybes = [()]  # To force 1 iteration of loop below despite having 0 for-loop related last_el_id_maybe's.
 
-    for for_maybes_row in for_maybes:  # Each iteration creates a cbt_temp_last_el_ids table with endings for consideration.
+    for for_maybes_row in for_maybes:  # Each iteration creates a ctlei table with endings for consideration.
 
         # (No longer forking because PyCharm will only show the original process and worse, the database
         # becomes trial-specific. That makes a simple loop with database ROLLBACK a better option. 4/10/19)
@@ -3423,10 +3496,10 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
                 cursor.execute("""INSERT INTO cbt_temp_last_el_ids (control_id, cbt_id, example_id, first_el_id, last_el_id) 
                 VALUES (?,?,?,?,?)""", (cbt_ids[i][0], cbt_ids[i][1], cbt_ids[i][2], cbt_ids[i][3], for_maybes_row[i]))
                 #               cbt.control_id, cbt.cbt_id,  cbt.example_id
-        # At this point there are endpoints postulated for all for-loop iterations. Stuff them into:
+        # At this point, there are endpoints postulated for all for-loop iterations. Stuff them into:
         update_for_loops_table()
         rows = get_control_conflicts("for_loops")  # Any overlapping for-loops?
-        if rows:  # Then this for_maybes_row is untenable; continue to next.
+        if rows:  # Then this for_maybes_row is untenable, so rollback and continue to next.
             for row in rows:
                 print("Conflict row fields control_id, example_id, first_el_id, last_el_id:", end=" ")
                 for field in row:
@@ -3438,9 +3511,9 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
         # ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF ** IF **
         # Having (theorized) endpoints for the for-loops helps greatly in constraining the possible IF endpoints.
         store_ifs()  # Put IF info into controls and cbt tables, including all last_el_id_maybe possibilities.
-        # The cbt table is now in its final form for this trial. Only finishing the ctlei table remains.
+        # The cbt table is now in its final form for this trial. In db prep, only finishing the ctlei table remains.
 
-        # # First, add the known IF endings to the cbt_temp_last_el_ids (ctlei) table.
+        # First, add the known IF endings to the cbt_temp_last_el_ids (ctlei) table.
         cursor.execute("""INSERT INTO cbt_temp_last_el_ids
                             -- old: Eg, for guess4, (for0:0_5, 130), (for0:0_135, 355), (for0:1_40, 65), etc.
                             SELECT cbt_id, example_id, first_el_id, control_id, last_el_id FROM control_block_traces
@@ -3476,12 +3549,12 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
             # Table cbt_temp_last_el_ids is done.
 
             # A check to optimize for time:
-            if get_control_conflicts():  # (we don't check 'if's alone because adding 'while' controls is a todo.)
+            if get_control_conflicts():  # (Adding 'while' controls is a todo.)
                 cursor.execute("ROLLBACK TO if_endings_trial")
-                continue  # to next if_maybes_row.
+                continue  # Conflict found, so onto next if_maybes_row.
 
             add_control_info_to_example_lines()  # Fill in control_id and controller columns.
-            if DEBUG:  # Good to dump these as PyCharm's Database tool will only show data as of their last commit.
+            if DEBUG:
                 print(dump_table("control_block_traces"))
             print(dump_table("controls"))
             print(dump_table("for_loops"))
@@ -3492,15 +3565,8 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
             function_name = file_arg[0:-5]  # Remove ".exem" extension.
             signature = "def " + function_name + '(' + formal_params() + "):\n"
 
-            #                              ***********************
-            code_list = generate_code()  # **** GENERATE CODE ****
-
-            # When generating code we use only the examples with assertions while test generation uses all examples.
-            # We now replace the __example__ loop to reflect this.
-            truthy_range = "    for __example__ in [" + ','.join(str(id) for id in get_example_ids("truthy")) + "]:"
-            example_loop = code_list.index(truthy_range)  # 0 for eg, "    for __example__ in [1,2,3,4]:"
-            all_range = "    for __example__ in [" + ','.join(str(id) for id in get_example_ids()) + "]:"
-            code_list[example_loop] = all_range
+            #                                           ***********************
+            code_list = generate_code(function_name)  # **** GENERATE CODE ****
 
             code0 = signature + '\n'.join(code_list)  # Includes __example__ loop.
             code = signature + '\n'.join(remove_examples_loop(code_list))  # Rewrite Stage 1 as Stage 2 code,
@@ -3577,7 +3643,7 @@ def reverse_trace(file: str) -> str:
     Exemplar's top level function attempts to reverse engineer a function from a "trace".
     Pull input/output/assertion lines from the .exem, work up their implications in database, then generate_code() and
     generate_tests() until all tests pass.
-    :database: Indirectly, all tables are involved.
+    :database: All tables are indirectly involved.
     :param file: An .exem file of user (ie, code trace) examples
     :return code: A \n-delimited string
     """

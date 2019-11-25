@@ -53,7 +53,7 @@ class TestGuess4(unittest.TestCase):
 
     def test_guess427(self):
         global global_input
-        global_input = ['Albert', '4', '10', '2', '4']  # From an example of the .exem
+        global_input = ['Albert', '4', '10', '2', '4']  # From the .exem
         guess4()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''>Hello! What is your name?
 <Albert
@@ -73,7 +73,7 @@ class TestGuess4(unittest.TestCase):
 
     def test_guess472(self):
         global global_input
-        global_input = ['John', '3', '11', '1', '2', '10', '9', '8']  # From an example of the .exem
+        global_input = ['John', '3', '11', '1', '2', '10', '9', '8']  # From the .exem
         guess4()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''>Hello! What is your name?
 <John

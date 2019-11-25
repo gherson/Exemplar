@@ -1,0 +1,32 @@
+"""
+
+# Unneeded example, so used below only as a stub:
+<0
+weekday==i1
+<1
+vacation==i1
+weekday==0 or vacation==1
+>1
+
+Created 2019-11-23, based on https://codingbat.com/prob/p173401
+"""
+
+<0
+weekday
+<0
+vacation
+weekday==0 or vacation==1  # We use this condition (because it works) even though vacation is False for this example.
+>1
+
+# Above is the money condition but it is also necessary to show all desired output, thus this sleep-in False example.
+<1
+weekday
+<0
+vacation
+True
+>0  # Sleep-in false.
+
+# A stub included just for its test.
+<0
+<1
+>1

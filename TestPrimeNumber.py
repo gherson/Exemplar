@@ -47,7 +47,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number3(self):
         global global_input
-        global_input = ['1008']  # From an example of the .exem
+        global_input = ['1008']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<1008
 >False
@@ -55,7 +55,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number8(self):
         global global_input
-        global_input = ['0']  # From an example of the .exem
+        global_input = ['0']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<0
 >False
@@ -63,7 +63,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number13(self):
         global global_input
-        global_input = ['1']  # From an example of the .exem
+        global_input = ['1']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<1
 >False
@@ -71,7 +71,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number16(self):
         global global_input
-        global_input = ['3']  # From an example of the .exem
+        global_input = ['3']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<3
 >True
@@ -79,7 +79,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number23(self):
         global global_input
-        global_input = ['4']  # From an example of the .exem
+        global_input = ['4']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<4
 >False
@@ -87,7 +87,7 @@ class TestPrimeNumber(unittest.TestCase):
 
     def test_prime_number32(self):
         global global_input
-        global_input = ['5']  # From an example of the .exem
+        global_input = ['5']  # From the .exem
         prime_number()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<5
 >True

@@ -5,6 +5,7 @@ import exemplar
 class TestExemplar(unittest.TestCase):
     """
     These unit test Exemplar by spot-checking exemplary solutions. (Class TestExemplarIntegration is outdated. 2019-11-21)
+    Note that (.py, .tmp) files are written for passing and not failing tests.
     """
 
     @classmethod
