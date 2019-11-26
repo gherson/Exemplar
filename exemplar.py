@@ -111,7 +111,7 @@ def positions_of_given_chars_outside_of_quotations(string: str, characters: str)
     Find and return the positions of the given characters, unescaped and outside of embedded strings, in the given string.
     :database: not involved.
     :param string:
-    :param characters: chars to search for.
+    :param characters: chars (not quotes) to search for
     :return: list of `characters` positions, [] if no `characters` are found
     """
     positions = []
@@ -140,7 +140,8 @@ def positions_of_given_chars_outside_of_quotations(string: str, characters: str)
 
 
 if DEBUG and __name__ == '__main__':
-    assert [47, 51, 53, 54], positions_of_given_chars_outside_of_quotations("'# These ttt will be ignored' including \this but not tthese", 't')
+    assert [47, 51, 53, 54], \
+        positions_of_given_chars_outside_of_quotations("'# These ttt will be ignored' including \this but not tthese 4", 't')
 
 
 def denude(line: str) -> str:
@@ -674,7 +675,7 @@ def unused_build_reason_evals() -> None:
     # All step 0 inputs not involved in looping.
     cursor.execute("SELECT DISTINCT line FROM example_lines WHERE line_type = 'in' AND loop_likely = 0") # AND step_id = 5")
     all_inputs = cursor.fetchall()
-        
+
     locals_dict = locals()  # Used in our exec() calls.
 
     if DEBUG:
@@ -698,9 +699,9 @@ def unused_build_reason_evals() -> None:
                                 reason.example_id = inp.example_id and reason.line = ? AND inp.line = ? AND 
                                 reason.loop_likely = 0 and inp.loop_likely = 0''', (a_reason, an_inp,))
             # These also should have been illustrated with an example:              ^^^^^^^^^^^^^^^^
-            if cursor.fetchone():  
+            if cursor.fetchone():
                 # Yes, the current an_inp value shares an example with a_reason.
-                reason_explains_io = 1  
+                reason_explains_io = 1
             else:
                 reason_explains_io = 0
 
@@ -1478,8 +1479,9 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     # todo hard coded values should only be replaced if the variable's value matches the
     # output value without failing a unit test. So generate-and-test this or postpone it until
     # unit tests are passing so this optimization can be tested before made. 3/7/19
+    Since this is for output, only a string (and not numeric) interpretation of `line` is possible.
     :param prior_values:
-    :param line:
+    :param line:  Eg, "'It is good to meet you, Albert.'"
     :return:
     """
     for variable_name in prior_values:  # Eg, prior_values is {name: Albert, guess: 5}
@@ -1488,14 +1490,14 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
         #  "r'\bfoo\b' matches 'foo', 'foo.', '(foo)', 'bar foo baz' but not 'foobar' or 'foo3'." -- bit.ly/2EWdcBL
         match = re.search(r'\b' + str(prior_values[variable_name]) + r'\b', line)
         if match:  # position > -1:
-            if match.start() > 0:
+            if match.start() > 1:  # (1 not 0 to skip starting quote.)
                 new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
             else:
                 new_line = "str(" + variable_name + ')'
 
             # Add remainder of line, if any.
             remainder_of_line = line[match.start() + len(match.group(0)):]
-            if remainder_of_line:
+            if len(remainder_of_line) > 1:  # len() of 1 is just a quote.
                 new_line += " + '" + remainder_of_line
             line = new_line
     return line
@@ -2038,22 +2040,14 @@ def generate_code(function_name: str) -> List[str]:
         elif line_type == 'out':  # An OUTPUT ie a print().
             # Replace any constants in 'line' that maybe should instead be soft-coded (as suggested by a match on
             # prior input value or equality assertion).
-            original_line = line
+            # Output, like Input, has only a String interpretation.
+            line = "'" + line + "'"  # Better to do this before...
+            original_line = line     # ...this assignment so `line` can equal original_line below.
             line = replace_hard_code(prior_values, line)
 
-            if (original_line == line or "' + str(" in line) \
-                    and type_string(line) == 'str':  # Quotes needed.
-                print_line = (indents * "    ") + "print('" + line + "')"
-                print_original_line = (indents * "    ") + "print('" + original_line + "')"
-                return_text = (indents * "    ") + "#return '"
-            else:
-                print_line = (indents * "    ") + "print(" + line + ')'
-                print_original_line = (indents * "    ") + "print(" + original_line + ')'
-                return_text = (indents * "    ") + "#return "
-
-            if code_key < len(code) and code[code_key] == print_original_line:  # The sanity check works w/o replacement
-                line = original_line  # "If it ain't broke, don't fix it."
-                print_line = print_original_line
+            print_line = (indents * "    ") + "print(" + line + ')'
+            print_original_line = (indents * "    ") + "print(" + original_line + ")"
+            return_text = (indents * "    ") + "#return "
 
             if add_io_to_code:
                 if original_line != line:  # Then ask the user to resolve ambiguity (and save answer).
@@ -2067,9 +2061,10 @@ def generate_code(function_name: str) -> List[str]:
                 # (todo) and its the last output and its datatype is consistent across cohort.
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
                     code.insert(code_key, return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
-                    code_key += 1  # Extra increment to get past proto-return statement.
+                    code_key += 1  # Extra index increment to get past #return statement.
+
             else:  # Sanity check
-                assert print_line == code[code_key], "'" + print_line + "'  *is not*  '" + code[code_key] + "'"
+                assert code[code_key] in print_line + '|' + print_original_line
                 code_key += 1
                 if code_key < len(code) and code[code_key].find(return_text) > -1:
                     code_key += 1
@@ -2741,7 +2736,7 @@ def get_condition_type(el_id: int, condition=None) -> str:
         left, operator, right = assertion_triple(condition)
 
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
-        # **** FOR_SUSPECTS ****
+        # **** FOR ****
         if right == "__example__":  # Special case: repeats only inter-example because it delimits them.
             condition_type = "for"
         # Eg, 3 == guess_count
@@ -2751,19 +2746,21 @@ def get_condition_type(el_id: int, condition=None) -> str:
                 (most_repeats_in_an_example(assertion_scheme=condition)[0] - most_repeats_in_an_example(assertion=condition)[0]) > 1:
             condition_type = "for"
 
+        # **** IF & ASSIGN ****
         elif left is None:  # Then `condition` is just an identifier, or...
-            if condition.isidentifier() and not keyword.iskeyword(condition):  # Eg, "true" but not "True".
+            if condition.isidentifier() and not keyword.iskeyword(condition):  # Eg, just a "true" (but not "True").
                 condition_type = "assign"
             else:           # ...is compound (ANDed, NOTed and/or ORed).
                 condition_type = 'if'
 
         # Math operations not leading to an immediate output substitution are deemed 'if' conditions. (This should be
-        # narrower or at least kept after the 'for' qualifications.)
+        # narrower or at least kept after the 'for' qualifications.  ?)
         elif ('%' in left or '*' in left or '+' in left or '/' in left or '-' in left) and not \
             (assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
             get_line_item(el_id, 1, 'line_type') == 'out'):
             condition_type = 'if'
 
+        # To be recognized as assignment, follow an input or have the literal value match the next line's output.
         # **** ASSIGN ***** Eg, 'myVar==i1', 'i2 == myVar', '3==count + 1' (for swapping out '3' in next line.)
         #                                                  previous line is input:
         elif "==" in condition and (('i1' in condition and get_line_item(el_id, -1, 'line_type') == 'in')

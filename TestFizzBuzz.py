@@ -28,13 +28,13 @@ def fizz_buzz():
     i1 = int(input("i1:"))  # Eg, 15
     if i1%3==0 and i1%5==0:
         print('FizzBuzz')
-        return 'FizzBuzz'
+        return 'FizzBuzz' 
     elif i1%3==0:
         print('Fizz')
-        return 'Fizz'
+        return 'Fizz' 
     elif i1%5==0:
         print('Buzz')
-        return 'Buzz'
+        return 'Buzz' 
     else:  # == elif True:
         print(str(i1))
         return str(i1) 

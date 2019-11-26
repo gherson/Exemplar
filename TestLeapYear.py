@@ -27,14 +27,14 @@ def input(variable_name: str = "") -> str:
 def leap_year():
     i1 = int(input("i1:"))  # Eg, 399
     if i1%400==0:
-        print(True)
-        return True 
+        print('True')
+        return 'True' 
     elif i1%4==0 and i1%100!=0:
-        print(True)
-        return True 
+        print('True')
+        return 'True' 
     else:  # == elif True:
-        print(False)
-        return False 
+        print('False')
+        return 'False' 
 
 
 class TestLeapYear(unittest.TestCase):

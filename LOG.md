@@ -33,7 +33,9 @@ guess2.exem, and leap_year.exem. 2018-03-25
 Next: "Last minute" improvements before creating an official screencast: 
 Will add arguments to the generated function if easy.
 
-* 2019-11-25: 8:40 - 
+* 2019-11-26: 8:10 - 
+* 2019-11-25: sum_double.exem has me improve parsing, and studying SymPy parsing tools again. Unfinished work to improve
+calculation. 10.5h 
 * 2019-11-24: Got sleep_in.exem and monkey_trouble.exem working. Inputs can now be named without asserting the name 
 equal to i1. Now asking the user (and saving answer) before making a variable substitution in an output line. 11.25h
 * 2019-11-23: Continued to troubleshoot assertion-less examples failing when in the middle of other examples. Now 

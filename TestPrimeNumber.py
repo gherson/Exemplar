@@ -27,14 +27,14 @@ def input(variable_name: str = "") -> str:
 def prime_number():
     inp = int(input("inp:"))  # Eg, 0
     if inp<=1:
-        print(False)
-        return False 
+        print('False')
+        return 'False' 
     elif inp>1:
         for j in range(2, 6, 1):
             if j==inp:
-                print(True)
+                print('True')
             elif inp%j==0:
-                print(False)
+                print('False')
                 break
 
 

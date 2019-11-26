@@ -24,48 +24,48 @@ def input(variable_name: str = "") -> str:
 
 
 # The generated function under Stage 2 (i.e., a test per example) testing.
-def sleep_in():
-    weekday = int(input("weekday:"))  # Eg, 0
-    vacation = int(input("vacation:"))  # Eg, 0
-    if weekday==0 or vacation==1:
-        print('1')
-        return '1' 
-    else:  # == elif True:
-        print('0')
+def sum_double():
+    int1 = int(input("int1:"))  # Eg, 1
+    int2 = int(input("int2:"))  # Eg, 2
+    print('Sum is ' + str(int1+int2))
+    if int1==int2:
+        print(str(4*2))
+        return str(4*2) 
 
 
-class TestSleepIn(unittest.TestCase):
+class TestSumDouble(unittest.TestCase):
 
     def setUp(self):
         global actual_io_trace
         actual_io_trace = ''
         self.maxDiff = None
 
-    def test_sleep_in7(self):
+    def test_sum_double7(self):
         global global_input
-        global_input = ['0', '0']  # From the .exem
-        sleep_in()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''<0
-<0
->1
-''', actual_io_trace)
-
-    def test_sleep_in14(self):
-        global global_input
-        global_input = ['1', '0']  # From the .exem
-        sleep_in()  # The function under test is used to write to actual_io_trace.
+        global_input = ['1', '2']  # From the .exem
+        sum_double()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<1
-<0
->0
+<2
+>Sum is 3
 ''', actual_io_trace)
 
-    def test_sleep_in17(self):
+    def test_sum_double14(self):
         global global_input
-        global_input = ['0', '1']  # From the .exem
-        sleep_in()  # The function under test is used to write to actual_io_trace.
-        self.assertEqual('''<0
-<1
->1
+        global_input = ['3', '2']  # From the .exem
+        sum_double()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<3
+<2
+>Sum is 5
+''', actual_io_trace)
+
+    def test_sum_double23(self):
+        global global_input
+        global_input = ['2', '2']  # From the .exem
+        sum_double()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<2
+<2
+>Sum is 4
+>8
 ''', actual_io_trace)
 
 

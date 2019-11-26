@@ -52,7 +52,31 @@ class TestExemplar(unittest.TestCase):
     print('Hello! What is your name?')""" in code
         assert "# The generated function under Stage 2" in test_file_contents
 
+    def test_sleep_in(self):
+        code, test_file_contents = exemplar.reverse_trace("sleep_in.exem")
+        assert """def sleep_in():
+    weekday = int(input("weekday:"))  # Eg, 0""" in code
+        assert "# The generated function under Stage 2" in test_file_contents
+
+    def test_(self):
+        code, test_file_contents = exemplar.reverse_trace("monkey_trouble.exem")
+        assert """def monkey_trouble():
+    a_smile = int(input("a_smile:"))  # Eg, 1""" in code  # First 2 lines of generated function.
+        assert "# The generated function under Stage 2" in test_file_contents
+
+    def test_(self):
+        code, test_file_contents = exemplar.reverse_trace("sum_double.exem")
+        assert """def sum_double():
+    int1 = int(input("int1:"))  # Eg, 1""" in code  # First 2 lines of generated function.
+        assert "# The generated function under Stage 2" in test_file_contents
+
     """
+    Template:
+    def test_(self):
+        code, test_file_contents = exemplar.reverse_trace(".exem")
+        assert """""" in code  # First 2 lines of generated function.
+        assert "# The generated function under Stage 2" in test_file_contents
+
     def test_denude1(self):
         expected = "code"
         code = exemplar.denude(' code  ')

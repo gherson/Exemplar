@@ -1,0 +1,33 @@
+"""
+Given two int values, return their sum. Unless the two values are the same, then return double their sum.
+
+sum_double(1, 2) → 3
+sum_double(3, 2) → 5
+sum_double(2, 2) → 8
+
+-- https://codingbat.com/prob/p141905
+"""
+
+<1
+int1
+<2
+int2
+int1 + int2 == 3
+>Sum is 3
+
+<3
+int1
+<2
+int2
+int1 + int2 == 5
+>Sum is 5
+
+<2
+int1
+<2
+int2
+int1 + int2 == 4
+>Sum is 4
+int1 == int2
+4 * 2 == 8  # This is recognized as assignment and not an IF because 8 is immediately output:
+>8  # But unfortunately, E doesn't yet recognize 4 as possibly representing int1 + int2, and only offers 4 *2 here.
