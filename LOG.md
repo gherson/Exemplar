@@ -33,7 +33,9 @@ guess2.exem, and leap_year.exem. 2018-03-25
 Next: "Last minute" improvements before creating an official screencast: 
 Will add arguments to the generated function if easy.
 
-* 2019-11-26: 8:10 - 
+* 2019-11-27: E allows user to choose multiple text transformations for the same line. All demonstration problems 
+working except sum_double's is incomplete. 9.5h 
+* 2019-11-26: Code commit. Increasing options for user to choose transformations. 6.75h
 * 2019-11-25: sum_double.exem has me improve parsing, and studying SymPy parsing tools again. Unfinished work to improve
 calculation. 10.5h 
 * 2019-11-24: Got sleep_in.exem and monkey_trouble.exem working. Inputs can now be named without asserting the name 

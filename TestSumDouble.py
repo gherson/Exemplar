@@ -27,10 +27,11 @@ def input(variable_name: str = "") -> str:
 def sum_double():
     int1 = int(input("int1:"))  # Eg, 1
     int2 = int(input("int2:"))  # Eg, 2
-    print('Sum is ' + str(int1+int2))
+    print(str(int1+int2))
+    # return str(int1+int2) 
     if int1==int2:
-        print(str(4*2))
-        return str(4*2) 
+        print('(' + str(int1+int2) + ') * 2')
+        return '(' + str(int1+int2) + ') * 2' 
 
 
 class TestSumDouble(unittest.TestCase):
@@ -46,7 +47,7 @@ class TestSumDouble(unittest.TestCase):
         sum_double()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<1
 <2
->Sum is 3
+>3
 ''', actual_io_trace)
 
     def test_sum_double14(self):
@@ -55,17 +56,17 @@ class TestSumDouble(unittest.TestCase):
         sum_double()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<3
 <2
->Sum is 5
+>5
 ''', actual_io_trace)
 
-    def test_sum_double23(self):
+    def test_sum_double22(self):
         global global_input
         global_input = ['2', '2']  # From the .exem
         sum_double()  # The function under test is used to write to actual_io_trace.
         self.assertEqual('''<2
 <2
->Sum is 4
->8
+>4
+>(4) * 2
 ''', actual_io_trace)
 
 

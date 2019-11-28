@@ -32,6 +32,7 @@ def sleep_in():
         return '1' 
     else:  # == elif True:
         print('0')
+        return '0' 
 
 
 class TestSleepIn(unittest.TestCase):

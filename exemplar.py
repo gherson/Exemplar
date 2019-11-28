@@ -12,6 +12,7 @@ import sympy  # See SymPy LICENSE.txt
 # from sympy.parsing.sympy_parser import *
 from threading import Lock
 import keyword
+from collections import OrderedDict
 
 DEBUG = True  # True turns on testing and more feedback.
 DEBUG_DB = False  # True sets database testing to always on.
@@ -1471,7 +1472,7 @@ def type_string(value: str) -> str:
     return 'int'
 
 
-def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
+def replace_hard_code(prior_values: OrderedDict, line: str, reapply: int = False) -> List[str]:
     """
     For output, replace any word in 'line' that matches a prior input value with that value's variable name.
     :database: not involved. 'It is good to meet you, Albert' => It is good to meet you, ' + v0
@@ -1482,25 +1483,41 @@ def replace_hard_code(prior_values: Dict[str, Any], line: str) -> str:
     Since this is for output, only a string (and not numeric) interpretation of `line` is possible.
     :param prior_values:
     :param line:  Eg, "'It is good to meet you, Albert.'"
+    :param reapply: Whether to apply each prior_values transformation to the same `line` variable.
     :return:
     """
-    for variable_name in prior_values:  # Eg, prior_values is {name: Albert, guess: 5}
-        if variable_name == '__example__':  # Skip that special variable.
+    new_lines = list()
+    matched_priors = {'': ''}  # This entry allows the user to choose to do nothing.
+    for variable_name in prior_values:  # Eg, prior_values is {'name': 'Albert', 'guess': 5, 'int1+int2': 4}
+        if not variable_name or variable_name == '__example__':  # Skip these.
             continue
-        #  "r'\bfoo\b' matches 'foo', 'foo.', '(foo)', 'bar foo baz' but not 'foobar' or 'foo3'." -- bit.ly/2EWdcBL
+        # Find any matches on the str()-wrapped *values* (eg, 8) of prior_values that are in `line` (eg, '8').
+        #  "r'\bfoo\b' matches 'foo', 'foo.', '(foo)', 'bar foo baz' but not 'foobar' or 'foo3'." -- docs bit.ly/2EWdcBL
         match = re.search(r'\b' + str(prior_values[variable_name]) + r'\b', line)
-        if match:  # position > -1:
-            if match.start() > 1:  # (1 not 0 to skip starting quote.)
-                new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # It is good to meet you, ' + v0
-            else:
+        if match:  # Then match.start() has the index of `line` that is matching an str(*value*) of prior_values.
+            matched_priors[variable_name] = prior_values[variable_name]
+            if match.start() > 1:  # (1 not 0 to skip starting quote.) Now str()-wrap the (prior_values) key, eg, '4*2'.
+                new_line = line[0:match.start()] + "' + str(" + variable_name + ')'  # Eg, 'Hello ' + str(v0)
+                maths = line[0:match.start()] + "' + str(" + variable_name
+            else:  # Then the match starts at character 0 or 1 of `line`.
                 new_line = "str(" + variable_name + ')'
+                maths = "str(" + variable_name
 
-            # Add remainder of line, if any.
+            # Append remainder of line, if any.
             remainder_of_line = line[match.start() + len(match.group(0)):]
-            if len(remainder_of_line) > 1:  # len() of 1 is just a quote.
+            if len(remainder_of_line) > 1:  # (len() of 1 is just a quote.)
                 new_line += " + '" + remainder_of_line
-            line = new_line
-    return line
+                maths += remainder_of_line + ')'
+            # new_line += "  # " + maths  # Experiment
+
+            if not reapply:
+                new_lines.append(new_line)
+            else:
+                line = new_line
+    if not reapply:  # Then return all the transformation choices.
+        return matched_priors, new_lines
+    else:  # Then return the `line` that may have seen multiple transformations.
+        return matched_priors, [line]
 
 
 def get_one(field: str, table: str, filter: str) -> Any:
@@ -1913,42 +1930,83 @@ def get_if_key(line: str, IF_dict: List[Tuple[str, int, List[Dict[str, Any]]]]):
     return if_key if found else max(IF_dict)
 
 
-def get_answer(choices: List[str], function_name: str) -> int:
+def choices_to_list(choices: List[str], answer: int) -> List[int]:
+    """
+    Create and return the list of indices into `choices` represented by `answer`, by essentially translating `answer`
+    back into binary and each 'on' bit used to put one choice onto the selections list.
+    :param choices: self-explanatory
+    :param answer: a binary value translated to decimal
+    :return: selections
+    """
+    # Consider 0, 1, 2, 3,  4,  5 to be the possible selections.
+    # answer = 10  # 1, 2, 4, 8, 16, 32 are possible answers, as well as sums such as 3, 6, 10, 31+32 etc.
+    # choices = ["a", "b", "c", "d", "e", "f"]  # Example list of choices.
+    selections = list()
+    for i in range(len(choices), -1, -1):
+        if answer >= 2 ** i:
+            selections.append(i)
+            answer -= 2 ** i
+    return selections
+    # assert selections == [3, 1], "selections: " + str(selections) todo Turn these into unit tests
+    # Confirmed:
+    # answer    selections
+    # 16        [4]
+    # 1         [0]
+    # 63        [5, 4, 3, 2, 1, 0]
+    # 10        [3, 1]
+
+
+def get_answer(question: str, choices: List[str], function_name: str) -> List[int]:
     """
     Resolve an ambiguity by first checking `function_name`.qa then asking the user if an answer is not found.
-    :param choices: a question element is followed by choices
+    :param question:
+    :param choices:
     :param function_name: serves as the filename to create, with '.qa' extension
-    :return:
+    :return: user's list of transformation choices
     """
+    # Build question by adding the choices.
+    question = '\n' + question + '\n'
     i = 0
     for choice in choices:
-        if not i:  # First element of `choices` is the start of `question`, eg, "After line 'x', which do you want?"
-            question = choice + '\n'
-        else:
-            question += str(i) + ') ' + choice + '\n'
+        question += str(2**i) + ') ' + choice + '\n'  # Eg, 2**0 ==> '1) ', then '2) ', '4) ', '8) ', ...
         i += 1
 
-    # See if question already has an answer. (File used instead of database for ease of user access.)
+    # See if question already has an answer filed. (File used instead of database for ease of user access.)
     qa_filename = function_name + '.qa'
-    text = from_file(qa_filename, must_exist=False)
-    if text is None:
-        text = list()
+    text_from_file = from_file(qa_filename, must_exist=False)
+    if text_from_file is None:
+        text_from_file = list()
         print("File", qa_filename, "not found; will be created next.")
     else:
-        try:
-            index = text.index(choices[0] + '\n')
-            return text[index + 1]  # question.count('\n')]  # ******** RETURNING FOUND ANSWER *********
-        except ValueError as e:
+        str_index = ''.join(text_from_file).find(question[1:])  # Where is question in text_from_file?
+        if str_index > -1:
+            # Index the end of question in text_from_file.
+            str_text_from_file = ''.join(text_from_file)
+            # Count the number of \n's in the text from the top of the .qa file to the bottom of the found question.
+            list_index = str_text_from_file[0:(str_index + len(question.strip()))].count('\n')  # todo nail down w/unit tests
+            # Each question is followed by a user's (integer) answer.
+            answer_from_file = text_from_file[list_index + 1].split()[0]  # First word of line following match. Eg, '2'.
+            assert answer_from_file.isdigit(), answer_from_file + " should be an integer."
+            return choices_to_list(choices, int(answer_from_file))  # ******** RETURNING FOUND ANSWER *********
+        else:
             print("Needed question and answer not yet extant in", qa_filename)
 
-    answer = 0
-    while type(answer) is not int or not 0 < answer < i:  # Until valid user response.
+    answer = 0  # not 0 < answer < i
+    while type(answer) is not int or not 0 < answer < (2**(len(choices) - 1) * 2):  # Eg, 0 < answer < 64 when len(choices)==6.
         answer = input(question)
         if answer.isdigit():
             answer = int(answer)
     # Save question and user's answer to .qa file.
-    to_file(qa_filename, choices[0] + '\n' + str(answer) + "\n\n" + "".join(text))
-    return answer
+    to_file(qa_filename, question[1:] + str(answer) + "\n\n" + "".join(text_from_file))
+    return choices_to_list(choices, answer)
+
+
+def filter_priors(matched_prior_values: OrderedDict, selections: List[int]):
+    filtered_priors = OrderedDict()
+    for selection in selections:  # Not even OrderedDict's are directly indexable, thus the below list() hack.
+        key = list(matched_prior_values.keys())[selection]
+        filtered_priors[key] = matched_prior_values[key]
+    return filtered_priors
 
 
 def generate_code(function_name: str) -> List[str]:
@@ -1994,7 +2052,7 @@ def generate_code(function_name: str) -> List[str]:
 
         if example_id != prior_row[1]:  # Then we're on a new user example.
             assert get_scheme(condition) == "_==__example__", get_scheme(condition)
-            prior_values = {}  # Clear out (or initialize).
+            prior_values = OrderedDict()  # Clear out (or initialize).
             code_key = 0  # Start comparing anew, at the top of `code`.
         # else:  # Default is to advance code_key with each `line`.
         #     code_key += 1
@@ -2041,30 +2099,42 @@ def generate_code(function_name: str) -> List[str]:
             # Replace any constants in 'line' that maybe should instead be soft-coded (as suggested by a match on
             # prior input value or equality assertion).
             # Output, like Input, has only a String interpretation.
-            line = "'" + line + "'"  # Better to do this before...
-            original_line = line     # ...this assignment so `line` can equal original_line below.
-            line = replace_hard_code(prior_values, line)
+            line = "'" + line + "'"  # Quotes added because `line` gets written as print()'s argument.
+            matched_priors, choices = replace_hard_code(prior_values, line)
 
-            print_line = (indents * "    ") + "print(" + line + ')'
-            print_original_line = (indents * "    ") + "print(" + original_line + ")"
-            return_text = (indents * "    ") + "#return "
+            print_wrapped_choices = ["print(" + line + ')']  # Prepend the original `line` as the choice to do nothing.
+            for choice in choices:
+                print_wrapped_choices.append("print(" + choice + ')')
+            choices = print_wrapped_choices
 
             if add_io_to_code:
-                if original_line != line:  # Then ask the user to resolve ambiguity (and save answer).
-                    choices = "After line '" + code[code_key-1] + "', which do you want?", \
-                              print_original_line, print_line
-                    print_line = choices[int(get_answer(choices, function_name))]
+                if len(choices) > 1:  # Then ask the user to resolve ambiguity (and save answer).
+                    question = "Immediately after lines \n" + '\n'.join(code[code_key - min(4, code_key):code_key]) + \
+                               "\nwhich transformation? "
+                    if len(choices) > 2:
+                        question = question[0:-2] + "s? Please enter the sum of your selected choices: "
+                    #answer = choices[int(get_answer(question + choices, function_name))]
+                    selections = get_answer(question, choices, function_name)
+                    priors_to_apply = filter_priors(matched_priors, selections)
+                    # Apply all the user's transformation choices to `line`.
+                    _, answer = replace_hard_code(priors_to_apply, line, reapply=True)
+                    answer = answer[0]
+                else:
+                    answer = line
+                print_line = (indents * "    ") + "print(" + answer + ')'
 
                 code.insert(code_key, print_line)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
-                code_key += 1
+                code_key += 1  # Next line.
                 # Add return if `line` is not a string > 10 chars and it's not in a loop (__example__ loop excepted)
                 # (todo) and its the last output and its datatype is consistent across cohort.
+                return_text = (indents * "    ") + "# return "
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
-                    code.insert(code_key, return_text + line + return_text[-1])  # (Uncommented in Stage 2.)
-                    code_key += 1  # Extra index increment to get past #return statement.
+                    code.insert(code_key, return_text + answer + return_text[-1])  # (Uncommented in Stage 2.)
+                    code_key += 1  # Extra index increment to get past # return statement.
 
             else:  # Sanity check
-                assert code[code_key] in print_line + '|' + print_original_line
+                print_argument = code[code_key].lstrip()[6:-1]  # Eg, print('Sum is ' + str(int1+int2)) => 'Sum is ' + str(int1+int2)
+                assert print_argument in '|'.join(choices), print_argument + " not found in " + '|'.join(choices)
                 code_key += 1
                 if code_key < len(code) and code[code_key].find(return_text) > -1:
                     code_key += 1
@@ -3567,7 +3637,7 @@ def get_function(file_arg: str) -> Tuple[str, str, int]:
 
             code0 = signature + '\n'.join(code_list)  # Includes __example__ loop.
             code = signature + '\n'.join(remove_examples_loop(code_list))  # Rewrite Stage 1 as Stage 2 code,
-            code = code.replace("        #return ", "        return ")  # and uncomment its return's.
+            code = code.replace("        # return ", "        return ")  # and uncomment its return's.
             function_count += 1
             if DEBUG:
                 print("\nStage 1 function", str(function_count) + ":\n" + code0, "\n")  # Print generated function.

@@ -28,9 +28,11 @@ def monkey_trouble():
     a_smile = int(input("a_smile:"))  # Eg, 1
     b_smile = int(input("b_smile:"))  # Eg, 1
     if (a_smile and b_smile) or (not a_smile and not b_smile):
-        print(1)
+        print('1')
+        return '1' 
     else:  # == elif True:
-        print(0)
+        print('0')
+        return '0' 
 
 
 class TestMonkeyTrouble(unittest.TestCase):

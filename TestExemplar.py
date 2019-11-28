@@ -58,13 +58,13 @@ class TestExemplar(unittest.TestCase):
     weekday = int(input("weekday:"))  # Eg, 0""" in code
         assert "# The generated function under Stage 2" in test_file_contents
 
-    def test_(self):
+    def test_monkey_trouble(self):
         code, test_file_contents = exemplar.reverse_trace("monkey_trouble.exem")
         assert """def monkey_trouble():
     a_smile = int(input("a_smile:"))  # Eg, 1""" in code  # First 2 lines of generated function.
         assert "# The generated function under Stage 2" in test_file_contents
 
-    def test_(self):
+    def test_sum_double(self):
         code, test_file_contents = exemplar.reverse_trace("sum_double.exem")
         assert """def sum_double():
     int1 = int(input("int1:"))  # Eg, 1""" in code  # First 2 lines of generated function.
