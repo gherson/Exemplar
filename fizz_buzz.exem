@@ -24,7 +24,7 @@ True  # so it passes down an ELSE path that
 
 <5           # 5 makes
 i1 % 5 == 0  # this condition true, and so
->Buzz        # this is returned.  Et cetera for the below...
+>Buzz        # this is returned.
 
 <6
 i1 % 3 == 0
@@ -35,16 +35,17 @@ True
 >7
 
 <8
-True
 >8
 
 <9
-i1 % 3 == 0
 >Fizz
 
 <10
 i1 % 5 == 0
 >Buzz
+
+<15
+>FizzBuzz
 
 <30
 i1 % 3 == 0 and i1 % 5 == 0

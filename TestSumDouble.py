@@ -30,8 +30,8 @@ def sum_double():
     print(str(int1+int2))
     # return str(int1+int2) 
     if int1==int2:
-        print('(' + str(int1+int2) + ') * 2')
-        return '(' + str(int1+int2) + ') * 2' 
+        print('(4) * ' + str(int2))
+        return '(4) * ' + str(int2) 
 
 
 class TestSumDouble(unittest.TestCase):

@@ -111,7 +111,7 @@ class TestFizzBuzz(unittest.TestCase):
 >7
 ''', actual_io_trace)
 
-    def test_fizz_buzz36(self):
+    def test_fizz_buzz35(self):
         global global_input
         global_input = ['8']  # From the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
@@ -119,7 +119,7 @@ class TestFizzBuzz(unittest.TestCase):
 >8
 ''', actual_io_trace)
 
-    def test_fizz_buzz40(self):
+    def test_fizz_buzz38(self):
         global global_input
         global_input = ['9']  # From the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
@@ -127,7 +127,7 @@ class TestFizzBuzz(unittest.TestCase):
 >Fizz
 ''', actual_io_trace)
 
-    def test_fizz_buzz44(self):
+    def test_fizz_buzz42(self):
         global global_input
         global_input = ['10']  # From the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.
@@ -135,7 +135,15 @@ class TestFizzBuzz(unittest.TestCase):
 >Buzz
 ''', actual_io_trace)
 
-    def test_fizz_buzz47(self):
+    def test_fizz_buzz45(self):
+        global global_input
+        global_input = ['15']  # From the .exem
+        fizz_buzz()  # The function under test is used to write to actual_io_trace.
+        self.assertEqual('''<15
+>FizzBuzz
+''', actual_io_trace)
+
+    def test_fizz_buzz48(self):
         global global_input
         global_input = ['30']  # From the .exem
         fizz_buzz()  # The function under test is used to write to actual_io_trace.

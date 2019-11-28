@@ -33,6 +33,8 @@ guess2.exem, and leap_year.exem. 2018-03-25
 Next: "Last minute" improvements before creating an official screencast: 
 Will add arguments to the generated function if easy.
 
+* 2019-11-28: Started a screencast-o-matic free trial and recorded and shared screencasts.  Unfortunately their
+watermark is huge so I will find a workaround. Created a (too large) pycallgraph call graph for documentation. 3.75h   
 * 2019-11-27: E allows user to choose multiple text transformations for the same line. All demonstration problems 
 working except sum_double's is incomplete. 9.5h 
 * 2019-11-26: Code commit. Increasing options for user to choose transformations. 6.75h
