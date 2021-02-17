@@ -162,3 +162,5 @@ becomes
             return False
         
 in the if/elif branch order Exemplar found to succeed.
+
+This project is licensed under the terms of the GPL v3 license.
