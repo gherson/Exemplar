@@ -2649,7 +2649,8 @@ def most_repeats_in_an_example(assertion=None, assertion_scheme=None) -> Tuple:
     Whether we have a given assertion or assertion scheme, find the example that has the most of them.
     :param assertion: condition of interest
     :param assertion_scheme: scheme of interest
-    :return: count of matching assertion/scheme in a found example_id, as a tuple. Eg, 5, 2
+    :return: count of matching assertions/schemes in the most bountiful example, followed by that example's id, as a
+    tuple. Eg, 5, 2
     """
     if assertion:
         where_clause = "condition = '" + assertion + "'"
@@ -2688,8 +2689,8 @@ def fill_conditions_table() -> None:
     cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, right_side) 
     VALUES (?,?,?,?,?,?,?)""", all_conditions)
 
-    # Step 2: Fill in conditions.condition_type. (This is a separate step so that our get_condition_type()'s
-    # most_repeats_in_an_example() call can work (it selects from the conditions table).)
+    # Step 2: Fill in conditions.condition_type. (This is a separate step so that our call to get_condition_type() can
+    # work--it needs most_repeats_in_an_example() to select other info from the conditions table.)
     cursor.execute("SELECT el_id, example_id, condition, scheme FROM conditions")
     rows = cursor.fetchall()
 
