@@ -2838,7 +2838,9 @@ def get_condition_type(el_id: int, condition=None) -> str:
                                     or  # condition's literal is in next line, and that's an output:
                                     (assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
                                     get_line_item(el_id, 1, 'line_type') == 'out')):
-            condition_type = "assign"  # (Backtrack to 'if' when this condition_type fails. todo)
+            condition_type = "assign"  # (Backtrack to 'if' when this condition_type fails. todo  2020-10-07: No! that's
+            # not worth programming or the user's time waiting for E to chug through all the possibilities. E needs to
+            # instead require a colon after assertions with a == relop that model el/if. 10/7/2020)
 
         # else:
         #     assert True, condition + " unrecognized"

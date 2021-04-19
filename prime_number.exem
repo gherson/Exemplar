@@ -5,7 +5,7 @@ natural numbers." Eg, 2 is prime because it is >1 and cannot be formed by multip
 This problem matches better to a (unavailable) WHILE loop solution. In the meantime, replace the induced code's
 end of FOR range, currently 6, with "inp". 11/14/19
 
-This example based on input of 2 is redundant, as it shows only 1 iteration while Exemplar needs >1 to create a loop.
+The below <2 example is commented out because it isn't helpful to E. That's because it shows only 1 iteration while multiple need tracing for E to create a loop.
 <2
 i1==inp
 inp>1
@@ -17,29 +17,30 @@ Without a WHILE in Exemplar, this example requires the j loop to continue to 100
 <1009
 >True
 
+Note that we aren't going for maximum algorithmic efficiency in what the user specifies.  Hopefully, E can optimize that once it has a correct algorithm but in any case, correctness and usually, programmer time, are more important than execution time. 7/31/2020
 """
-<1008
+<1008     # A stub only considered for testing, not function synthesis.
 >False
 
 <0
 i1==inp
-inp <= 1  # Because inp is <=1, we
+inp <= 1  # I.e., because inp is <=1, we
 >False    # return False.
 
 <1
-i1==inp   # Ditto.
-inp <= 1
+i1==inp
+inp <= 1  # Ditto.
 >False
 
-<3  # A stub only considered for testing, not function synthesis.
+<3
 >True
 
 <4
 i1==inp       # Renaming i1 is a good (often necessary) practice.
 inp > 1
-j == 2        # FOR loop (and divisor) set up but no iterations in this example because
-inp % j == 0  # inp divides evenly.
->False        # And so we have an answer, not prime.
+j == 2        # FOR loop (and divisor) set up but it has no iterations in this example
+inp % j == 0  # because inp gets divided evenly.
+>False        # And so we have an answer: not prime.
 
 <5
 i1==inp
