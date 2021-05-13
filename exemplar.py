@@ -362,8 +362,8 @@ if __name__ == '__main__':
 
 def get_scheme(condition: str) -> str:
     """
-    Replace the (non-c-suffixed) integers with underscore.
-    And remove unquoted whitespace so that scheme('guess_count==0') == scheme('guess_count == 1')...
+    Replace the (non-c-suffixed) integers with underscore and remove unquoted whitespace, so that, eg,
+    scheme('guess_count==0') and scheme('guess_count == 1') reduce to the same '_==guess_count'.
     Ie, replace any number not appended to a valid name and not followed immediately by a period or 'c'.
     Used to find instances of looping, i.e., to match iterations of the same loop step in the target function.
     :database: not involved.
@@ -375,6 +375,7 @@ def get_scheme(condition: str) -> str:
     regex = re.compile(r'(?<![A-z_])\d+(?![\.c])')  # From https://regexr.com/48b5v 2/12/19.
     underscored = regex.sub(r'_', condition)
     return underscored
+    # todo Why are the below tests, and none of get_scheme()'s actual usages, using deflate()?
 
 
 if DEBUG and __name__ == '__main__':
@@ -1531,6 +1532,7 @@ def get_example_id(el_id: int) -> int:
 
 
 def get_block_record(first_el_id: int) -> Tuple:
+    """SELECT * FROM control_block_traces WHERE first_el_id=? LIMIT 1", (first_el_id,)"""
     cursor.execute("SELECT * FROM control_block_traces WHERE first_el_id=?", (first_el_id,))
     return cursor.fetchone()
 
@@ -1561,7 +1563,7 @@ def get_python(control_id: int, current_el_id: int) -> Tuple[str, int]:
     if rows[0][0] is None:
         return None, None
     else:
-        python, if_end, for_end = rows[0]  # See Select list above
+        python, if_end, for_end = rows[0]  # See Select list above.
         if python[0:2] == 'if':
             return python, if_end  # if_end is the minimum associated last_el_id.
         elif python[0:3] == 'for':
@@ -2012,18 +2014,19 @@ def filter_priors(matched_prior_values: OrderedDict, selections: List[int]):
 def generate_code(function_name: str) -> List[str]:
     """
     Information gathering steps done, now the info in tables selection, conditions, controls, control_trace_blocks,
-    and last_el_ids are collated into exem-conforming Python code.
-    Each example_lines record is considered in turn, in example_id major order. More specifically, their
-    implied code is added to `code` if not already there, and sanity checked against it otherwise.
-    Subsequent appearances can be from multiple examples or loop iterations. Additionally, 'assign'ments are
-    captured in a lookup table used for variable mention in the output (prints).
+    and last_el_ids are collated to synthesize a Python function.
+    Each example_lines record is considered in turn, in example (example_id) major order, for adding its implied
+    statement to `code` if not already there, and sanity checked against it otherwise. (Subsequent appearances of
+    example_lines implying the same Python statement come from multiple examples and loop iterations.)
+    Additionally, 'assign'ments are captured in a lookup table used for variable mention in the output (prints).
     :database: SELECTs sequential_function, selection. UPDATEs sequential_function via likely_data_type()).
     :return: Python `code`
     """
-    code = []
-    FORs = dict()  # Dictionaries instead of lists because indents (the key) aren't necessarily linear.
-    IFs = dict()
-    variable_types, indents = {}, 1
+    code = []  # Synthesized Python code lines.
+    FORs = dict()  # These are dictionaries instead of lists because
+    IFs = dict()   # indents (the key) aren't necessarily linear. ?
+    variable_types = {}
+    indents = 1  # Tracks the indent level for the current point in `code`.
 
     # Loop over all example_lines, also pulling their condition info where it exists. (Keep this select list in sync
     # with next_row indices below.)
@@ -2031,21 +2034,21 @@ def generate_code(function_name: str) -> List[str]:
     FROM example_lines el
     NATURAL JOIN examples e  
     LEFT JOIN conditions c ON el.el_id = c.el_id
-    WHERE e.truth_count > 0 ORDER BY el.el_id"""
+    WHERE e.truth_count > 0 ORDER BY el.el_id"""  # Filter out unit test-only examples.
     cursor.execute(sql)  # Filtering out the zero truth_count, i.e., assertion-less, examples that are for testing only.
     selection = cursor.fetchall()
     if len(selection) == 0:
         print("*Zero* example lines found.")
 
-    latest_IF = None  # To hold code_key of latest IF branch to be added or sanity checked.
-    code_key = 0
+    latest_IF = None  # To hold code_line of latest IF branch to be added or sanity checked.
+    code_line = 0  # Index into `code`.
     add_consequent_until_indent = False  # Will be set to the IF's leading indent whenever adding it mid-`code`.
     # todo Distinguish arguments from variable assignments and input() statements.
     latest_IF_added = ''
     last_el_ids = []
     prior_row = [None, None, None, None, None, None, None]
     i = 0  # selection line counter
-    for row in selection:
+    for row in selection:  # All example_lines from real examples.
         el_id, example_id, line, line_type, condition, condition_type, control_id = row
         if DEBUG:
             print("i =", i)
@@ -2053,14 +2056,15 @@ def generate_code(function_name: str) -> List[str]:
         if example_id != prior_row[1]:  # Then we're on a new user example.
             assert get_scheme(condition) == "_==__example__", get_scheme(condition)
             prior_values = OrderedDict()  # Clear out (or initialize).
-            code_key = 0  # Start comparing anew, at the top of `code`.
-        # else:  # Default is to advance code_key with each `line`.
-        #     code_key += 1
+            code_line = 0  # Start comparing anew, at the top of `code`.
+        # else:  # Default is to advance code_line with each `line`.
+        #     code_line += 1
 
-        # Re: input and output lines, we can simply add them to `code` if we're on its frontier, or dealing with an IF.
         if add_consequent_until_indent and add_consequent_until_indent >= indents:
             add_consequent_until_indent = False
-        if code_key == len(code) or add_consequent_until_indent:
+        # Re: input and output lines, we can simply add them to `code` if we're on its frontier,
+        #                        or dealing with an IF.
+        if code_line == len(code) or add_consequent_until_indent:
             add_io_to_code = True
         else:
             add_io_to_code = False
@@ -2071,19 +2075,19 @@ def generate_code(function_name: str) -> List[str]:
             # Use our default variable name, then see if another was assigned.
             variable_name = "i1"  # "v" + str(el_id)
             if i+1 < len(selection):  # Unless at last 'line', look ahead.
-                next_row = selection[i+1]  # el_id, line, line_type, ...
-                # If the next row is truth and has an equality "naming" 'line's value, make that name the variable name.
+                next_row = selection[i+1]  # el_id, example_id, line, line_type, ...
+                # If the next row is truth and has an equality "naming" 'line's value, make that the variable name.
                 if next_row[5] == 'assign':  # next_row[5] is condition_type     and get_variable_name(next_row[2], 'i1'):  # Eg, ('guess==i1', 'i1') => guess
-                    variable_name = get_variable_name(next_row[2], 'i1')  # next_row[2] is line. Eg, 'guess'
+                    variable_name = get_variable_name(next_row[2], 'i1')  # next_row[2] is `line`. Eg, 'guess'
 
             assignment = indents * "    " + variable_name + ' = input("' + variable_name + ':")' + "  # Eg, " + line
             if add_io_to_code:
-                code.insert(code_key, assignment)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
+                code.insert(code_line, assignment)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
             else:  # Sanity check.
                 pos = assignment.find("  # Eg, ")  # Exclude " # Eg, [...]" comment from the following comparison.
-                assert assignment[0:pos+1] == code[code_key][0:pos+1], "'" + assignment[0:pos+1] + \
-                                                                       "'  *is not*  '" + code[code_key][0:pos+1] + "'"
-            code_key += 1
+                assert assignment[0:pos+1] == code[code_line][0:pos+1], "'" + assignment[0:pos+1] + \
+                                                                       "'  *is not*  '" + code[code_line][0:pos+1] + "'"
+            code_line += 1
 
             if line:  # line's possibly empty (due to no example input).
                 # Note the input values for later substitution with their variable in our print()s.
@@ -2109,7 +2113,7 @@ def generate_code(function_name: str) -> List[str]:
 
             if add_io_to_code:
                 if len(choices) > 1:  # Then ask the user to resolve ambiguity (and save answer).
-                    question = "Immediately after lines \n" + '\n'.join(code[code_key - min(4, code_key):code_key]) + \
+                    question = "Immediately after lines \n" + '\n'.join(code[code_line - min(4, code_line):code_line]) + \
                                "\nwhich transformation? "
                     if len(choices) > 2:
                         question = question[0:-2] + "s? Please enter the sum of your selected choices: "
@@ -2123,21 +2127,21 @@ def generate_code(function_name: str) -> List[str]:
                     answer = line
                 print_line = (indents * "    ") + "print(" + answer + ')'
 
-                code.insert(code_key, print_line)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
-                code_key += 1  # Next line.
+                code.insert(code_line, print_line)  # *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD *** ADD ***
+                code_line += 1  # Next line.
                 # Add return if `line` is not a string > 10 chars and it's not in a loop (__example__ loop excepted)
                 # (todo) and its the last output and its datatype is consistent across cohort.
                 return_text = (indents * "    ") + "# return "
                 if (type_string(line) != 'str' or len(line) <= 10) and not is_open(code[1:], 'for'):
-                    code.insert(code_key, return_text + answer + return_text[-1])  # (Uncommented in Stage 2.)
-                    code_key += 1  # Extra index increment to get past # return statement.
+                    code.insert(code_line, return_text + answer + return_text[-1])  # (Uncommented in Stage 2.)
+                    code_line += 1  # Extra index increment to get past # return statement.
 
             else:  # Sanity check
-                print_argument = code[code_key].lstrip()[6:-1]  # Eg, print('Sum is ' + str(int1+int2)) => 'Sum is ' + str(int1+int2)
+                print_argument = code[code_line].lstrip()[6:-1]  # Eg, print('Sum is ' + str(int1+int2)) => 'Sum is ' + str(int1+int2)
                 assert print_argument in '|'.join(choices), print_argument + " not found in " + '|'.join(choices)
-                code_key += 1
-                if code_key < len(code) and code[code_key].find(return_text) > -1:
-                    code_key += 1
+                code_line += 1
+                if code_line < len(code) and code[code_line].find(return_text) > -1:
+                    code_line += 1
 
         else:  # truth/assertions/reasons/conditions
 
@@ -2153,40 +2157,41 @@ def generate_code(function_name: str) -> List[str]:
 
             else:  # for or if
                 if condition_type == 'for':  # Needed for below latest_IF_added, which is used when adding IFs:
-                    local_iteration = get_block_record(first_el_id=el_id)[8]  # "0 based local count"
+                    local_iteration = get_block_record(first_el_id=el_id)[8]  # ==0 if el_id marks 1st local loop iter.
                     if left_operand.isdigit():
                         left_operand = int(left_operand)
                     prior_values[right_operand] = left_operand  # Eg, prior_values[guess_count] = 5
 
                 #                    **********
-                python, last_el_id = get_python(control_id, el_id)  # Retrieves iff el_id is a controls.first_el_id
-                #                    **********
-                if python:  # Then this is a control we haven't seen, so to `code`
+                python, last_el_id = get_python(control_id, el_id)  # Retrieves python code iff el_id is a
+                #                    **********      controls.first_el_id, meaning this is the control's 1st appearance.
+                if python:  # Then add this control top to `code`.
                     print("Appending last_el_id", last_el_id, "for added line", line)
-                    last_el_ids.append(last_el_id)  # last_el_ids are tracked to determine when to dedent.
+                    last_el_ids.append(last_el_id)  # last_el_ids are tracked to determine when to dedent in `code` (be-
+                    #                                 cause a block has ended).
 
                     if condition_type == "for":  #python[0:4] == "for ":
-                        code.insert(code_key, indents * "    " + python)  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
-                        #code_key = len(code)  # Point to last element so add_io_to_code will be set True.
-                        latest_FOR_added = code_key
-                        code_key += 1
+                        code.insert(code_line, indents * "    " + python)  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
+                        #code_line = len(code)  # Point to last element so add_io_to_code will be set True.
+                        latest_FOR_added = code_line
+                        code_line += 1
 
                         if indents not in FORs:
                             FORs[indents] = dict()  # dict() needed because there can be >1 FOR at a given indent.
-                        FORs[indents][code_key-1] = right_operand  # To enable recall of loop's variable and 1st line.
+                        FORs[indents][code_line-1] = right_operand  # To enable recall of loop's variable and 1st line.
                         # FOR_period, FOR_increment = get_for_loops_record(control_id, last_el_id)[4:6]  # Loop details.
 
                     elif condition_type == "if":
 
-                        # IFs[indents] is a dict[code_key, [(condition, is_elif, [prior_values)]), ...].
+                        # IFs[indents] is a dict[code_line, [(condition, is_elif, [prior_values)]), ...].
                         if indents not in IFs:
-                            code_key = len(code)
+                            code_line = len(code)
                         else:
-                            code_key = get_if_key(condition, IFs[indents])
-                            code_key = get_last_line_of_indent(code, code_key, any_change=False) + 1
-                        code.insert(code_key, indents * "    " + python)  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
-                        latest_IF = code_key
-                        code_key += 1
+                            code_line = get_if_key(condition, IFs[indents])
+                            code_line = get_last_line_of_indent(code, code_line, any_change=False) + 1
+                        code.insert(code_line, indents * "    " + python)  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
+                        latest_IF = code_line
+                        code_line += 1
                         add_consequent_until_indent = indents  # Note to add this IF's consequent to `code`.
                         prior_IF_added = latest_IF_added
                         latest_IF_added = {"indents": indents, "example_id": example_id, "iteration": local_iteration}
@@ -2199,11 +2204,11 @@ def generate_code(function_name: str) -> List[str]:
                         # If an IF is open, and the most recently added IF is *not* of same indent,
                         elif is_open(code, 'if') and prior_IF_added != latest_IF_added:  # example, & iteration as
                             # the last, "if" -> "elif".
-                            code[code_key-1] = code[code_key-1].replace("if ", "elif ", 1)
+                            code[code_line-1] = code[code_line-1].replace("if ", "elif ", 1)
                             is_elif = True  # Mark ELIF
 
-                        assert code_key-1 not in IFs[indents]  # I believe this should always be true.
-                        IFs[indents][code_key-1] = (condition, is_elif, [prior_values.copy()])  # 3rd element list is for elif ordering via testing.
+                        assert code_line-1 not in IFs[indents]  # I believe this should always be true.
+                        IFs[indents][code_line-1] = (condition, is_elif, [prior_values.copy()])  # 3rd element list is for elif ordering via testing.
                     else:
                         assert False, "condition_type " + condition_type + " unrecognized"
 
@@ -2220,28 +2225,28 @@ def generate_code(function_name: str) -> List[str]:
                             indents += 1  # FOR loop in this user example, opening a new block.
                             print("Appending last_el_id", last_el_id, "for non-added FOR line", line)
                             last_el_ids.append(last_el_id)
-                        # Determine which FOR is being reiterated, and point to it with code_key.
-                        # (loop_variable, code_key = FORs[indents -1] would be good enough if indents couldn't repeat.)
-                        loop_variable, code_key = get_via_closest_prior_key(FORs[indents - 1], code_key, code, 'for')  # Re-assign code_key.
+                        # Determine which FOR is being reiterated, and point to it with code_line.
+                        # (loop_variable, code_line = FORs[indents -1] would be good enough if indents couldn't repeat.)
+                        loop_variable, code_line = get_via_closest_prior_key(FORs[indents - 1], code_line, code, 'for')  # Re-assign code_line.
                         #             *** ^^^ ***
 
-                        # indents = int((len(code[code_key]) - len(code[code_key].lstrip())) / 4) + 4
+                        # indents = int((len(code[code_line]) - len(code[code_line].lstrip())) / 4) + 4
                         assert right_operand == loop_variable, "'" + right_operand + "'  *is not*  '" + loop_variable + "'"
 
                     else:  # IF
                         print("Appending last_el_id", last_el_id, "for non-added IF line", line)
                         last_el_ids.append(last_el_id)
 
-                        # IFs[indents] is a dict of code_key to a list of (condition, is_elif, [prior_values)]) tuples.
-                        code_key = get_if_key(line, IFs[indents])
+                        # IFs[indents] is a dict of code_line to a list of (condition, is_elif, [prior_values)]) tuples.
+                        code_line = get_if_key(line, IFs[indents])
                         # Asserting found because store_ifs() is supposed to give every unique IF a start_el_id.
-                        assert line == IFs[indents][code_key][0], \
-                            "\nExpected: " + line + "\nActual: " + IFs[indents][code_key][0]
-                        latest_IF = code_key
+                        assert line == IFs[indents][code_line][0], \
+                            "\nExpected: " + line + "\nActual: " + IFs[indents][code_line][0]
+                        latest_IF = code_line
 
-                        IFs[indents][code_key][2].append(prior_values.copy())  # For downstream elif order testing.
+                        IFs[indents][code_line][2].append(prior_values.copy())  # For downstream elif order testing.
                         indents += 1  # A new block (an IF consequence) will open for the next `line`.
-                    code_key += 1
+                    code_line += 1
 
         while last_el_ids and el_id >= last_el_ids[-1]:  # For each block just ended (at el_id).
             if latest_FOR_added:
@@ -2255,14 +2260,14 @@ def generate_code(function_name: str) -> List[str]:
                     # Versus abs(int(5)) > abs(last_int_of_string('guess_count==5')), which doesn't.
                     if iteration_line_0 and (abs(int(to_point)) - 1) > abs(last_int_of_string(iteration_line_0)):
                         # Break right after the last line of the most recent IF mentioned in the trace.
-                        code_key = get_last_line_of_indent(code, latest_IF+1, any_change=False) + 1
+                        code_line = get_last_line_of_indent(code, latest_IF+1, any_change=False) + 1
                         if DEBUG:
                             print("Adding 'break'. len(code), el_id, iteration_line_0, latest_FOR_added: ",
                                   len(code), el_id, iteration_line_0, '"' + code[latest_FOR_added] + '"')
-                        #Bad idea because get_last_line_of_indent() is used to determined next IF branch placement: code.insert(code_key, '')  # Separating BREAK with a blank line so that any additional IF branches precede it.
-                        #code_key += 1
-                        code.insert(code_key, indents * "    " + "break")  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
-                        code_key += 1
+                        #Bad idea because get_last_line_of_indent() is used to determined next IF branch placement: code.insert(code_line, '')  # Separating BREAK with a blank line so that any additional IF branches precede it.
+                        #code_line += 1
+                        code.insert(code_line, indents * "    " + "break")  # *** ADD *** ADD *** ADD *** ADD *** ADD ***
+                        code_line += 1
                         latest_FOR_added = None
 
             indents -= 1  # dedent
@@ -2274,8 +2279,8 @@ def generate_code(function_name: str) -> List[str]:
     if DEBUG:
         for for_loops_at_indent in FORs:
             print("Re: the FOR loops at indentation", str(for_loops_at_indent) + ':')
-            for code_key in FORs[for_loops_at_indent]:  # (code_key isn't looking ahead here.)
-                print("    At `code` key", str(code_key) + ", the loop variable is:", FORs[for_loops_at_indent][code_key])
+            for code_line in FORs[for_loops_at_indent]:  # (code_line isn't looking ahead here.)
+                print("    At `code` key", str(code_line) + ", the loop variable is:", FORs[for_loops_at_indent][code_line])
             print()
         for an_indent in IFs:
             print("The IFs at indentation", str(an_indent) + ':')
@@ -2689,8 +2694,8 @@ def fill_conditions_table() -> None:
     cursor.executemany("""INSERT INTO conditions (el_id, example_id, condition, scheme, left_side, relop, right_side) 
     VALUES (?,?,?,?,?,?,?)""", all_conditions)
 
-    # Step 2: Fill in conditions.condition_type. (This is a separate step so that our call to get_condition_type() can
-    # work--it needs most_repeats_in_an_example() to select other info from the conditions table.)
+    # Step 2: Fill in conditions.condition_type. This is a separate step so that our call to get_condition_type() can
+    # work--it needs most_repeats_in_an_example() to select other info from the conditions table.
     cursor.execute("SELECT el_id, example_id, condition, scheme FROM conditions")
     rows = cursor.fetchall()
 
@@ -2699,7 +2704,7 @@ def fill_conditions_table() -> None:
 
         condition_type = get_condition_type(el_id, condition)  # ******* get_CONDITIONS_TYPE() *******
 
-        cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany some day...
+        cursor.execute("UPDATE conditions SET condition_type = ? WHERE el_id = ?", (condition_type, el_id))  # .executemany preferable
 
     return
     """ May become useful if more condition tables are needed:
@@ -2789,7 +2794,7 @@ def get_el_id_of_example_at(extremity: str, el_id: int) -> int:
 
 def get_condition_type(el_id: int, condition=None) -> str:
     """
-    Look up the condition_type of specified el_id, or instead determine it from `condition` if that is provided.
+    Determine the condition_type of el_id from `condition` (et cetera) if that is provided, from db lookup if not.
     :param el_id:
     :param condition:
     :return: 'if'|'for'|'assign'
@@ -2805,16 +2810,18 @@ def get_condition_type(el_id: int, condition=None) -> str:
         condition_type = 'if'  # Default
 
         left, operator, right = assertion_triple(condition)
-
+        assertion_scheme_count = most_repeats_in_an_example(assertion_scheme=condition)[0]
+        assertion_count        = most_repeats_in_an_example(assertion=condition)[0]
         # Lines that equate a digit to a (non-input) variable are noted, if their scheme repeats intra-example, as
         # **** FOR ****
         if right == "__example__":  # Special case: repeats only inter-example because it delimits them.
             condition_type = "for"
+
         # Eg, 3 == guess_count
         # elif left.isdigit() and   Doesn't work for prime_number.exem.
-        # If an equals relations has >1 almost-repeats, assume it signifies a FOR loop iteration.
-        elif "==" in condition and \
-                (most_repeats_in_an_example(assertion_scheme=condition)[0] - most_repeats_in_an_example(assertion=condition)[0]) > 1:
+        # If an equals relation has >1 almost-repeats, assume it signifies a loop iteration. (Only works while the ban
+        # on variable reuse continues.)
+        elif "==" in condition and (assertion_scheme_count - assertion_count) > 1:
             condition_type = "for"
 
         # **** IF & ASSIGN ****
@@ -2824,8 +2831,7 @@ def get_condition_type(el_id: int, condition=None) -> str:
             else:           # ...is compound (ANDed, NOTed and/or ORed).
                 condition_type = 'if'
 
-        # Math operations not leading to an immediate output substitution are deemed 'if' conditions. (This should be
-        # narrower or at least kept after the 'for' qualifications.  ?)
+        # Math operations not leading to an immediate output substitution are deemed 'if' conditions. todo Narrow this.
         elif ('%' in left or '*' in left or '+' in left or '/' in left or '-' in left) and not \
             (assertion_triple(condition)[2] in get_line_item(el_id, 1, 'line') and
             get_line_item(el_id, 1, 'line_type') == 'out'):
@@ -3042,7 +3048,7 @@ def store_fors() -> None:
         # The big picture is that we're gathering info (ie, assigning to variables) for db updates, especially the
         # insert_cbt_with_iteration() call at bottom.
 
-        left, operator, variable = assertion_triple(condition)  # Eg: 5, ==, guess_count
+        left, operator, variable = assertion_triple(condition)  # Eg, 5, ==, guess_count
         left = sympy.sympify(left)  # Needed for comparison with other Sympy symbols.
 
         if iteration_count == 2 or (not loop_increment and iteration_count > 2):  # 2nd iteration, globally considered.
@@ -3106,6 +3112,7 @@ def store_fors() -> None:
             else:
                 # Create the control record. Eg, 'for guess_count in range(0, 6, 1)'
                 extended_to_point = sympy.to_dnf(to_point + loop_increment)  # Due to endpoint's exclusivity.
+
                 # Eg, python = "for j in range(0, 2, 1):"
                 python = "for " + loop_variable + " in range(" + first_value + ', ' + str(extended_to_point) + ', ' + \
                          str(loop_increment) + '):'
@@ -3519,7 +3526,7 @@ def remove_examples_loop(code_list: List[str]) -> List[str]:
 
 def get_function(file_arg: str) -> Tuple[str, str, int]:
     """
-    Attempt to find an example-satisfying function then report success or failure. In two stages:
+    Attempt to find an examples-satisfying function then report success or failure. In two stages:
     Stage 1 searches for a function that passes all examples as part of the same (__example__) FOR loop.
     Stage 2 renames that TestX.py to TestX.tmp then creates another, without the artificial FOR loop and with a
     unit test per user example.
