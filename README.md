@@ -1,105 +1,14 @@
 # Exemplar
-Function synthesis from code traces consisting of >input, <output, and assertions 
-modelling the needed control structure. 
+See [LOG.md](LOG.md) for status.
 
-Currently, if/elif, for loop, and break controls
- can be synthesized.
-  
-The mechanisms for finding conforming code are deduction and generate-and-test.
+The goal of this project is synthesis of working (unpolished) Python functions from example input/output and assertions. 
 
-Example 1: 
+Currently, if/elif, for loop, and break controls are synthesized until all given examples pass.
 
-    # User wins.
-    >Hello! What is your name?
-    <Albert
-    name==i1         # simple assignment (SA)
-    <4               # A random #
-    secret==i1       # SA
-    >Well, Albert, I am thinking of a number between 1 and 20.
-    guess_count==0   # iteration
-    # Full line comment.
-    >Take a guess.
-    <10
-    guess==i1, guess>secret  # SA, selection
-    >Your guess is too high.
-    guess_count == 1 # iteration
-    >Take a guess.
-    <2
-    guess==i1, guess<secret  # SA, selection
-    >Your guess is too low.
-    guess_count==2   # iteration
-    >Take a guess.
-    <4
-    guess==i1, guess==secret  # SA, selection
-    guess_count + 1 == 3  # SA
-    >Good job, Albert! You guessed my number in 3 guesses!
-    
-   
-    # User loses.
-    >Hello! What is your name?
-    <John
-    name==i1
-    <3
-    secret==i1
-    >Well, John, I am thinking of a number between 1 and 20.
-    guess_count==0
-    >Take a guess.
-    <11
-    guess==i1, guess>secret
-    >Your guess is too high.
-    guess_count == 1
-    >Take a guess.
-    <1
-    guess==i1, guess<secret
-    >Your guess is too low.
-    guess_count==2
-    >Take a guess.
-    <2
-    guess==i1, guess<secret
-    >Your guess is too low.
-    guess_count==3
-    >Take a guess.
-    <10
-    guess==i1, guess>secret
-    >Your guess is too high.
-    guess_count==4
-    >Take a guess.
-    <9
-    guess==i1, guess>secret
-    >Your guess is too high.
-    guess_count==5
-    >Take a guess.
-    <8
-    guess==i1, guess>secret
-    >Your guess is too high.
-    guess_count >= 5  # User avoids guess_count == 5, as that'd look like another iteration.
-    >Nope. The number I was thinking of was 3.
+Exemplar's mechanisms for finding conforming code are deduction, generate-and-test, and asking multiple choice questions.
 
-    
-becomes
-    
-    def guess4():
-        print('Hello! What is your name?')
-        name = input("name:")  # Eg, Albert
-        secret = int(input("secret:"))  # Eg, 4
-        print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
-        for guess_count in range(0, 6, 1):
-            print('Take a guess.')
-            guess = int(input("guess:"))  # Eg, 10
-            if guess>secret:
-                print('Your guess is too high.')
-            elif guess<secret:
-                print('Your guess is too low.')
-            elif secret==guess:
-                print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
-                break
-        if guess_count>=5:
-            print('Nope. The number I was thinking of was ' + str(secret) + '.')
-        
- with per-example unit tests also generated.
- 
- Example 2:
- 
+Examples that result in the function at bottom: 
+
     """
     leapYear(int year):
     returns true iff
@@ -147,7 +56,7 @@ becomes
     i1 % 400 == 0
     >True
 
-becomes
+is interpreted to mean
 
     def leap_year():
         i1 = int(input("i1:"))  # Eg, 399
@@ -161,6 +70,6 @@ becomes
             print(False)
             return False
         
-in the if/elif branch order Exemplar found to succeed.
+Per-example unit tests are also generated.
 
 This project is licensed under the terms of the GPL v3 license.
