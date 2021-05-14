@@ -1,0 +1,31 @@
+Immediately after lines 
+            elif guess==secret:
+                print('Good job, ' + str(name) + '! You guessed my number in ' + str(guess_count+1) + ' guesses!')
+                break
+        if guess_count>=5:
+which transformation? 
+1) print('Nope. The number I was thinking of was 3.')
+2) print('Nope. The number I was thinking of was ' + str(secret) + '.')
+2
+
+Immediately after lines 
+                print('Your guess is too high.')
+            elif guess<secret:
+                print('Your guess is too low.')
+            elif guess==secret:
+which transformations? Please enter the sum of your selected choices: 
+1) print('Good job, Albert! You guessed my number in 3 guesses!')
+2) print('Good job, ' + str(name) + '! You guessed my number in 3 guesses!')
+4) print('Good job, Albert! You guessed my number in ' + str(guess_count+1) + ' guesses!')
+6
+
+Immediately after lines 
+        print('Hello! What is your name?')
+        name = input("name:")  # Eg, Albert
+        print('secret = random.randint(1,20)')
+        secret = input("secret:")  # Eg, 4
+which transformation? 
+1) print('Well, Albert, I am thinking of a number between 1 and 20.')
+2) print('Well, ' + str(name) + ', I am thinking of a number between 1 and 20.')
+2
+

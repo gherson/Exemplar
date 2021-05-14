@@ -1,0 +1,10 @@
+Immediately after lines 
+        if i1%3==0 and i1%5==0:
+            print('FizzBuzz')
+            # return 'FizzBuzz' 
+        elif True:
+which transformation? 
+1) print('1')
+2) print(str(i1))
+2
+

@@ -1,0 +1,21 @@
+Immediately after lines 
+        int2 = input("int2:")  # Eg, 2
+        print(str(int1+int2))
+        # return str(int1+int2) 
+        if int1==int2:
+which transformations? Please enter the sum of your selected choices: 
+1) print('(4) * 2')
+2) print('(4) * ' + str(int1))
+4) print('(4) * ' + str(int2))
+8) print('(' + str(int1+int2) + ') * 2')
+8
+
+Immediately after lines 
+    for __example__ in [0,1,2]:
+        int1 = input("int1:")  # Eg, 1
+        int2 = input("int2:")  # Eg, 2
+which transformation? 
+1) print('3')
+2) print(str(int1+int2))
+2
+
